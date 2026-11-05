@@ -117,9 +117,10 @@ def report(out: Path) -> str:
         checks.append(("5. Shock response", False, "not run"))
     # 6 spread
     spread = [r["yearly"]["occupied_cells"][-1] for r in survived]
-    ok6 = all(s > 1 for s in spread)
+    first = [r["yearly"]["occupied_cells"][0] for r in survived]
+    ok6 = all(s > f for s, f in zip(spread, first))
     checks.append(("6. Spread begins", ok6, f"occupied land cells at year 2,000: {min(spread)}–{max(spread)} "
-                   f"(median {np.median(spread):.0f}), from 1 at the start"))
+                   f"(median {np.median(spread):.0f}), from {min(first)}–{max(first)} after the first year"))
     # 7 nothing from nothing
     fails = sum(r["invariant_failures"] for r in runs)
     checks.append(("7. Nothing from nothing", fails == 0, f"{fails} accounting failures in {n} runs "
@@ -135,8 +136,10 @@ def report(out: Path) -> str:
     checks.append(("9. Explainability", chk > 0 and chk == res, f"{res} of {chk} sampled deaths and band events have complete cause chains"))
     # 10 speed
     secs = np.array([r["seconds"] for r in survived])
+    sliced = sum(1 for r in survived if r.get("sliced"))
     checks.append(("10. Speed", None, f"2,000 years took {secs.min():.0f}–{secs.max():.0f} s (median {np.median(secs):.0f} s) "
-                   f"in this test environment, two runs in parallel; the target was to be fixed once the first version existed"))
+                   f"of computing, two histories in parallel ({sliced} histories ran on Ben's computer in checkpointed slices); "
+                   f"no target was fixed in the specification"))
 
     add("| Check | Result | Evidence |\n|---|---|---|")
     for name, ok, ev in checks:

@@ -20,4 +20,4 @@ Ben owns the design. Read `../DESIGN_DRAFT_v0.4.md` (or newer) and the current m
 - `gates/g0.py`, `gates/g0_report.py` gate G0 · `tests/test_m0.py`
 
 ## Current milestone
-M0 "the first people survive". See `docs/M0_GATE_REPORT.md` for the latest gate result.
+M0 "the first people survive": gate G0 PASSED on 6 November 2026 with three founding bands (awaiting Ben's approval to close). Next: M1 (spread, cultural and language drift, hazards). See `docs/M0_GATE_REPORT.md`.

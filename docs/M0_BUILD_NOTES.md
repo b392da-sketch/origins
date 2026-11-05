@@ -43,7 +43,7 @@ In many extinct histories 40–80% of women aged 18–40 had no partner: small, 
 
 In the final gate, every history that died out had the same signature: the founding band **never grew beyond one band** (peak 29–49 people), with no hunger and food fully available. An isolated band of 30 runs out of partners who are not siblings or half-siblings within a generation or two, and there is nobody else in the world to marry. Every history that reached two bands survived.
 
-Experiment (not part of the gate; default unchanged): with `FOUNDING_BANDS = 3` (three bands of 30 in neighbouring land), **0 of 40** histories died out within 600 years on planets 1 and 2, against 15 of 40 with one band. The founding scenario is Ben's design decision, so the default remains one band of 30.
+Experiment (not part of the gate; default unchanged): with `FOUNDING_BANDS = 3` (three bands of 30 in neighbouring land), **0 of 40** histories died out within 600 years on planets 1 and 2, against 15 of 40 with one band. Ben chose three bands of 30 on 6 November 2026; it is now the default, and the full gate passed with 100 of 100 histories surviving (see `M0_GATE_REPORT.md`).
 
 ## Event-log volume
 
@@ -61,3 +61,7 @@ Histories are identical when re-run on the same Python and NumPy versions (teste
 - Discovery of land is recorded on the map (who reached it and when) rather than as events.
 - No natural hazards other than good and bad years; no technology, culture or language change yet.
 - Speed: about 100–135 seconds per 2,000-year history in the build environment. The observatory's fast-forward reaches about 10 simulated years per second while the world is small and slows as it grows.
+
+## Running gates on Ben's computer
+
+The Linux environment on Ben's computer cannot keep a process alive between calls, and two large worlds at once exceed its memory. `gates/g0_slice.py` runs histories in time-limited slices with exact checkpoints (one history at a time for large worlds). 22 of the final 100 histories ran this way.
