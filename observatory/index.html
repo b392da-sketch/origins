@@ -334,7 +334,7 @@ async function refresh(force){
     <dt>Followed band</dt><dd>${S.follow >= 0 ? `<a style="cursor:pointer;color:var(--accent2)" onclick="showBand(${S.follow})">band ${S.follow}</a>` : "none"}</dd>
     <dt>Interventions</dt><dd>${S.intervened ? "yes (this world has been changed by the observer)" : "none"}</dd>
     <dt>Accounting checks</dt><dd>${S.invariant_failures ? `<span class="err">${S.invariant_failures} failures</span>` : "all passing"}</dd>`;
-  $("#err").textContent = S.error || "";
+  $("#err").textContent = S.error || S.load_warning || "";
   chart(S.series);
   const ev = await api("/api/events");
   $("#events").innerHTML = ev.map(e => `<li onclick="why('${e.ref}')">${esc(e.title)} <small>${bp(e.bp)}</small></li>`).join("");

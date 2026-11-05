@@ -39,6 +39,11 @@ def _jsonable(x):
     return x
 
 
+def environment() -> dict:
+    import platform
+    return {"python": platform.python_version(), "numpy": np.__version__}
+
+
 def to_bytes(w: World) -> bytes:
     meta = {
         "schema": SCHEMA, "version": VERSION, "world_seed": w.world_seed, "run_seed": w.run_seed,
@@ -50,6 +55,7 @@ def to_bytes(w: World) -> bytes:
         "yearly": w.yearly, "accum": w.accum, "season_stats": w.season_stats, "events": w.events,
         "bands": [dataclasses.asdict(b) for b in w.bands.values()],
         "reveal_pending": sorted(w.reveal_pending), "pending_restore": w.pending_restore,
+        "env": environment(),
     }
     arrays = {"stock": w.stock, "known": w.known, "discovered_by": w.discovered_by,
               "discovered_at": w.discovered_at, "food_modifier": w.food_modifier,
@@ -75,6 +81,12 @@ def from_bytes(data: bytes, planet=None) -> World:
     if planet.fingerprint != meta["planet_fingerprint"]:
         raise ValueError("planet fingerprint mismatch: this save was made with different world-generation code")
     w = World(planet, meta["run_seed"])
+    saved_env = meta.get("env")
+    w.load_warning = ""
+    if saved_env and saved_env != environment():
+        w.load_warning = (f"saved with Python {saved_env['python']} / NumPy {saved_env['numpy']}, now running "
+                          f"{environment()['python']} / {environment()['numpy']}: the world continues normally, but its "
+                          f"future may differ slightly from the same save continued on the original versions")
     w.t = meta["t"]
     w.counts = meta["counts"]
     w.ledger = meta["ledger"]

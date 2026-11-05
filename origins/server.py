@@ -145,7 +145,7 @@ def summary(w) -> dict:
         "follow_rate": state["follow_rate"], "fast_target": state["fast_target"], "error": state["error"],
         "extinct": engine.extinct(w), "series": series, "invariant_failures": len(w.invariant_failures),
         "intervened": w.intervened, "years_per_day_normal": 300, "threshold": P.INDIVIDUAL_THRESHOLD,
-        "food_ratio": w.season_stats.get("ratio", 1.0),
+        "food_ratio": w.season_stats.get("ratio", 1.0), "load_warning": getattr(w, "load_warning", ""),
     }
 
 

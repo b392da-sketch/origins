@@ -108,6 +108,14 @@ def _kin(p, a, b) -> bool:
     return ma == b or fa == b or mb == a or fb == a
 
 
+def _ring(nb, c, rings):
+    cells, frontier = {c}, {c}
+    for _ in range(rings):
+        frontier = {int(x) for f in frontier for x in nb[f] if x >= 0} - cells
+        cells |= frontier
+    return sorted(cells)
+
+
 def partnerships(w):
     p = w.people
     rng = w.rng["partners"]
@@ -140,7 +148,7 @@ def partnerships(w):
     for i in rng.permutation(seekers):
         i = int(i)
         c = int(cell[p.band[i]])
-        near = [c] + [int(x) for x in nb[c] if x >= 0]
+        near = _ring(nb, c, P.PARTNER_RINGS)
         cand = [m for cc in near for m in by_cell.get(cc, ()) if m not in taken and not _kin(p, i, m)]
         if not cand:
             continue

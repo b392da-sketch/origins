@@ -110,7 +110,7 @@ class World:
         self.world_seed = planet.seed
         self.run_seed = run_seed
         self.t = 0
-        ss = np.random.SeedSequence([run_seed, 7919])
+        ss = np.random.SeedSequence([run_seed, planet.seed, 7919])   # independent histories per planet
         self.rng = {name: np.random.default_rng(s) for name, s in zip(STREAMS, ss.spawn(len(STREAMS)))}
         n = planet.n
         self.stock = np.zeros(n)

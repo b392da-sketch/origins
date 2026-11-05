@@ -96,17 +96,18 @@ def run_one(ws: int, rs: int, years: int) -> dict:
 
 
 def run_shock(ws: int, rs: int = 1, at_year: int = 800, horizon: int = 900) -> dict:
-    """Paired runs: identical until the shock; then wild food x0.6 for 3 years in one populated region."""
+    """Paired runs: identical until the shock; then wild food x0.6 for 3 years in one populated region.
+    Uses the first history (from rs upward) on this planet that is still alive at the shock year."""
     from origins import engine, interventions, persist
     from origins.state import World
-    path = OUT / f"shock_w{ws}_s{rs}.json"
+    path = OUT / f"shock_w{ws}.json"
     if path.exists():
         return {"file": path.name, "status": "kept"}
-    w = World.new(ws, rs, _planet(ws))
-    engine.step(w, 4 * at_year)
-    if engine.extinct(w):
-        path.write_text(json.dumps({"world_seed": ws, "run_seed": rs, "status": "extinct_before_shock"}))
-        return {"file": path.name, "status": "extinct_before_shock"}
+    for rs in range(rs, rs + 20):
+        w = World.new(ws, rs, _planet(ws))
+        engine.step(w, 4 * at_year)
+        if not engine.extinct(w):
+            break
     sizes = w.band_sizes()
     occ = {}
     for b in w.living_bands():

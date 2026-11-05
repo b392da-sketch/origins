@@ -134,6 +134,13 @@ class Replay(unittest.TestCase):
         engine.step(c, 4 * 150 + 2 + 41)
         self.assertEqual(persist.digest(a), persist.digest(c))
 
+    def test_histories_independent_across_planets(self):
+        """The same history seed on different planets must not replay the same births and deaths."""
+        a, b = world(1, 9, 60), world(2, 9, 60)
+        pa, pb = a.people, b.people
+        self.assertFalse(pa.n == pb.n and (pa.birth[:pa.n] == pb.birth[:pb.n]).all()
+                         and (pa.death[:pa.n] == pb.death[:pb.n]).all())
+
     def test_hash_seed_independent(self):
         code = ("import sys; sys.path.insert(0, %r); from origins.state import World; from origins import engine, persist;"
                 "w = World.new(4, 2); engine.step(w, 400); print(persist.digest(w))") % str(ROOT)
