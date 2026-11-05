@@ -102,7 +102,8 @@ def from_bytes(data: bytes, planet=None) -> World:
     w.reveal_pending = set(meta["reveal_pending"])
     w.pending_restore = [(a, list(b), c) for a, b, c in meta.get("pending_restore", [])]
     for k in ("stock", "known", "discovered_by", "discovered_at", "food_modifier", "intervention_event"):
-        setattr(w, k, arrays[k])
+        if k in arrays:                      # older saves of this schema may lack optional arrays
+            setattr(w, k, arrays[k])
     w.people = People.from_arrays({k[2:]: v for k, v in arrays.items() if k.startswith("p_")})
     w.groups = Groups.from_arrays({k[2:]: v for k, v in arrays.items() if k.startswith("g_")})
     w.people_changed()

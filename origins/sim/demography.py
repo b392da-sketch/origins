@@ -25,6 +25,11 @@ def _fecundity(age):
     return np.where(ok, np.minimum(up, 1.0) * np.minimum(down, 1.0), 0.0)
 
 
+def margin_factor(m):
+    lo, span, floor = P.FERTILE_MARGIN
+    return np.clip(floor + (1 - floor) * (np.asarray(m) - lo) / span, floor, 1.0)
+
+
 def _band_info(w):
     key = (w.t, w.next_band)
     if w._binfo is not None and w._binfo[0] == key:
@@ -77,7 +82,7 @@ def deaths(w):
     mu_acc = np.full(len(idx), P.SILER_A2)
     mu_old = P.SILER_A3 * np.exp(P.SILER_B3 * age)
     vuln = np.where((age < 5) | (age >= 60), P.HUNGER_VULNERABLE, 1.0)
-    mu_hun = P.HUNGER_HAZARD * (1 - c) ** P.HUNGER_POWER * vuln
+    mu_hun = P.HUNGER_HAZARD * np.clip((P.HUNGER_ONSET - c) / P.HUNGER_ONSET, 0, 1) ** P.HUNGER_POWER * vuln
     mother = p.mother[idx]
     mother_dead = (mother >= 0) & ~p.alive[np.clip(mother, 0, None)]
     mu_orph = np.where((age < 1) & mother_dead, P.ORPHAN_INFANT_HAZARD, 0.0)
@@ -118,8 +123,7 @@ def partnerships(w):
     for i in sep:
         j = p.partner[i]
         p.partner[i] = p.partner[j] = -1
-        w.event("separation", band=int(p.band[i]), person=int(i),
-                causes=[{"note": "partnership ended"}], other=int(j))
+    w.counts["separations"] = w.counts.get("separations", 0) + len(sep)
     single_w = idx[(sex == 0) & (partner < 0) & (age >= P.FEMALE_MIN_AGE) & (age <= P.FEMALE_MAX_AGE)]
     single_m = idx[(sex == 1) & (partner < 0) & (age >= P.MALE_MIN_AGE) & (age <= P.MALE_MAX_AGE)]
     if len(single_w) == 0 or len(single_m) == 0:
@@ -190,7 +194,11 @@ def births(w):
     yy = np.where(y >= 0, y, 0)
     yage = np.where((y >= 0) & p.alive[yy], (w.t - p.birth[yy]) / P.TICKS_PER_YEAR, 99.0)
     nurse = np.where(yage < 2, P.NURSING_SUPPRESS_1, np.where(yage < 3, P.NURSING_SUPPRESS_2, 1.0))
-    cond = np.clip((p.condition[ei] - 0.2) / 0.6, 0, 1)
+    cond = np.clip((p.condition[ei] - P.FERTILE_CONDITION[0]) / P.FERTILE_CONDITION[1], 0, 1)
+    marg = np.ones(w.next_band)
+    for b in w.living_bands():
+        marg[b.id] = b.margin
+    cond = cond * margin_factor(marg[p.band[ei]])
     prob = P.CONCEPTION * _fecundity(age[elig]) * cond * nurse
     conceive = ei[rng.random(len(ei)) < prob]
     p.preg_due[conceive] = w.t + P.PREGNANCY_TICKS

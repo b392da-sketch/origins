@@ -105,7 +105,9 @@ def forage_and_eat(w):
     cap = P.STORE_DAYS * total_need / P.SEASON_DAYS
     kept = np.minimum(left, cap) * (1 - P.STORE_SPOIL)
     spoiled = left - kept
+    margin = np.where(total_need > 0, avail / np.maximum(total_need, 1e-12), 1.6)
     for b in bands:
+        b.margin = P.MARGIN_MEMORY * b.margin + (1 - P.MARGIN_MEMORY) * float(min(margin[b.id], 3.0))
         b.store = float(kept[b.id])
         b.last_ratio = float(eaten[b.id] / total_need[b.id]) if total_need[b.id] > 0 else 1.0
     w.ledger["eaten"] += float(eaten[ids].sum())

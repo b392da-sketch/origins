@@ -146,7 +146,7 @@ def _hazards(cond_child, cond_rest):
     base = P.SILER_A1 * np.exp(-P.SILER_B1 * a), np.full(AGES, P.SILER_A2), P.SILER_A3 * np.exp(P.SILER_B3 * a)
     vuln = np.where((a < 5) | (a >= 60), P.HUNGER_VULNERABLE, 1.0)
     cond = np.where(a < 5, cond_child[:, None], cond_rest[:, None])
-    hun = P.HUNGER_HAZARD * (1 - cond) ** P.HUNGER_POWER * vuln
+    hun = P.HUNGER_HAZARD * np.clip((P.HUNGER_ONSET - cond) / P.HUNGER_ONSET, 0, 1) ** P.HUNGER_POWER * vuln
     inf = base[0][None] + 0.004 * (a < 1)          # orphaned-infant risk folded in
     return np.stack(np.broadcast_arrays(inf, base[1][None], base[2][None], hun), axis=0)
 
@@ -185,7 +185,9 @@ def deaths(w):
         np.add.at(hunger_rows, r_i, rem)
         w.counts["deaths"] += n
         acc["deaths"] += np.bincount(AGE_GROUP[a_i], weights=d, minlength=18)
-    for k in np.nonzero(hunger_rows)[0]:
+    size = G.F[rows].sum(1) + G.M[rows].sum(1) + hunger_rows
+    w.counts["group_hunger_deaths"] = w.counts.get("group_hunger_deaths", 0) + int(hunger_rows.sum())
+    for k in np.nonzero(hunger_rows > P.GROUP_HUNGER_EVENT * np.maximum(size, 1))[0]:
         r = rows[k]
         b = w.bands[int(G.band[r])]
         causes_ = [{"note": f"{w.band_name(b)} received {b.last_ratio:.0%} of its food needs; "
@@ -241,7 +243,9 @@ def births(w):
     nurse = (1 - f1 - f2) + f1 * P.NURSING_SUPPRESS_1 + f2 * P.NURSING_SUPPRESS_2
     from .demography import _fecundity
     fec = _fecundity(np.arange(15, 50) + 0.5)
-    cond = np.clip((G.cond_rest[rows] - 0.2) / 0.6, 0, 1)
+    cond = np.clip((G.cond_rest[rows] - P.FERTILE_CONDITION[0]) / P.FERTILE_CONDITION[1], 0, 1)
+    from .demography import margin_factor
+    cond = cond * margin_factor(np.array([w.bands[int(b)].margin for b in G.band[rows]]))
     rate = PARTNERED_SHARE * P.CONCEPTION * cond * nurse * (1 - fp)
     expected = women * fec[None] * rate[:, None]
     conc = rng.poisson(expected)

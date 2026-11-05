@@ -13,8 +13,8 @@ FOUNDING_BAND = 30
 STOCK_MULTIPLIER = 1.6        # standing wild food = capacity * daily need * season days * this
 REGROWTH = 0.55               # fraction of the gap to the seasonal maximum regrown each season
 FORAGE_RATE = 2.4             # food units a full worker can gather per day when food is plentiful
-STORE_DAYS = 21               # perishable store a band can carry, in days of its needs
-STORE_SPOIL = 0.5             # fraction of carried store lost each season
+STORE_DAYS = 45               # perishable store a band can carry, in days of its needs
+STORE_SPOIL = 0.3             # fraction of carried store lost each season
 
 # --- Climate variability (per region, per year)
 CLIMATE_AR = 0.5
@@ -30,9 +30,10 @@ CONDITION_GAIN = 0.35         # per season when fully fed
 SILER_A1, SILER_B1 = 0.33, 1.0     # infant and early-childhood risk, falling with age
 SILER_A2 = 0.012                   # age-independent accident and illness
 SILER_A3, SILER_B3 = 0.00015, 0.085  # senescence, rising with age
-HUNGER_HAZARD = 3.0                # annual hazard at condition 0
-HUNGER_POWER = 2.5
-HUNGER_VULNERABLE = 1.6            # multiplier under 5 and over 60
+HUNGER_HAZARD = 2.0                # annual hazard at condition 0
+HUNGER_ONSET = 0.6                 # hunger becomes a death risk only below this body condition
+HUNGER_POWER = 2.0
+HUNGER_VULNERABLE = 2.5            # multiplier under 5 and over 60
 ORPHAN_INFANT_HAZARD = 1.5         # annual, infant under 1 whose mother has died
 MATERNAL_DEATH = 0.01              # per birth
 
@@ -46,12 +47,16 @@ PREGNANCY_TICKS = 3
 PAIRING = 0.35                     # per season, chance an unpartnered woman finds a partner
 SEPARATION = 0.005                 # per season
 RESIDENCE_WITH_HUSBAND = 0.5
+FERTILE_CONDITION = (0.5, 0.4)     # conception zero below body condition 0.5, full above 0.9
+FERTILE_MARGIN = (1.0, 0.5, 0.15)  # food gathered/needed (recent seasons): full fertility above 1.5, falling to 15% at 1.0 or less
+MARGIN_MEMORY = 0.5                # weight of the previous seasons in the band's food margin
 
 # --- Bands
 FISSION_SIZE = 50
 GROUP_FISSION_SIZE = 200          # groups are local populations, not single bands
 STRESS_FISSION_MIN = 24
 STRESS_FISSION_RATIO = 0.85
+GROUP_HUNGER_EVENT = 0.03         # log group hunger deaths only above this share of the group in a season
 MERGE_SIZE = 10
 MOVE_THRESHOLD = 1.15
 INDIVIDUAL_THRESHOLD = 20_000      # above this many individuals, distant bands fold into groups

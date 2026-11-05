@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Origins Observatory</title>
+<style>
+:root{
+  --bg:#0f1316; --panel:#161c21; --panel2:#1c242a; --line:#2a343c; --text:#e6e1d6; --muted:#9aa3a8;
+  --accent:#e0a458; --accent2:#7fb7be; --bad:#d8705f; --good:#8fbf7a; --fog:#0b0e10;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/1.45 Georgia,"Iowan Old Style","Palatino Linotype",serif}
+button,input,select{font:13px system-ui,-apple-system,"Segoe UI",sans-serif}
+#app{display:grid;grid-template-columns:1fr 420px;grid-template-rows:auto 1fr;height:100%}
+header{grid-column:1/3;display:flex;align-items:center;gap:18px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:18px;margin:0;font-weight:normal;letter-spacing:.04em}
+#clock{font-size:22px;color:var(--accent)}
+#clock small{display:block;font-size:12px;color:var(--muted)}
+.stat{font:12px system-ui,sans-serif;color:var(--muted)}
+.stat b{display:block;color:var(--text);font-size:15px;font-weight:600}
+.controls{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+button{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:#1b1408;border-color:var(--accent);font-weight:600}
+#mapwrap{position:relative;overflow:hidden;background:#091018}
+canvas#map{position:absolute;inset:0;width:100%;height:100%;cursor:grab}
+#legend{position:absolute;left:12px;bottom:12px;background:rgba(15,19,22,.85);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:11px system-ui,sans-serif;color:var(--muted);max-width:420px}
+#legend span{display:inline-flex;align-items:center;gap:4px;margin:2px 8px 2px 0}
+#legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+#hint{position:absolute;right:12px;top:12px;font:11px system-ui,sans-serif;color:var(--muted);background:rgba(15,19,22,.8);padding:6px 8px;border-radius:6px}
+aside{border-left:1px solid var(--line);background:var(--panel);overflow-y:auto}
+section{border-bottom:1px solid var(--line);padding:12px 14px}
+section h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 8px;font-family:system-ui,sans-serif;font-weight:600}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font:12.5px system-ui,sans-serif}
+.kv dt{color:var(--muted)} .kv dd{margin:0}
+ul.list{list-style:none;margin:0;padding:0;max-height:260px;overflow-y:auto;font:12.5px system-ui,sans-serif}
+ul.list li{padding:4px 0;border-bottom:1px solid #20292f;cursor:pointer}
+ul.list li:hover{color:var(--accent)}
+ul.list li small{color:var(--muted)}
+.tag{font:11px system-ui,sans-serif;padding:1px 6px;border-radius:9px;background:var(--panel2);border:1px solid var(--line);color:var(--muted)}
+.why{font:12.5px system-ui,sans-serif}
+.why .node{margin:3px 0 3px 12px;padding-left:8px;border-left:2px solid var(--line)}
+.why .title{color:var(--text)} .why .when{color:var(--muted);font-size:11px}
+.why a{color:var(--accent2);cursor:pointer;text-decoration:none}
+canvas#chart{width:100%;height:120px;display:block}
+.muted{color:var(--muted)} .err{color:var(--bad)}
+input[type=number]{width:70px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:5px;padding:4px}
+input[type=range]{width:140px}
+.pyramid{display:grid;grid-template-columns:1fr 34px 1fr;gap:1px;font:10px system-ui,sans-serif}
+.pyramid div{height:9px}
+.bar-f{background:#c98b7b;justify-self:end} .bar-m{background:#7fa8be}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Origins</h1>
+    <div id="clock">—<small>&nbsp;</small></div>
+    <div class="stat">Population<b id="s-pop">—</b></div>
+    <div class="stat">Named individuals<b id="s-ind">—</b></div>
+    <div class="stat">Bands<b id="s-bands">—</b></div>
+    <div class="stat">Known land<b id="s-known">—</b></div>
+    <div class="controls">
+      <button id="b-play" class="primary">▶ Run</button>
+      <button data-fast="10">+10 yrs</button>
+      <button data-fast="100">+100</button>
+      <button data-fast="1000">+1000</button>
+      <span id="mode" class="tag">paused</span>
+    </div>
+  </header>
+  <div id="mapwrap">
+    <canvas id="map"></canvas>
+    <div id="hint">Drag to pan · wheel to zoom · click a band or land</div>
+    <div id="legend"></div>
+  </div>
+  <aside>
+    <section>
+      <h2>World</h2>
+      <canvas id="chart"></canvas>
+      <div class="kv" id="world-kv" style="margin-top:8px"></div>
+      <div id="err" class="err"></div>
+    </section>
+    <section id="sel-sec">
+      <h2>Selected</h2>
+      <div id="sel" class="muted">Click a band on the map, or a person, to see who they are.</div>
+    </section>
+    <section>
+      <h2>Why?</h2>
+      <div id="why" class="why muted">Choose any event, birth or death to trace its causes.</div>
+    </section>
+    <section>
+      <h2>Recent events</h2>
+      <ul class="list" id="events"></ul>
+    </section>
+    <section>
+      <h2>World file</h2>
+      <div class="row">
+        <button id="b-save">Save as…</button>
+        <select id="saves"></select><button id="b-load">Load</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        New world: planet seed <input id="ws" type="number" value="1"> history seed <input id="rs" type="number" value="1">
+        <button id="b-new">Create</button>
+      </div>
+      <p class="muted" style="font-size:12px">Normal speed is 300 years per real day (a season every 72 seconds). Following a band slows the whole world to the speed you choose; stop following to return to normal.</p>
+    </section>
+  </aside>
+</div>
+<script>
+const BIOME_COLOUR = {ocean:"#14283b", ice:"#e9eef2", tundra:"#9fa89a", boreal_forest:"#3a5d48", temperate_forest:"#4d7d43",
+  grassland:"#a9bf6d", desert:"#d9c38c", savanna:"#c6ae5c", tropical_forest:"#2e6e37", alpine:"#8d8d8d", lake:"#3d77a6"};
+const $ = s => document.querySelector(s);
+const api = (p, body) => fetch(p, body ? {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)} : {})
+  .then(r => r.json().then(j => { if (!r.ok) throw new Error(j.error || r.statusText); return j; }));
+let G = null, S = null, BANDS = [], known = new Set(), lastKnownT = 0;
+let view = {x:0, y:0, k:1};            // pan offset in px, zoom
+const base = document.createElement("canvas"), fog = document.createElement("canvas");
+const W = 4096, H = 2048;
+base.width = fog.width = W; base.height = fog.height = H;
+const canvas = $("#map"), ctx = canvas.getContext("2d");
+
+function proj(lon, lat){ return [(lon + 180) / 360 * W, (90 - lat) / 180 * H]; }
+
+function polyPath(c, ctx2, shift){
+  const p = G.poly[c]; const n = p.length / 2;
+  let lons = []; for (let i = 0; i < n; i++) lons.push(p[2*i]);
+  const wrap = Math.max(...lons) - Math.min(...lons) > 180;
+  ctx2.beginPath();
+  for (let i = 0; i < n; i++){
+    let lon = p[2*i]; if (wrap && lon < 0) lon += 360;
+    const [x, y] = proj(lon + shift, p[2*i+1]);
+    if (i) ctx2.lineTo(x, y); else ctx2.moveTo(x, y);
+  }
+  ctx2.closePath();
+  return wrap;
+}
+function fillCell(ctx2, c, colour){
+  ctx2.fillStyle = colour;
+  const wrap = polyPath(c, ctx2, 0); ctx2.fill(); ctx2.stroke && 0;
+  if (wrap){ polyPath(c, ctx2, -360); ctx2.fill(); }
+}
+function drawBase(){
+  const b = base.getContext("2d");
+  b.fillStyle = BIOME_COLOUR.ocean; b.fillRect(0, 0, W, H);
+  for (let c = 0; c < G.n; c++){
+    const name = G.biomes[G.biome[c]];
+    let col = BIOME_COLOUR[name];
+    if (name !== "ocean" && name !== "lake" && G.elev[c] > 1500){ col = shade(col, -0.12 * Math.min(1, (G.elev[c]-1500)/2000)); }
+    fillCell(b, c, col);
+  }
+  b.strokeStyle = "#4f9ad6"; b.lineWidth = 1.4; b.globalAlpha = .9;
+  for (const s of G.rivers){
+    if (Math.abs(s[0] - s[2]) > 180) continue;
+    const [x1, y1] = proj(s[0], s[1]), [x2, y2] = proj(s[2], s[3]);
+    b.beginPath(); b.moveTo(x1, y1); b.lineTo(x2, y2); b.stroke();
+  }
+  b.globalAlpha = 1;
+  const f = fog.getContext("2d"); f.fillStyle = "#0b0e10"; f.fillRect(0, 0, W, H);
+}
+function shade(hex, amt){
+  const n = parseInt(hex.slice(1), 16); let r = n >> 16, g = (n >> 8) & 255, bl = n & 255;
+  const f = v => Math.max(0, Math.min(255, Math.round(v * (1 + amt))));
+  return "#" + ((1 << 24) + (f(r) << 16) + (f(g) << 8) + f(bl)).toString(16).slice(1);
+}
+function reveal(cells){
+  const f = fog.getContext("2d"); f.globalCompositeOperation = "destination-out";
+  for (const c of cells){ if (!known.has(c)){ known.add(c); fillCell(f, c, "#000"); } }
+  f.globalCompositeOperation = "source-over";
+}
+function resize(){ canvas.width = canvas.clientWidth * devicePixelRatio; canvas.height = canvas.clientHeight * devicePixelRatio; draw(); }
+function fitView(){
+  const cw = canvas.width, ch = canvas.height;
+  view.k = Math.max(cw / W, ch / H) * 1.0;
+  const [sx, sy] = proj(G.lon[G.start], G.lat[G.start]);
+  view.k = 3 * devicePixelRatio;
+  view.x = cw / 2 - sx * view.k; view.y = ch / 2 - sy * view.k;
+}
+function draw(){
+  if (!G) return;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = "#0b0e10"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.imageSmoothingEnabled = view.k < 1;
+  ctx.setTransform(view.k, 0, 0, view.k, view.x, view.y);
+  for (const dx of [-W, 0, W]){
+    ctx.drawImage(base, dx, 0); ctx.drawImage(fog, dx, 0);
+  }
+  for (const b of BANDS){
+    const [x, y] = proj(b.lon, b.lat);
+    const r = (2.5 + Math.sqrt(b.size) * 0.45) * devicePixelRatio / view.k;
+    for (const dx of [-W, 0, W]){
+      ctx.beginPath(); ctx.arc(x + dx, y, r, 0, 2*Math.PI);
+      ctx.fillStyle = b.mode === "group" ? "#c9d6dc" : (b.ratio < .85 ? "#ff6b57" : "#fff1c9");
+      ctx.fill();
+      ctx.lineWidth = 1.5 * devicePixelRatio / view.k; ctx.strokeStyle = "#101418"; ctx.stroke();
+      if (S && b.id === S.follow){ ctx.beginPath(); ctx.arc(x + dx, y, r * 1.9, 0, 2*Math.PI); ctx.lineWidth = 2 * devicePixelRatio / view.k; ctx.strokeStyle = "#ffffff"; ctx.stroke(); }
+    }
+  }
+}
+// interaction
+let drag = null;
+canvas.addEventListener("mousedown", e => { drag = {x:e.clientX, y:e.clientY, vx:view.x, vy:view.y, moved:false}; });
+window.addEventListener("mouseup", e => {
+  if (drag && !drag.moved) clickAt(e);
+  drag = null;
+});
+window.addEventListener("mousemove", e => {
+  if (!drag) return;
+  const dx = (e.clientX - drag.x) * devicePixelRatio, dy = (e.clientY - drag.y) * devicePixelRatio;
+  if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+  view.x = drag.vx + dx; view.y = drag.vy + dy; draw();
+});
+canvas.addEventListener("wheel", e => {
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect(); const mx = (e.clientX - r.left) * devicePixelRatio, my = (e.clientY - r.top) * devicePixelRatio;
+  const f = Math.exp(-e.deltaY * 0.0015); const k2 = Math.min(40, Math.max(0.08, view.k * f));
+  view.x = mx - (mx - view.x) * k2 / view.k; view.y = my - (my - view.y) * k2 / view.k; view.k = k2; draw();
+}, {passive:false});
+function clickAt(e){
+  const r = canvas.getBoundingClientRect();
+  const mx = ((e.clientX - r.left) * devicePixelRatio - view.x) / view.k, my = ((e.clientY - r.top) * devicePixelRatio - view.y) / view.k;
+  let best = null, bd = 1e9;
+  for (const b of BANDS){
+    for (const dx of [-W, 0, W]){
+      const [x, y] = proj(b.lon, b.lat); const d = Math.hypot(x + dx - mx, y - my);
+      if (d < bd){ bd = d; best = b; }
+    }
+  }
+  if (best && bd * view.k < 14 * devicePixelRatio) return showBand(best.id);
+  const lon = ((mx % W) + W) % W / W * 360 - 180, lat = 90 - my / H * 180;
+  let bc = 0, bdist = 1e9;
+  for (let c = 0; c < G.n; c++){ let dl = Math.abs(G.lon[c] - lon); if (dl > 180) dl = 360 - dl; const d = dl*dl*Math.cos(lat*Math.PI/180)**2 + (G.lat[c]-lat)**2; if (d < bdist){ bdist = d; bc = c; } }
+  showCell(bc);
+}
+// panels
+const esc = s => String(s).replace(/[&<>"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
+const bp = v => v.toLocaleString() + " BP";
+async function showCell(c){
+  const d = await api("/api/cell?id=" + c);
+  if (!d.known){ $("#sel").innerHTML = `<span class="muted">Unknown land. Nobody has reached here yet.</span>`; return; }
+  $("#sel").innerHTML = `<div class="kv">
+    <dt>Land</dt><dd>${esc(d.biome.replace("_"," "))}${d.river ? ", river" : ""}${d.coast ? ", coast" : ""}</dd>
+    <dt>Elevation</dt><dd>${d.elevation_m} m</dd><dt>Climate</dt><dd>${d.temp_c} °C mean, ${d.rain_mm} mm rain a year</dd>
+    <dt>Can support</dt><dd>about ${Math.round(d.capacity)} foragers</dd>
+    <dt>Wild food now</dt><dd>${d.wild_food_days} days for that many people</dd>
+    <dt>First reached</dt><dd>${d.discovered_bp != null ? bp(d.discovered_bp) : "—"}</dd></div>`;
+}
+async function showBand(id){
+  const d = await api("/api/band?id=" + id);
+  const followBtn = d.followed
+    ? `<button onclick="act({action:'unfollow'})">Stop following</button>`
+    : `<button class="primary" onclick="act({action:'follow', band:${d.id}})">Follow${d.mode === "group" ? " (bring to life as individuals)" : ""}</button>`;
+  let body = "";
+  if (d.mode === "group"){
+    const rows = [];
+    const mx = Math.max(1, ...d.pyramid.female, ...d.pyramid.male);
+    for (let a = 75; a >= 0; a -= 5){
+      const f = d.pyramid.female.slice(a, a+5).reduce((x,y)=>x+y,0), m = d.pyramid.male.slice(a, a+5).reduce((x,y)=>x+y,0);
+      rows.push(`<div class="bar-f" style="width:${Math.min(100, f/mx*20)}%"></div><div style="text-align:center">${a}</div><div class="bar-m" style="width:${Math.min(100, m/mx*20)}%"></div>`);
+    }
+    body = `<p class="muted" style="font:12px system-ui">Followed as a group (counts by age and sex). Women left, men right.</p><div class="pyramid">${rows.join("")}</div>
+      <div class="kv" style="margin-top:6px"><dt>Condition</dt><dd>children ${d.condition.children}, adults ${d.condition.adults}</dd></div>`;
+  } else {
+    body = `<ul class="list">` + d.members.map(m =>
+      `<li onclick="showPerson(${m.id})">${esc(m.name)} <small>${m.sex === "female" ? "♀" : "♂"} ${m.age}${m.condition < .6 ? " · hungry" : ""}</small></li>`).join("") + `</ul>`;
+  }
+  $("#sel").innerHTML = `<div class="row" style="justify-content:space-between"><b>${esc(d.name)}</b>${followBtn}</div>
+    <div class="row" style="margin:6px 0">Follow speed <input id="rate" type="range" min="0" max="100" value="${rateToSlider(S ? S.follow_rate : 2)}"
+      oninput="setRate(this.value)"><span id="rate-l" class="muted">${fmtRate(S ? S.follow_rate : 2)}</span></div>
+    <div class="kv"><dt>People</dt><dd>${d.size}</dd><dt>Founded</dt><dd>${bp(d.founded_bp)}</dd>
+    <dt>Land</dt><dd>${esc(d.biome.replace("_"," "))} · ${d.season}</dd>
+    <dt>Food last season</dt><dd>${Math.round(d.ratio * 100)}% of needs</dd>
+    <dt>Last move</dt><dd>${esc(d.last_move || "—")}</dd></div>
+    ${body}
+    <h2 style="margin-top:10px">Band history</h2><ul class="list">${d.events.map(e => `<li onclick="why('event:${e.id}')">${esc(e.title)} <small>${bp(e.bp)}</small></li>`).join("") || '<li class="muted">—</li>'}</ul>`;
+}
+async function showPerson(id){
+  const d = await api("/api/person?id=" + id);
+  const link = p => p ? `<a onclick="showPerson(${p.id})">${esc(p.name)}</a>${p.alive ? "" : (p.died ? " †" : "")}` : "—";
+  const f = d.family;
+  $("#sel").innerHTML = `<b>${esc(d.name)}</b> <span class="tag">${d.sex}, ${d.age}${d.alive ? "" : (d.died ? " — died: " + esc(d.cause) : " — now followed as a group")}</span>
+    <p class="muted" style="font:12px system-ui;margin:4px 0">Name from ${esc(d.etymology)}</p>
+    <div class="kv why"><dt>Born</dt><dd>${bp(d.born_bp)}</dd><dt>Mother</dt><dd>${link(f.mother)}</dd><dt>Father</dt><dd>${link(f.father)}</dd>
+    <dt>Partner</dt><dd>${link(f.partner)}</dd><dt>Children</dt><dd>${f.children.map(link).join(", ") || "—"}</dd>
+    <dt>Siblings</dt><dd>${f.siblings.map(link).join(", ") || "—"}</dd></div>
+    <ul class="list" style="margin-top:6px">${d.life.map(l => `<li ${l.ref ? `onclick="why('${l.ref}')"` : ""}>${esc(l.title)}</li>`).join("")}</ul>
+    <a class="muted" style="font:12px system-ui;cursor:pointer" onclick="showBand(${d.band})">← band</a>`;
+}
+function renderWhy(n, depth){
+  const kids = (n.causes || []).map(c => renderWhy(c, depth + 1)).join("");
+  const ref = n.ref ? Object.entries(n.ref)[0] : null;
+  const title = ref && ref[0] !== "note" ? `<a onclick="why('${ref[0]}:${ref[1]}')">${esc(n.title)}</a>` : esc(n.title);
+  return `<div class="${depth ? "node" : ""}"><div class="title">${depth ? "because " : ""}${title}</div>${n.when ? `<div class="when">${esc(n.when)}</div>` : ""}${kids}</div>`;
+}
+async function why(ref){
+  const d = await api("/api/explain?ref=" + encodeURIComponent(ref));
+  $("#why").classList.remove("muted"); $("#why").innerHTML = renderWhy(d, 0);
+}
+async function act(body){
+  try { await api("/api/control", body); $("#err").textContent = ""; await refresh(true); if (body.band != null) showBand(body.band); }
+  catch (e){ $("#err").textContent = e.message; }
+}
+const rateToSlider = r => Math.round((Math.log(r) - Math.log(0.05)) / (Math.log(120) - Math.log(0.05)) * 100);
+const sliderToRate = v => Math.exp(Math.log(0.05) + v / 100 * (Math.log(120) - Math.log(0.05)));
+const fmtRate = r => r >= 1 ? `${r.toFixed(r < 10 ? 1 : 0)} seasons/min` : `1 season per ${(1 / r).toFixed(1)} min`;
+let rateTimer = null;
+function setRate(v){ const r = sliderToRate(+v); $("#rate-l").textContent = fmtRate(r); clearTimeout(rateTimer); rateTimer = setTimeout(() => api("/api/control", {action:"rate", rate:r}), 250); }
+function chart(series){
+  const c = $("#chart"), x = c.getContext("2d"); c.width = c.clientWidth * devicePixelRatio; c.height = 120 * devicePixelRatio;
+  x.clearRect(0, 0, c.width, c.height);
+  if (series.length < 2) return;
+  const maxP = Math.max(...series.map(s => s[1])), t0 = series[0][0], t1 = series[series.length-1][0];
+  const X = v => (t0 - v) / Math.max(1, t0 - t1) * (c.width - 8) + 4, Y = v => c.height - 14 * devicePixelRatio - v / maxP * (c.height - 24 * devicePixelRatio);
+  x.strokeStyle = "#e0a458"; x.lineWidth = 1.6 * devicePixelRatio; x.beginPath();
+  series.forEach((s, i) => i ? x.lineTo(X(s[0]), Y(s[1])) : x.moveTo(X(s[0]), Y(s[1]))); x.stroke();
+  x.fillStyle = "#9aa3a8"; x.font = `${10 * devicePixelRatio}px system-ui`;
+  x.fillText(`population, peak ${maxP.toLocaleString()}`, 4, 11 * devicePixelRatio);
+  x.fillText(bp(t0), 4, c.height - 2); const lbl = bp(t1); x.fillText(lbl, c.width - x.measureText(lbl).width - 4, c.height - 2);
+}
+async function refresh(force){
+  S = await api("/api/state?since=" + lastKnownT);
+  if (S.known.length){ reveal(S.known); lastKnownT = S.t; }
+  BANDS = await api("/api/bands");
+  $("#clock").innerHTML = `${S.years_bp.toLocaleString()} BP<small>${S.season} (northern calendar) · planet ${S.world_seed}, history ${S.run_seed}</small>`;
+  $("#s-pop").textContent = S.population.toLocaleString();
+  $("#s-ind").textContent = S.individuals.toLocaleString();
+  $("#s-bands").textContent = `${S.bands.toLocaleString()}${S.groups ? ` (${S.groups} groups)` : ""}`;
+  $("#s-known").textContent = `${(S.known_cells * G.cell_km2 / 1e6).toFixed(2)} M km²`;
+  const modes = {paused:"paused", running:"running · 300 years/day", following:`following · ${fmtRate(S.follow_rate)}`, fast:"fast-forward"};
+  $("#mode").textContent = (S.extinct ? "humanity has died out · " : "") + modes[S.mode];
+  $("#b-play").textContent = S.mode === "paused" ? "▶ Run" : "❚❚ Pause";
+  $("#world-kv").innerHTML = `<dt>Food last season</dt><dd>${Math.round(S.food_ratio * 100)}% of needs met</dd>
+    <dt>Followed band</dt><dd>${S.follow >= 0 ? `<a style="cursor:pointer;color:var(--accent2)" onclick="showBand(${S.follow})">band ${S.follow}</a>` : "none"}</dd>
+    <dt>Interventions</dt><dd>${S.intervened ? "yes (this world has been changed by the observer)" : "none"}</dd>
+    <dt>Accounting checks</dt><dd>${S.invariant_failures ? `<span class="err">${S.invariant_failures} failures</span>` : "all passing"}</dd>`;
+  $("#err").textContent = S.error || "";
+  chart(S.series);
+  const ev = await api("/api/events");
+  $("#events").innerHTML = ev.map(e => `<li onclick="why('${e.ref}')">${esc(e.title)} <small>${bp(e.bp)}</small></li>`).join("");
+  draw();
+}
+async function loadSaves(){ const s = await api("/api/saves"); $("#saves").innerHTML = s.map(n => `<option>${esc(n)}</option>`).join(""); }
+$("#b-play").onclick = () => act({action: S && S.mode !== "paused" ? "pause" : "play"});
+document.querySelectorAll("[data-fast]").forEach(b => b.onclick = () => act({action:"fast", years:+b.dataset.fast}));
+$("#b-save").onclick = async () => { const name = prompt("Name for this save", "my-world"); if (name){ await act({action:"save", name}); loadSaves(); } };
+$("#b-load").onclick = async () => { await act({action:"load", name:$("#saves").value}); location.reload(); };
+$("#b-new").onclick = async () => { if (confirm("Start a new world? Save the current one first if you want to keep it.")){ await act({action:"new", world_seed:+$("#ws").value, run_seed:+$("#rs").value}); location.reload(); } };
+$("#legend").innerHTML = Object.entries(BIOME_COLOUR).map(([k, v]) => `<span><i style="background:${v}"></i>${k.replace("_"," ")}</span>`).join("")
+  + `<span><i style="background:#fff1c9;border:1px solid #101418;border-radius:50%"></i>band</span><span><i style="background:#ff6b57;border:1px solid #101418;border-radius:50%"></i>hungry band</span><span><i style="background:#c9d6dc;border:1px solid #101418;border-radius:50%"></i>group</span>`;
+(async function init(){
+  G = await api("/api/geometry");
+  drawBase();
+  window.addEventListener("resize", resize);
+  canvas.width = canvas.clientWidth * devicePixelRatio; canvas.height = canvas.clientHeight * devicePixelRatio;
+  fitView();
+  await refresh(true); loadSaves();
+  setInterval(() => refresh(false).catch(e => $("#err").textContent = e.message), 2000);
+})();
+</script>
+</body>
+</html>

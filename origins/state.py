@@ -75,7 +75,8 @@ class People:
         if n > len(p.alive):
             p._grow(n)
         for f in FIELDS:
-            getattr(p, f)[:n] = d[f]
+            if f in d:                           # fields added later keep their defaults
+                getattr(p, f)[:n] = d[f]
         p.n = n
         return p
 
@@ -89,6 +90,7 @@ class Band:
     leader: int = -1            # eldest member at founding, gives the band its name
     store: float = 0.0
     last_ratio: float = 1.0
+    margin: float = 1.6         # recent food gathered / food needed (before eating)
     alive: bool = True
     ended: int = -1
     last_move: str = ""

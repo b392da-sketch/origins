@@ -116,6 +116,10 @@ def fission_and_merge(w):
         else:
             why = (f"{w.band_name(b)} ({s} people) received only {b.last_ratio:.0%} of its food needs; "
                    f"better land nearby")
+        if b.mode == "group":
+            # a group splitting is people spreading within a local population: counted, not logged
+            w.counts["group_splits"] = w.counts.get("group_splits", 0) + 1
+            continue
         w.event("fission", cell=target, band=b.id, causes=[{"note": why}],
                 new_band=nb_.id, moved=int(count), stayed=int(s - count))
     sizes = np.rint(w.band_sizes()).astype(np.int64)
