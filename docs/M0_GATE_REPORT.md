@@ -1,6 +1,6 @@
 # M0 gate G0 report — "the first people survive"
 
-**Date:** 6 November 2026 · **Founding people:** three neighbouring bands of 30 (Ben's decision, 6 November 2026) · **Result: PASS — M0 can be closed if Ben approves**
+**Date:** 6 November 2026 · **Founding people:** three neighbouring bands of 30 (Ben's decision, 6 November 2026) · **Result: PASS — M0 closed with Ben's approval, 6 November 2026**
 
 ## 1. Result
 
