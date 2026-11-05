@@ -36,7 +36,10 @@ def _recovered_dips(pop, start, depth=0.05, within=150):
 
 def report(out: Path) -> str:
     runs = [r for r in _load(out, "run_w*_2000y.json") if r.get("status") == "completed"]
-    shocks = [r for r in _load(out, "shock_w*.json") if r.get("status") == "completed"]
+    shocks_all = [r for r in _load(out, "shock_w*.json") if r.get("status") == "completed"]
+    years = sorted({s["at_year"] for s in shocks_all})
+    shocks = [s for s in shocks_all if s["at_year"] == max(years)] if years else []
+    early = [s for s in shocks_all if years and s["at_year"] != max(years)]
     L = []
     add = L.append
     n = len(runs)
@@ -101,7 +104,14 @@ def report(out: Path) -> str:
                         f"{s['control_births_3y']:.0f}; area population after 60 years {sh[y60]:.0f} vs {co[y60]:.0f}"
                         f" ({'recovered' if rec else 'not recovered'} within 10%)")
         ok5 = good == len(shocks)
-        checks.append(("5. Shock response", ok5, f"{good} of {len(shocks)} paired tests pass. " + "; ".join(rows)))
+        note = ""
+        if early:
+            eh = sum(s["shock_hunger_deaths_3y"] for s in early)
+            note = (f" (An earlier version of this test, with the shock in year {early[0]['at_year']} while land was still "
+                    f"mostly empty, produced {eh:.0f} hunger deaths in {len(early)} pairs: food was not scarce, so it could "
+                    f"not test the response and was replaced by this one.)")
+        checks.append(("5. Shock response", ok5, f"shock in year {shocks[0]['at_year']}: {good} of {len(shocks)} paired tests pass. "
+                       + "; ".join(rows) + note))
     else:
         checks.append(("5. Shock response", False, "not run"))
     # 6 spread

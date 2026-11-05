@@ -185,6 +185,8 @@ def deaths(w):
         np.add.at(hunger_rows, r_i, rem)
         w.counts["deaths"] += n
         acc["deaths"] += np.bincount(AGE_GROUP[a_i], weights=d, minlength=18)
+    row_cells = np.array([w.bands[int(b)].cell for b in G.band[rows]], dtype=np.int64)
+    np.add.at(w.cell_hunger, row_cells, hunger_rows)
     size = G.F[rows].sum(1) + G.M[rows].sum(1) + hunger_rows
     w.counts["group_hunger_deaths"] = w.counts.get("group_hunger_deaths", 0) + int(hunger_rows.sum())
     for k in np.nonzero(hunger_rows > P.GROUP_HUNGER_EVENT * np.maximum(size, 1))[0]:
@@ -216,6 +218,7 @@ def births(w):
         G.F[rows, 0] += girls
         G.M[rows, 0] += n_due - girls
         w.counts["births"] += int(n_due.sum())
+        np.add.at(w.cell_births, np.array([w.bands[int(b)].cell for b in G.band[rows]], dtype=np.int64), n_due)
         maternal = rng.binomial(n_due, P.MATERNAL_DEATH)
         for r, k in zip(rows, maternal):
             for _ in range(int(k)):

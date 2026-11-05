@@ -8,6 +8,7 @@ SEASON_DAYS = 91.25
 TICKS_PER_YEAR = 4
 START_YEARS_BP = 50_000
 FOUNDING_BAND = 30
+FOUNDING_BANDS = 1            # number of founding bands (each of FOUNDING_BAND people) in neighbouring land
 
 # --- Food and foraging
 STOCK_MULTIPLIER = 1.6        # standing wild food = capacity * daily need * season days * this

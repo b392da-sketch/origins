@@ -59,7 +59,7 @@ def to_bytes(w: World) -> bytes:
     }
     arrays = {"stock": w.stock, "known": w.known, "discovered_by": w.discovered_by,
               "discovered_at": w.discovered_at, "food_modifier": w.food_modifier,
-              "intervention_event": w.intervention_event}
+              "intervention_event": w.intervention_event, "cell_hunger": w.cell_hunger, "cell_births": w.cell_births}
     arrays.update({"p_" + k: v for k, v in w.people.arrays().items()})
     arrays.update({"g_" + k: v for k, v in w.groups.arrays().items()})
     buf = io.BytesIO()
@@ -113,7 +113,8 @@ def from_bytes(data: bytes, planet=None) -> World:
         w.bands[b.id] = b
     w.reveal_pending = set(meta["reveal_pending"])
     w.pending_restore = [(a, list(b), c) for a, b, c in meta.get("pending_restore", [])]
-    for k in ("stock", "known", "discovered_by", "discovered_at", "food_modifier", "intervention_event"):
+    for k in ("stock", "known", "discovered_by", "discovered_at", "food_modifier", "intervention_event",
+              "cell_hunger", "cell_births"):
         if k in arrays:                      # older saves of this schema may lack optional arrays
             setattr(w, k, arrays[k])
     w.people = People.from_arrays({k[2:]: v for k, v in arrays.items() if k.startswith("p_")})

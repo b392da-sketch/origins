@@ -24,6 +24,27 @@ Without folding, 2,000-year runs needed millions of person records and many minu
 
 Diagnosis behind step 9: at the food limit, 90% of groups were well fed; hunger deaths came from a minority stuck in crowded or poor land, where local populations grew at full fertility until food ran out and then crashed. Fertility needed to respond to tightening food before people went hungry, as forager fertility does.
 
+## Founding-band extinctions and the partner network
+
+A first full gate attempt (32 of 100 runs completed, then stopped) showed 8 of 32 histories dying out early (years 170–1,022), all while bands were still small and mostly with no hunger involved.
+
+It also exposed a **flaw in the test design**: the random streams depended only on the history seed, so the same history seed replayed the same births and deaths on every planet while food was plentiful (history 12 died out in year 170 on planets 1 and 2 alike). The 100 runs were therefore not 100 independent histories. Random streams now depend on both planet and history seed, and a test guards this. All earlier gate results were discarded.
+
+Diagnosis over 30 fresh histories per planet, first 400 years:
+
+| Setting | Planet 1 | Planet 2 | Planet 3 |
+|---|---|---|---|
+| Partners within adjacent land, 35% chance per season | — | — | 10 of 30 died out |
+| Partners within two rings of land (a regional marriage network), 60% per season | 5 of 30 | 10 of 30 | 4 of 30 |
+
+In many extinct histories 40–80% of women aged 18–40 had no partner: small, split-up bands ran out of eligible men. The wider network is kept, because forager marriage networks typically span several bands across a region. The remaining early extinctions (about one in five overall in this diagnosis) come from chance in very small populations and from the particular starting land. A rough lineage calculation suggests chance alone would doom only about 5–10% of 30-person founding bands, so some extra fragility probably remains in the model (candidates: how bands split at 50 into isolated halves; no adoption of orphans; one partner at a time). Further mechanisms are design choices for Ben, not tuning targets for the gate.
+
+### What the final gate showed about extinctions
+
+In the final gate, every history that died out had the same signature: the founding band **never grew beyond one band** (peak 29–49 people), with no hunger and food fully available. An isolated band of 30 runs out of partners who are not siblings or half-siblings within a generation or two, and there is nobody else in the world to marry. Every history that reached two bands survived.
+
+Experiment (not part of the gate; default unchanged): with `FOUNDING_BANDS = 3` (three bands of 30 in neighbouring land), **0 of 40** histories died out within 600 years on planets 1 and 2, against 15 of 40 with one band. The founding scenario is Ben's design decision, so the default remains one band of 30.
+
 ## Event-log volume
 
 Early 2,000-year runs logged about 290,000 group splits, 190,000 group hunger-death records and 105,000 separations. These now go into counters: group splits are people spreading within a local population; separations are counted; group hunger deaths are logged as events only when they exceed 3% of a group in one season. Individual births, deaths and partnerships are stored on the person records and are always explainable.

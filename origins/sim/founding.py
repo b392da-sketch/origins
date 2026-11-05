@@ -16,8 +16,21 @@ def _survival(age):
 
 
 def found(w):
+    cells = [w.planet.start_cell]
+    nb = w.planet.grid.neighbours
+    for m in nb[w.planet.start_cell]:
+        if len(cells) >= P.FOUNDING_BANDS:
+            break
+        if m >= 0 and w.planet.land[m]:
+            cells.append(int(m))
+    for k, cell in enumerate(cells[:P.FOUNDING_BANDS]):
+        _found_band(w, cell, first=(k == 0))
+    from .bands import reveal
+    reveal(w)
+
+
+def _found_band(w, cell, first=True):
     rng = w.rng["founding"]
-    cell = w.planet.start_cell
     band = w.new_band(cell)
     ages_all = np.arange(0, 70)
     weights = _survival(ages_all)
@@ -53,9 +66,9 @@ def found(w):
         y = p.youngest[m]
         if y < 0 or p.birth[i] > p.birth[y]:
             p.youngest[m] = i
-    w.counts["founders"] = k
+    w.counts["founders"] += k
     band.leader = int(ids[0])          # eldest
     w.event("founding", cell=cell, band=band.id,
-            causes=[{"note": "the world begins: a band of 30 people of mixed ages"}], size=int(k))
-    from .bands import reveal
-    reveal(w)
+            causes=[{"note": f"the world begins: a band of {k} people of mixed ages"
+                             + ("" if P.FOUNDING_BANDS == 1 else f" (one of {P.FOUNDING_BANDS} founding bands)")}],
+            size=int(k))

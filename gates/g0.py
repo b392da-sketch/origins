@@ -100,7 +100,7 @@ def run_shock(ws: int, rs: int = 1, at_year: int = 800, horizon: int = 900) -> d
     Uses the first history (from rs upward) on this planet that is still alive at the shock year."""
     from origins import engine, interventions, persist
     from origins.state import World
-    path = OUT / f"shock_w{ws}.json"
+    path = OUT / (f"shock_w{ws}.json" if at_year == 800 else f"shock_w{ws}_y{at_year}.json")
     if path.exists():
         return {"file": path.name, "status": "kept"}
     for rs in range(rs, rs + 20):
@@ -117,6 +117,7 @@ def run_shock(ws: int, rs: int = 1, at_year: int = 800, horizon: int = 900) -> d
     control = persist.from_bytes(persist.to_bytes(w), w.planet)
     interventions.food_shock(w, cells, 0.6, 12, "gate G0 shock test: three-year 40% drop in wild food")
     cellset = set(int(c) for c in cells)
+    pre_pop = float(sum(sizes[b.id] for b in control.living_bands() if b.cell in cellset))
 
     def area_stats(x):
         s = x.band_sizes()
@@ -126,20 +127,21 @@ def run_shock(ws: int, rs: int = 1, at_year: int = 800, horizon: int = 900) -> d
     def track(x, years):
         series, hunger, births = [], [], []
         p = x.people
+        idx = np.array(sorted(cellset))
         for _ in range(years):
-            t0 = x.t
-            d0 = x.accum["deaths_by_cause"][2]
-            b0 = x.counts["births"]
+            d0 = x.cell_hunger[idx].sum()
+            b0 = x.cell_births[idx].sum()
             engine.step(x, 4)
             series.append(area_stats(x))
-            hunger.append(float(x.accum["deaths_by_cause"][2] - d0))
-            births.append(float(x.counts["births"] - b0))
+            hunger.append(float(x.cell_hunger[idx].sum() - d0))      # in the shocked area only
+            births.append(float(x.cell_births[idx].sum() - b0))
         return series, hunger, births
 
     yrs = horizon - at_year
     s_ser, s_h, s_b = track(w, yrs)
     c_ser, c_h, c_b = track(control, yrs)
     rec = {"world_seed": ws, "run_seed": rs, "at_year": at_year, "cells": len(cells),
+           "pre_shock_area_pop": pre_pop,
            "shocked_area_pop": s_ser, "control_area_pop": c_ser,
            "shock_hunger_deaths_3y": sum(s_h[:3]), "control_hunger_deaths_3y": sum(c_h[:3]),
            "shock_births_3y": sum(s_b[:3]), "control_births_3y": sum(c_b[:3]),
@@ -160,6 +162,7 @@ def main():
     ap.add_argument("--seeds", default="1-20")
     ap.add_argument("--years", type=int, default=2000)
     ap.add_argument("--workers", type=int, default=2)
+    ap.add_argument("--at", type=int, default=800, help="shock year")
     a = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     if a.what == "report":
@@ -171,7 +174,7 @@ def main():
         print(run_one(ws, rs, a.years), flush=True)
         return
     jobs = ([(ws, rs, a.years) for ws in _range(a.worlds) for rs in _range(a.seeds)] if a.what == "runs"
-            else [(ws,) for ws in _range(a.worlds)])
+            else [(ws, 1, a.at, a.at + 100) for ws in _range(a.worlds)])
     fn = run_one if a.what == "runs" else run_shock
     with cf.ProcessPoolExecutor(max_workers=a.workers) as pool:
         futs = {pool.submit(fn, *j): j for j in jobs}

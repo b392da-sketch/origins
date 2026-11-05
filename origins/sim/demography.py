@@ -60,6 +60,8 @@ def kill(w, ids: np.ndarray, causes: np.ndarray):
     p.death_cell[ids] = c
     p.death_bad[ids] = np.where(c >= 0, w.region_bad_event[w.planet.region[np.clip(c, 0, None)]], -1)
     p.death_interv[ids] = np.where(c >= 0, w.intervention_event[np.clip(c, 0, None)], -1)
+    hung = (causes == C["hunger"]) & (c >= 0)
+    np.add.at(w.cell_hunger, c[hung], 1)
     p.preg_due[ids] = -1
     partners = p.partner[ids]
     has = partners >= 0
@@ -180,6 +182,8 @@ def births(w):
         sex = rng.integers(0, 2, size=len(due)).astype(np.int8)
         cond = np.maximum(0.4, p.condition[due])
         kids = w.add_people(sex, due, p.preg_father[due], p.band[due], cond, cell[p.band[due]])
+        bc = cell[p.band[due]]
+        np.add.at(w.cell_births, bc[bc >= 0], 1)
         p.preg_due[due] = -1
         p.youngest[due] = kids
         w.counts["births"] += len(kids)

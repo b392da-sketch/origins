@@ -74,6 +74,22 @@ class Founding(unittest.TestCase):
                 self.assertNotEqual(p.sex[i], p.sex[p.partner[i]])
 
 
+class FoundingOption(unittest.TestCase):
+    def test_three_founding_bands(self):
+        old = P.FOUNDING_BANDS
+        try:
+            P.FOUNDING_BANDS = 3
+            w = World.new(2, 1, planet(2))
+            self.assertEqual(w.people.n, 3 * P.FOUNDING_BAND)
+            self.assertEqual(w.counts["founders"], 3 * P.FOUNDING_BAND)
+            cells = {b.cell for b in w.living_bands()}
+            self.assertEqual(len(cells), 3)
+            engine.step(w, 40)
+            self.assertEqual(w.invariant_failures, [])
+        finally:
+            P.FOUNDING_BANDS = old
+
+
 class Simulation(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

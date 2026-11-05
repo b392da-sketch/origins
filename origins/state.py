@@ -123,6 +123,8 @@ class World:
         self.food_modifier = np.ones(n)            # observer interventions only
         self.intervention_event = -np.ones(n, dtype=np.int64)
         self.pending_restore: list = []
+        self.cell_hunger = np.zeros(n)             # diagnostics: hunger deaths and births recorded per land cell
+        self.cell_births = np.zeros(n)
         self.people = People()
         self.bands: dict[int, Band] = {}
         self.next_band = 0
