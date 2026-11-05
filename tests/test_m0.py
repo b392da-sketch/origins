@@ -63,8 +63,8 @@ class Founding(unittest.TestCase):
     def test_founding_band(self):
         w = world()
         p = w.people
-        self.assertEqual(p.n, 30)
-        self.assertEqual(len(w.living_bands()), 1)
+        self.assertEqual(p.n, P.FOUNDING_BANDS * P.FOUNDING_BAND)
+        self.assertEqual(len(w.living_bands()), P.FOUNDING_BANDS)
         for i in range(p.n):
             m = p.mother[i]
             if m >= 0:

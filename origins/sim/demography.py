@@ -147,10 +147,13 @@ def partnerships(w):
     for m in single_m:
         by_cell.setdefault(int(cell[p.band[m]]), []).append(int(m))
     taken = set()
+    rings: dict[int, list] = {}
     for i in rng.permutation(seekers):
         i = int(i)
         c = int(cell[p.band[i]])
-        near = _ring(nb, c, P.PARTNER_RINGS)
+        near = rings.get(c)
+        if near is None:
+            near = rings[c] = _ring(nb, c, P.PARTNER_RINGS)
         cand = [m for cc in near for m in by_cell.get(cc, ()) if m not in taken and not _kin(p, i, m)]
         if not cand:
             continue

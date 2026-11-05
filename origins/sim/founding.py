@@ -1,4 +1,4 @@
-"""The founding band: 30 people of mixed ages in the starting cell.
+"""The founding people: three bands of 30 (FOUNDING_BANDS x FOUNDING_BAND) of mixed ages in neighbouring land.
 
 reads: planet.start_cell
 writes: people, bands, known, events (founding)

@@ -1,6 +1,6 @@
 # Origins — M0 "the first people survive"
 
-A self-running world that begins with one band of 30 people about 50,000 years before the present. This is milestone M0 of the design in `../DESIGN_DRAFT_v0.4.md` and `../M0_SPECIFICATION_v1.md`.
+A self-running world that begins with three neighbouring bands of 30 people (one people of 90) about 50,000 years before the present. This is milestone M0 of the design in `../DESIGN_DRAFT_v0.5.md` and `../M0_SPECIFICATION_v1.1.md`.
 
 ## Start it
 
