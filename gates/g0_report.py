@@ -52,7 +52,8 @@ def report(out: Path) -> str:
     checks = []
 
     # 1 survival
-    survived = [r for r in runs if not r["extinct"] and r["completed_years"] == r["requested_years"]]
+    # history 1 on each planet runs 10 extra years for the exact-replay check, so ">=" not "=="
+    survived = [r for r in runs if not r["extinct"] and r["completed_years"] >= r["requested_years"]]
     ext = [r for r in runs if r["extinct"]]
     ok1 = len(survived) >= 90 and n >= 100
     checks.append(("1. Survival", ok1, f"{len(survived)} of {n} runs survived 2,000 years (pass mark 90 of 100). "
