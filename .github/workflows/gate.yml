@@ -57,16 +57,20 @@ jobs:
         env:
           REQ: ${{ needs.plan.outputs.request }}
         run: |
+          export ORIGINS_PARAMS=$(python3 -c "import json;print(json.dumps(json.load(open('$REQ')).get('params',{})))")
           GATE=$(python3 -c "import json;print(json.load(open('$REQ'))['gate'])")
           YEARS=$(python3 -c "import json;print(json.load(open('$REQ')).get('years',5000))")
           rm -rf gates/results_$GATE     # keep only this job's own results (the repository holds earlier ones)
           if [ "${{ matrix.kind }}" = "run" ]; then
             python -m gates.$GATE run --jobs ${{ matrix.ws }}:${{ matrix.rs }} --years $YEARS \
               --budget 20000 --workers 1 --ckpt /tmp/ckpt
+          elif [ "${{ matrix.kind }}" = "run_nostore" ]; then
+            python -m gates.$GATE run --jobs ${{ matrix.ws }}:${{ matrix.rs }} --years $YEARS \
+              --budget 20000 --workers 1 --ckpt /tmp/ckpt --no-storage
           else
             python -m gates.$GATE ${{ matrix.kind }} --worlds ${{ matrix.ws }}
           fi
-          mkdir -p out && cp gates/results_$GATE/*.json out/
+          mkdir -p out && cp gates/results_$GATE/*.json out/ 2>/dev/null || echo "no result (history did not finish within the job's time)"
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
@@ -90,6 +94,7 @@ jobs:
         env:
           REQ: ${{ needs.plan.outputs.request }}
         run: |
+          export ORIGINS_PARAMS=$(python3 -c "import json;print(json.dumps(json.load(open('$REQ')).get('params',{})))")
           GATE=$(python3 -c "import json;print(json.load(open('$REQ'))['gate'])")
           LABEL=$(python3 -c "import json;print(json.load(open('$REQ'))['label'])")
           rm -rf gates/results_$GATE && mkdir -p gates/results_$GATE

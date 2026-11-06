@@ -217,7 +217,9 @@ def outbreaks(w, rng, occ):
     # new outbreaks, more likely where people are crowded
     for c in sorted(pop):
         dens = pop[c] / max(w.planet.capacity[c], 1.0)
-        if rng.random() < P.OUTBREAK_RATE * pop[c] / 100.0 * max(dens, 0.2) * (1 - w.immune[c]):
+        village = any(w.farm_share[b.id] >= 0.5 for b in occ[c])
+        mult = P.VILLAGE_OUTBREAK if village else P.FORAGER_OUTBREAK
+        if rng.random() < P.OUTBREAK_RATE * mult * pop[c] / 100.0 * max(dens, 0.2) * (1 - w.immune[c]):
             eid = w.event("outbreak", cell=c, causes=[{"note": f"a new illness appeared among {int(pop[c])} people "
                                                                f"living at {dens:.0%} of the land's food supply"}],
                           cells=0, deaths=0, severity=round(float(rng.uniform(0.3, 1.0)), 2))

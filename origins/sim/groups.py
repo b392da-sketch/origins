@@ -269,7 +269,9 @@ def births(w):
         f1 = np.clip(np.where(wtot > 0, infants01 / wtot, 0), 0, 1)
         f2 = np.clip(np.where(wtot > 0, age2 / wtot, 0), 0, 1 - f1)
         fp = np.clip(np.where(wtot > 0, pregnant / wtot, 0), 0, 1)
-    nurse = (1 - f1 - f2) + f1 * P.NURSING_SUPPRESS_1 + f2 * P.NURSING_SUPPRESS_2
+    settled = w.farm_share[G.band[rows]] >= 0.5
+    sup1 = np.where(settled, P.FARMER_NURSING_1, P.NURSING_SUPPRESS_1)
+    nurse = (1 - f1 - f2) + f1 * sup1 + f2 * P.NURSING_SUPPRESS_2
     from .demography import _fecundity
     fec = _fecundity(np.arange(15, 50) + 0.5)
     cond = np.clip((G.cond_rest[rows] - P.FERTILE_CONDITION[0]) / P.FERTILE_CONDITION[1], 0, 1)

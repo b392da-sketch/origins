@@ -25,7 +25,8 @@ CAUSES = ["", "infancy and early childhood", "hunger", "accident or illness",
 C = {name: i for i, name in enumerate(CAUSES)}
 
 STREAMS = ["climate", "deaths", "partners", "births", "movement", "fission", "names", "founding",
-           "language", "customs", "hazards", "crossing"]   # new streams are appended, never inserted
+           "language", "customs", "hazards", "crossing",
+           "farming", "surplus"]   # new streams are appended, never inserted
 
 FIELDS = {
     "alive": bool, "sex": np.int8, "cause": np.int8, "name_a": np.int16, "name_b": np.int16,
@@ -33,9 +34,9 @@ FIELDS = {
     "birth": np.int64, "death": np.int64, "mother": np.int64, "father": np.int64,
     "partner": np.int64, "band": np.int64, "preg_due": np.int64, "preg_father": np.int64,
     "youngest": np.int64, "partner_since": np.int64, "death_bad": np.int64,
-    "death_cell": np.int64, "lang": np.int64, "birth_cell": np.int64, "folded": np.int64, "unfolded": np.int64, "death_interv": np.int64, "death_hazard": np.int64,
+    "death_cell": np.int64, "lang": np.int64, "role": np.int8, "wealth": np.float32, "birth_cell": np.int64, "folded": np.int64, "unfolded": np.int64, "death_interv": np.int64, "death_hazard": np.int64,
 }
-_ZERO_DEFAULT = {"alive", "sex", "cause", "condition", "death_cond", "death_ratio"}
+_ZERO_DEFAULT = {"alive", "sex", "cause", "condition", "death_cond", "death_ratio", "role", "wealth"}
 
 
 class People:
@@ -110,6 +111,9 @@ class Band:
     group_deaths: int = 0
     trail: list = field(default_factory=list)   # recent (tick, cell), newest last
     language: int = 0           # the language this band speaks (sim/language.py)
+    village: bool = False       # lives mainly from farming and stays put (sim/farming.py)
+    village_since: int = -1
+    farm_years: int = 0
 
 
 class World:
@@ -148,16 +152,18 @@ class World:
         self._binfo = None
         self._living = None
         self._pool = None            # candidate living bands (speed only)
-        self.ledger = {"regrowth": 0.0, "harvest": 0.0, "eaten": 0.0, "spoiled": 0.0}
+        self.ledger = {"regrowth": 0.0, "harvest": 0.0, "eaten": 0.0, "spoiled": 0.0, "farmed": 0.0}
         self.invariant_failures: list[str] = []
         self.yearly: list[dict] = []
         self.accum = new_accumulators()
         self.season_stats: dict = {}
         self.intervened = False
         self._live = None
-        from .sim import customs, language
+        from .sim import customs, farming, language, surplus
         language.init(self)
         customs.init(self)
+        farming.init(self)
+        surplus.init(self)
         self.people.languages = self.languages
         self.hazards: list = []                    # active hazards (sim/hazards.py)
         self.hazard_food = np.ones(n)              # hazard effect on wild food, recovering over years
@@ -204,8 +210,10 @@ class World:
         b.trail.append((self.t, int(cell)))
         if parent >= 0:
             b.language = self.bands[parent].language
-        from .sim import customs
+        from .sim import customs, farming, surplus
         customs.ensure(self, b.id, parent)
+        farming.ensure(self, b.id, parent)
+        surplus.ensure(self, b.id, parent)
         self.bands[b.id] = b
         if self._pool is not None:
             self._pool[b.id] = b

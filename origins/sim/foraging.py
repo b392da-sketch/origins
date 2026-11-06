@@ -35,7 +35,8 @@ def move(w):
     nbs = nb[cells]
     valid = (nbs >= 0) & planet.land[np.clip(nbs, 0, None)]
     vals = np.where(valid, w.stock[np.clip(nbs, 0, None)] / (occ[np.clip(nbs, 0, None)] + s[:, None]), -1.0)
-    want = (vals.max(1) > cur * P.MOVE_THRESHOLD) & (s > 0)
+    settled = w.farm_share[ids] >= 0.5                 # villages stay with their fields
+    want = (vals.max(1) > cur * P.MOVE_THRESHOLD) & (s > 0) & ~settled
     cand = np.nonzero(want)[0]
     for k in cand[w.rng["movement"].permutation(len(cand))]:
         b = bands[int(k)]
@@ -78,6 +79,9 @@ def forage_and_eat(w):
 
     ids = np.array([b.id for b in bands])
     cells = np.array([b.cell for b in bands])
+    from . import farming, surplus
+    effort[ids] *= surplus.work_share(w, ids)            # specialists eat but do not produce food
+    effort, farm_food = farming.season_food(w, ids, cells, effort)
     cell_effort = np.zeros(w.planet.n)
     np.add.at(cell_effort, cells, effort[ids])
     used = np.nonzero(cell_effort)[0]
@@ -94,7 +98,8 @@ def forage_and_eat(w):
     store = np.zeros(nb_)
     for b in bands:
         store[b.id] = b.store
-    avail = store + band_h
+    farming.record_forage_return(w, ids, effort, band_h)
+    avail = store + band_h + farm_food
     give_c = np.minimum(avail, need_child)
     give_r = np.minimum(avail - give_c, need_rest)
     frac_c = np.where(need_child > 0, give_c / np.maximum(need_child, 1e-12), 1.0)
@@ -102,10 +107,23 @@ def forage_and_eat(w):
     eaten = give_c + give_r
     left = avail - eaten
     total_need = need_child + need_rest
-    cap = P.STORE_DAYS * total_need / P.SEASON_DAYS
-    kept = np.minimum(left, cap) * (1 - P.STORE_SPOIL)
+    if P.STORAGE:
+        # farmers store grain (granaries, pits, pots): more room and slower spoilage, in proportion to farming
+        fs = w.farm_share[:nb_]
+        grain = np.minimum(1.0, 2 * fs)          # a band farming half its work or more stores mostly grain
+        cap = (P.STORE_DAYS + grain * P.GRANARY_DAYS) * total_need / P.SEASON_DAYS
+        spoil = P.STORE_SPOIL * (1 - grain) + P.GRAIN_SPOIL * grain
+    else:
+        cap = P.STORE_DAYS * total_need / P.SEASON_DAYS
+        spoil = P.STORE_SPOIL
+    kept = np.minimum(left, cap) * (1 - spoil)
     spoiled = left - kept
-    margin = np.where(total_need > 0, avail / np.maximum(total_need, 1e-12), 1.6)
+    # food security: farmers must make what they hold last until the next harvest, so their margin is measured
+    # against the needs of every season until then (foragers live season to season)
+    horizon = ((P.HARVEST_QUARTER - w.quarter - 1) % P.TICKS_PER_YEAR) + 1
+    fsh = w.farm_share[:nb_]
+    seasons = 1 + fsh * (horizon - 1)
+    margin = np.where(total_need > 0, avail / np.maximum(total_need * seasons, 1e-12), 1.6)
     for b in bands:
         b.margin = P.MARGIN_MEMORY * b.margin + (1 - P.MARGIN_MEMORY) * float(min(margin[b.id], 3.0))
         b.store = float(kept[b.id])

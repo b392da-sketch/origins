@@ -61,6 +61,10 @@ def kill(w, ids: np.ndarray, causes: np.ndarray):
     p.death_cell[ids] = c
     p.death_bad[ids] = np.where(c >= 0, w.region_bad_event[w.planet.region[np.clip(c, 0, None)]], -1)
     p.death_interv[ids] = np.where(c >= 0, w.intervention_event[np.clip(c, 0, None)], -1)
+    rich = ids[p.wealth[ids] > 0]
+    if len(rich):
+        from .surplus import inherit
+        inherit(w, rich)
     hung = (causes == C["hunger"]) & (c >= 0)
     np.add.at(w.cell_hunger, c[hung], 1)
     p.preg_due[ids] = -1
@@ -149,12 +153,15 @@ def partnerships(w):
         by_cell.setdefault(int(cell[p.band[m]]), []).append(int(m))
     taken = set()
     rings: dict[int, list] = {}
+    from .language import ring2
+    r2 = ring2(w)
     for i in rng.permutation(seekers):
         i = int(i)
         c = int(cell[p.band[i]])
         near = rings.get(c)
         if near is None:
-            near = rings[c] = _ring(nb, c, P.PARTNER_RINGS)
+            # the partner network is two rings of land; the planet keeps those cells cached (same cells, same order)
+            near = rings[c] = (r2[c].tolist() if P.PARTNER_RINGS == 2 else _ring(nb, c, P.PARTNER_RINGS))
         cand = [m for cc in near for m in by_cell.get(cc, ()) if m not in taken and not _kin(p, i, m)]
         if not cand:
             continue
@@ -210,7 +217,9 @@ def births(w):
     y = p.youngest[ei]
     yy = np.where(y >= 0, y, 0)
     yage = np.where((y >= 0) & p.alive[yy], (w.t - p.birth[yy]) / P.TICKS_PER_YEAR, 99.0)
-    nurse = np.where(yage < 2, P.NURSING_SUPPRESS_1, np.where(yage < 3, P.NURSING_SUPPRESS_2, 1.0))
+    settled = w.farm_share[p.band[ei]] >= 0.5          # weaning foods in farming villages shorten birth spacing
+    sup1 = np.where(settled, P.FARMER_NURSING_1, P.NURSING_SUPPRESS_1)
+    nurse = np.where(yage < 2, sup1, np.where(yage < 3, P.NURSING_SUPPRESS_2, 1.0))
     cond = np.clip((p.condition[ei] - P.FERTILE_CONDITION[0]) / P.FERTILE_CONDITION[1], 0, 1)
     marg = np.ones(w.next_band)
     for b in w.living_bands():

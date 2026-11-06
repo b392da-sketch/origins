@@ -16,7 +16,7 @@ def food_total(w) -> float:
 
 def begin_tick(w):
     w._check = {"food": food_total(w), "regrowth": w.ledger["regrowth"], "harvest": w.ledger["harvest"],
-                "eaten": w.ledger["eaten"], "spoiled": w.ledger["spoiled"]}
+                "eaten": w.ledger["eaten"], "spoiled": w.ledger["spoiled"], "farmed": w.ledger.get("farmed", 0.0)}
 
 
 def end_tick(w):
@@ -36,12 +36,15 @@ def end_tick(w):
     # food: every unit from regrowth, to eating or spoilage
     c = w._check
     d_food = food_total(w) - c["food"]
-    flows = ((w.ledger["regrowth"] - c["regrowth"]) - (w.ledger["eaten"] - c["eaten"])
+    flows = ((w.ledger["regrowth"] - c["regrowth"]) + (w.ledger.get("farmed", 0.0) - c["farmed"])
+             - (w.ledger["eaten"] - c["eaten"])
              - (w.ledger["spoiled"] - c["spoiled"]))
     if abs(d_food - flows) > 1e-6 * max(1.0, abs(c["food"])):
         w.invariant_failures.append(f"t={w.t}: food change {d_food:.3f} vs flows {flows:.3f}")
     if (w.stock < -1e-9).any():
         w.invariant_failures.append(f"t={w.t}: negative wild food")
+    if any(b.store < -1e-6 for b in w.living_bands()):
+        w.invariant_failures.append(f"t={w.t}: negative food store")
     cond = p.condition[:p.n][p.alive[:p.n]]
     if len(cond) and (cond.min() < -1e-9 or cond.max() > 1 + 1e-9):
         w.invariant_failures.append(f"t={w.t}: body condition out of range")
