@@ -28,13 +28,14 @@ STREAMS = ["climate", "deaths", "partners", "births", "movement", "fission", "na
            "language", "customs", "hazards", "crossing",
            "farming", "surplus"]   # new streams are appended, never inserted
 
+# ids, ticks and cells all fit in 32 bits; people are never removed, so their rows are kept compact
 FIELDS = {
     "alive": bool, "sex": np.int8, "cause": np.int8, "name_a": np.int16, "name_b": np.int16,
     "condition": np.float32, "death_cond": np.float32, "death_ratio": np.float32,
-    "birth": np.int64, "death": np.int64, "mother": np.int64, "father": np.int64,
-    "partner": np.int64, "band": np.int64, "preg_due": np.int64, "preg_father": np.int64,
-    "youngest": np.int64, "partner_since": np.int64, "death_bad": np.int64,
-    "death_cell": np.int64, "lang": np.int64, "role": np.int8, "wealth": np.float32, "birth_cell": np.int64, "folded": np.int64, "unfolded": np.int64, "death_interv": np.int64, "death_hazard": np.int64,
+    "birth": np.int32, "death": np.int32, "mother": np.int32, "father": np.int32,
+    "partner": np.int32, "band": np.int32, "preg_due": np.int32, "preg_father": np.int32,
+    "youngest": np.int32, "partner_since": np.int32, "death_bad": np.int32,
+    "death_cell": np.int32, "lang": np.int32, "role": np.int8, "wealth": np.float32, "birth_cell": np.int32, "folded": np.int32, "unfolded": np.int32, "death_interv": np.int32, "death_hazard": np.int32,
 }
 _ZERO_DEFAULT = {"alive", "sex", "cause", "condition", "death_cond", "death_ratio", "role", "wealth"}
 
