@@ -63,10 +63,13 @@ jobs:
           if [ "${{ matrix.kind }}" = "run" ]; then
             python -m gates.$GATE run --jobs ${{ matrix.ws }}:${{ matrix.rs }} --years $YEARS \
               --budget 20000 --workers 1 --ckpt /tmp/ckpt
+          elif [ "${{ matrix.kind }}" = "run_nostore" ]; then
+            python -m gates.$GATE run --jobs ${{ matrix.ws }}:${{ matrix.rs }} --years $YEARS \
+              --budget 20000 --workers 1 --ckpt /tmp/ckpt --no-storage
           else
             python -m gates.$GATE ${{ matrix.kind }} --worlds ${{ matrix.ws }}
           fi
-          mkdir -p out && cp gates/results_$GATE/*.json out/
+          mkdir -p out && cp gates/results_$GATE/*.json out/ 2>/dev/null || echo "no result (history did not finish within the job's time)"
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}

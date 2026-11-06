@@ -5,7 +5,8 @@ A request looks like:
    "extras": ["groups"]}
 
 Each history becomes one job (one runner). "extras" adds the gate's paired experiments,
-one job per planet. Prints a JSON matrix for the workflow.
+one job per planet; "nostore_seeds" adds knock-out histories with food storage turned off.
+Prints a JSON matrix for the workflow.
 """
 from __future__ import annotations
 
@@ -22,10 +23,13 @@ def _range(s) -> list:
 
 def plan(req: dict) -> dict:
     jobs = [{"kind": "run", "ws": ws, "rs": rs} for rs in _range(req["seeds"]) for ws in _range(req["planets"])]
+    if req.get("nostore_seeds"):
+        jobs += [{"kind": "run_nostore", "ws": ws, "rs": rs}
+                 for rs in _range(req["nostore_seeds"]) for ws in _range(req["planets"])]
     for extra in req.get("extras", []):
         jobs += [{"kind": extra, "ws": ws, "rs": 0} for ws in _range(req["planets"])]
     for j in jobs:
-        j["name"] = f"{j['kind']}-w{j['ws']}" + (f"-s{j['rs']}" if j["kind"] == "run" else "")
+        j["name"] = f"{j['kind']}-w{j['ws']}" + (f"-s{j['rs']}" if j["kind"].startswith("run") else "")
     return {"include": jobs}
 
 

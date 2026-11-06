@@ -30,7 +30,8 @@ ANNUAL = 365.0 * 0.95                         # food units a typical person need
 
 def init(w):
     w.spec = np.zeros(64)                      # specialists per band (counts, also for groups)
-    w.gini_log = []                            # [year, band, gini, surplus per person, households]
+    w.gini_log = []                            # [year, band, gini, surplus per person, households, village age]
+    w.spec_log = []                            # every 50 years: [year, band, surplus per person, specialist share, farm share]
 
 
 def ensure(w, band_id: int, parent: int):
@@ -68,6 +69,8 @@ def yearly(w):
         per_person = surplus / n
         spec = min(np.floor(surplus / ANNUAL), np.floor(P.SPECIALIST_MAX * n)) if P.STORAGE else 0.0
         w.spec[b.id] = spec
+        if w.year % 50 == 0 and (b.store > 0 or spec > 0):
+            w.spec_log.append([w.year, b.id, round(per_person, 1), round(spec / n, 4), round(float(w.farm_share[b.id]), 3)])
         if b.mode != "individual":
             continue
         mem = w.members(b.id)
@@ -95,8 +98,10 @@ def yearly(w):
             for j, i in enumerate(chosen[1:]):
                 p.role[i] = 2 if j % 4 == 0 else 3
         if len(heads) >= 3:
-            w.gini_log.append([w.year, b.id, round(gini(hw), 4), round(per_person, 1), len(heads)])
+            age = (w.t - b.village_since) // P.TICKS_PER_YEAR if b.village_since >= 0 else 0
+            w.gini_log.append([w.year, b.id, round(gini(hw), 4), round(per_person, 1), len(heads), int(age)])
     del w.gini_log[:-20000]
+    del w.spec_log[:-20000]
 
 
 def inherit(w, dead_ids):
@@ -128,8 +133,9 @@ def work_share(w, ids):
 
 
 def to_json(w):
-    return {"gini_log": w.gini_log[-5000:]}
+    return {"gini_log": w.gini_log[-5000:], "spec_log": w.spec_log[-5000:]}
 
 
 def from_json(w, d):
     w.gini_log = d.get("gini_log", [])
+    w.spec_log = d.get("spec_log", [])
