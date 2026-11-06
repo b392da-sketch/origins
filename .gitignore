@@ -5,3 +5,4 @@ gates/results/
 *.tmp
 gates/results_g1/
 gates/ckpt_g1/
+gates/g1_log.txt
