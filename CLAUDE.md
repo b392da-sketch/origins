@@ -22,4 +22,4 @@ Ben owns the design. Read `../DESIGN_DRAFT_v0.4.md` (or newer) and the current m
 
 ## Current milestone
 M0 "the first people survive": gate G0 passed and **closed with Ben's approval on 6 November 2026** (`docs/M0_GATE_REPORT.md`).
-M1 "spreading and drifting apart": specification **approved by Ben on 6 November 2026** (`docs/M1_SPECIFICATION_v1.md`, decisions in section 9); **in build**. Gate G1: target 75 histories (5 planets × 15) of 5,000 years, no fewer than 50.
+M1 "spreading and drifting apart": specification **approved by Ben on 6 November 2026** (`docs/M1_SPECIFICATION_v1.md`, decisions in section 9); built; gate G1 run on 60 histories (stopped there by Ben), report in `docs/M1_GATE_REPORT.md`, **awaiting Ben's decision** on check 5 and on closing M1.
