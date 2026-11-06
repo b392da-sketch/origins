@@ -93,22 +93,23 @@ def report(out: Path) -> str:
     br_ratio, dens_ratio = [], []
     for r in farm:
         d = np.array(r["demog"], dtype=float)
-        if len(d) < 3:
+        if len(d) < 3 or d.shape[1] < 12:
             continue
-        # births between samples, per person-year, in village cells vs forager cells (last half of the history)
-        h = d[len(d) // 2:]
-        db_f = np.diff(h[:, 3]) / np.maximum(h[1:, 1] * 25, 1)
-        db_v = np.diff(h[:, 6]) / np.maximum(h[1:, 4] * 25, 1)
-        ok_rows = (h[1:, 4] > 0) & (h[1:, 1] > 0)
-        if ok_rows.sum() >= 2:
-            br_ratio.append(float(np.mean(db_v[ok_rows]) / max(np.mean(db_f[ok_rows]), 1e-9)))
-            dens_ratio.append(float(np.mean(h[ok_rows, 4] / np.maximum(h[ok_rows, 5], 1)) /
-                                    max(np.mean(h[ok_rows, 1] / np.maximum(h[ok_rows, 2], 1)), 1e-9)))
+        h = d[len(d) // 2:]                                  # the second half of the history
+        dbf, dpf = h[-1, 8] - h[0, 8], h[-1, 9] - h[0, 9]
+        dbv, dpv = h[-1, 10] - h[0, 10], h[-1, 11] - h[0, 11]
+        if dpf > 0 and dpv > 0:
+            br_ratio.append((dbv / dpv) / max(dbf / dpf, 1e-12))
+        ok_rows = (h[:, 4] > 0) & (h[:, 1] > 0)
+        if ok_rows.any():
+            hh = h[ok_rows]
+            dens_ratio.append(float(np.mean(hh[:, 4] / np.maximum(hh[:, 5], 1)) /
+                                    max(np.mean(hh[:, 1] / np.maximum(hh[:, 2], 1)), 1e-9)))
     ok6 = bool(br_ratio) and np.median(br_ratio) > 1 and np.median(dens_ratio) > 1
     checks.append(("6. Demographic transition", ok6,
-                   (f"births per person in farming land ÷ foraging land: median {np.median(br_ratio):.2f} "
+                   (f"births per person-year in villages ÷ among foragers (second half of each history): median {np.median(br_ratio):.2f} "
                     f"({min(br_ratio):.2f}–{max(br_ratio):.2f}); people per area, farming ÷ foraging: median "
-                    f"{np.median(dens_ratio):.1f}" if br_ratio else "not enough farming to compare")
+                    f"{np.median(dens_ratio):.1f}" if br_ratio and dens_ratio else "not enough farming to compare")
                    + " (both must exceed 1)"))
 
     # 7 specialists follow surplus

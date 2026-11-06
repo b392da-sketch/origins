@@ -121,6 +121,24 @@ def best(w, b) -> tuple:
     return kp, float(val[kp]), ka, float(val[ka])
 
 
+def best_farm_cell(w, b, occupied):
+    """Where a daughter village can farm best: a neighbouring land cell where the village's crops or herds
+    grow, least crowded for its farm capacity (None if there is nowhere)."""
+    wild, suit = land_tables(w)
+    sk = w.skill[b.id]
+    best, best_v = None, 0.0
+    for m in w.planet.grid.neighbours[b.cell]:
+        m = int(m)
+        if m < 0 or not w.planet.land[m]:
+            continue
+        usable = (sk >= 3) | wild[m]
+        v = float(np.max(np.where(usable, quality(sk) * suit[m], 0.0)))
+        room = v * P.FARM_CAPACITY / (occupied.get(m, 0.0) + 1.0)
+        if v > 0 and room > best_v:
+            best, best_v = m, room
+    return best
+
+
 # ------------------------------------------------------------------ each season: food from fields and herds
 def season_food(w, ids, cells, effort):
     """Split each band's work; return (forage effort, farm food this season) per band id array.
@@ -194,10 +212,19 @@ def yearly(w):
                 continue
             if sk[k] < 1:
                 if wild[c, k] and w.still_years[b.id] >= P.TEND_STILL_YEARS and pressure > 0:
-                    sk[k] = min(1.0, sk[k] + P.TEND_RATE * pressure * suit[c, k])
+                    if sk[k] > 0:
+                        sk[k] = min(1.0, sk[k] + P.TEND_RATE * pressure * suit[c, k])
+                    elif rng.random() < P.TEND_START * pressure * suit[c, k]:
+                        # beginning to tend a wild plant or herd is a rare idea, not a certainty
+                        sk[k] = P.TEND_RATE * pressure * suit[c, k]
             elif sk[k] < 2:
-                # deliberate sowing grows with how much a people farms, or how pressed it is for food
-                sk[k] = min(2.0, sk[k] + P.CULTIVATE_RATE * max(share, pressure))
+                if sk[k] == 1.0:
+                    # the step from tending to deliberate sowing is another rare idea
+                    if rng.random() < P.CULTIVATE_START * max(share, pressure) * max(suit[c, k], 0.1):
+                        sk[k] = 1.0 + 1e-3
+                else:
+                    # deliberate sowing grows with how much a people farms, or how pressed it is for food
+                    sk[k] = min(2.0, sk[k] + P.CULTIVATE_RATE * max(share, pressure))
             elif sk[k] < 3:
                 sk[k] = min(3.0, sk[k] + P.DOMESTICATE_RATE * max(share, pressure))
         # learning from neighbours who know more about something that can live here
@@ -213,7 +240,7 @@ def yearly(w):
     # firsts in the world, with their causes
     for b in bands:
         for k in np.nonzero(w.skill[b.id] != old[b.id])[0]:
-            for stage, thr in (("tending", 1e-9), ("cultivation", 1.0), ("domestication", 3.0)):
+            for stage, thr in (("tending", 1e-9), ("cultivation", 1.0 + 1e-4), ("domestication", 3.0)):
                 if old[b.id][k] < thr <= w.skill[b.id][k] or (thr < 1e-6 and old[b.id][k] == 0 < w.skill[b.id][k]):
                     _first(w, b, k, stage)
     # work choice: compare food per day of work
@@ -222,6 +249,7 @@ def yearly(w):
         v = max(vp, va)
         if v <= 0:
             target = 0.0
+            w.farm_share[b.id] = 0.0                 # nothing here can be farmed: back to foraging at once
         else:
             farm_rr = P.FARM_RATE * v * P.FARM_RISK
             ratio = farm_rr / max(w.forage_rr[b.id], 1e-6)

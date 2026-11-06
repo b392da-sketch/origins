@@ -21,6 +21,12 @@ def begin_tick(w):
 
 def end_tick(w):
     p = w.people
+    if w.quarter == 0:
+        # person-years by way of life (villages farm at least half their work; foragers under a tenth)
+        sizes = w.band_sizes()
+        fs = w.farm_share[:len(sizes)]
+        w.counts["py_village"] = w.counts.get("py_village", 0.0) + float(sizes[fs >= 0.5].sum())
+        w.counts["py_forager"] = w.counts.get("py_forager", 0.0) + float(sizes[fs < 0.1].sum())
     # people: nobody appears or disappears without a recorded birth or death
     from . import groups
     G = w.groups

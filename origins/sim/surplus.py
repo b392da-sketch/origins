@@ -83,7 +83,20 @@ def yearly(w):
         units = _households(w, mem)
         heads = np.array([u[0] for u in units])                 # the woman (or lone person) heading each
         hw = p.wealth[heads].astype(float)
-        hw[hw <= 0] = 1.0                                       # new households start with an equal share
+        new = np.nonzero(hw <= 0)[0]
+        if len(new):
+            # a new household takes a share of her mother's holdings (land and stores pass down the generations);
+            # without a living mother, an average share
+            avg = float(np.mean(hw[hw > 0])) if (hw > 0).any() else 1.0
+            pos = {int(h): k for k, h in enumerate(heads)}
+            for k in new:
+                m = int(p.mother[heads[k]])
+                if m >= 0 and m in pos and hw[pos[m]] > 0:
+                    give = P.DOWRY_SHARE * hw[pos[m]]
+                    hw[pos[m]] -= give
+                    hw[k] = give
+                else:
+                    hw[k] = avg
         sigma = P.WEALTH_LUCK * min(1.0, per_person / P.SURPLUS_FOR_FULL_LUCK)
         hw *= np.exp(rng.normal(-0.5 * sigma ** 2, sigma, size=len(hw)))
         p.wealth[heads] = hw

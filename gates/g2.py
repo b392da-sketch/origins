@@ -56,7 +56,10 @@ def probe(w, pr):
             pop_f += sizes[b.id]
     births_v = float(w.cell_births[sorted(cells_v)].sum()) if cells_v else 0.0
     births_f = float(w.cell_births[sorted(cells_f)].sum()) if cells_f else 0.0
-    pr["demog"].append([w.year, round(pop_f), len(cells_f), births_f, round(pop_v), len(cells_v), births_v, nv])
+    c = w.counts
+    pr["demog"].append([w.year, round(pop_f), len(cells_f), births_f, round(pop_v), len(cells_v), births_v, nv,
+                        c.get("births_forager", 0), c.get("py_forager", 0.0), c.get("births_village", 0),
+                        c.get("py_village", 0.0)])
     if w.year % 500 == 0:
         wild, suit = farming.land_tables(w)
         not_wild = 0

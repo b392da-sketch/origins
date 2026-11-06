@@ -199,6 +199,9 @@ def births(w):
         p.preg_due[due] = -1
         p.youngest[due] = kids
         w.counts["births"] += len(kids)
+        fs = w.farm_share[p.band[due]]
+        w.counts["births_village"] = w.counts.get("births_village", 0) + int((fs >= 0.5).sum())
+        w.counts["births_forager"] = w.counts.get("births_forager", 0) + int((fs < 0.1).sum())
         w.counts["births_ind"] += len(kids)
         age_m = w.ages(due)
         g = np.clip(((age_m - 15) // 5).astype(np.int64), 0, 6)

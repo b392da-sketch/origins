@@ -244,6 +244,9 @@ def births(w):
         G.F[rows, 0] += girls
         G.M[rows, 0] += n_due - girls
         w.counts["births"] += int(n_due.sum())
+        vill = w.farm_share[G.band[rows]] >= 0.5
+        w.counts["births_village"] = w.counts.get("births_village", 0) + int(n_due[vill].sum())
+        w.counts["births_forager"] = w.counts.get("births_forager", 0) + int(n_due[w.farm_share[G.band[rows]] < 0.1].sum())
         np.add.at(w.cell_births, np.array([w.bands[int(b)].cell for b in G.band[rows]], dtype=np.int64), n_due)
         maternal = rng.binomial(n_due, P.MATERNAL_DEATH)
         for r, k in zip(rows, maternal):
