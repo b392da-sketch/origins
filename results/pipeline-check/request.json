@@ -1,0 +1,9 @@
+{
+ "gate": "g1",
+ "label": "pipeline-check",
+ "years": 300,
+ "planets": "1-2",
+ "seeds": "1-2",
+ "extras": [],
+ "note": "first run of the gate workflow: checks the pipeline end to end on 4 short histories"
+}
