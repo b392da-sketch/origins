@@ -87,6 +87,11 @@ def fission_and_merge(w):
         if not (s > limit or stressed):
             continue
         target = _best_cell(w, b.cell, s // 2, occupied)
+        if b.village:
+            from .farming import best_farm_cell
+            target = best_farm_cell(w, b, occupied)
+            if target is None:
+                continue
         if s <= limit:
             here = w.stock[b.cell] / max(occupied.get(b.cell, s), 1)
             there = w.stock[target] / (occupied.get(target, 0) + s // 2)
