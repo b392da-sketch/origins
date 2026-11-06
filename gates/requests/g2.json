@@ -1,2 +1,2 @@
-{"gate": "g2", "label": "g2", "planets": "1-5", "seeds": "1-10", "nostore_seeds": "1-4",
- "note": "Gate G2: 50 histories until 3,000 years after the first farming village (or 25,000 years), plus 20 with food storage turned off."}
+{"gate": "g2", "label": "g2-run2", "planets": "1-5", "seeds": "1-10", "nostore_seeds": "1-4",
+ "note": "Gate G2, second run, after the fixes from the first (see docs/M2_GATE_ATTEMPT1.md and docs/M2_BUILD_NOTES.md)."}
