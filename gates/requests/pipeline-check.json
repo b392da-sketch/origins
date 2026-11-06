@@ -5,5 +5,5 @@
  "planets": "1-2",
  "seeds": "1-2",
  "extras": [],
- "note": "first run of the gate workflow: checks the pipeline end to end on 4 short histories"
+ "note": "second run: checks that each job publishes only its own results"
 }
