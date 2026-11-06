@@ -50,3 +50,11 @@ All rates are tunable starting values (`origins/params.py`), not measurements.
 
 - Check 5 pass mark adopted: **at least 50 living languages by year 5,000 in at least 90% of histories.** Result: 60 of 60, so check 5 passes.
 - **M1 closed.** The two findings (islands not diverging faster; outbreak share of deaths) are carried forward as open items for later milestones.
+
+## Rerun after the stored-food fix (7 November 2026)
+
+During M2 a bug was found that could leave a group with negative stored food (see `docs/M2_BUILD_NOTES.md`). It entered the code just before G1's histories ran, so gate G1 was rerun on GitHub with the fix: all 75 histories (5 planets × 15), farming switched off. Full report: `docs/M1_GATE_RERUN_REPORT.md`.
+
+- **Every check still passes**, now on 75 histories, including check 5 under the approved mark (98–350 living languages; all 75 have at least 50).
+- **Deaths by cause changed:** hunger 11.2% (was 9.2%), outbreaks 6.0% (was 9.3%). The rerun also carries M2's lower outbreak rate for foragers, so these cannot be separated cleanly; what the rerun shows is that the bug was not inflating G1's hunger deaths overall, as I had suspected: fewer outbreak deaths mostly became hunger deaths, as in the M2 tests.
+- The two open findings stand: island languages still do not diverge faster (18% vs 18% shared words at 3,000–5,000 years).
