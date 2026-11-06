@@ -327,7 +327,7 @@ def worker(jobs, years, budget, ckpt: Path):
 
 
 # ---------------------------------------------------------------- check 10
-def groups_at_limit(ws: int, years: int = 800, horizon: int = 200, food: float = 0.3):
+def groups_at_limit(ws: int, years: int = 800, horizon: int = 300, food: float = 0.2):
     """Check 10. Paired runs from the same world, made crowded by halving the wild food everywhere
     (a gate experiment, not part of any history): everyone as individuals vs everyone folded into groups."""
     from origins import engine, persist
@@ -338,6 +338,8 @@ def groups_at_limit(ws: int, years: int = 800, horizon: int = 200, food: float =
         return
     w = World.new(ws, 1, _planet(ws))
     engine.step(w, 4 * years)
+    while w.population() < 15_000 and w.year < 3000:     # a world small at year 800 is still spreading
+        engine.step(w, 4 * 10)
     w.food_modifier[:] = food
     w.intervened = True
     ind = persist.from_bytes(persist.to_bytes(w), w.planet)
@@ -345,7 +347,7 @@ def groups_at_limit(ws: int, years: int = 800, horizon: int = 200, food: float =
     for b in list(grp.living_bands()):
         if b.mode == "individual":
             groups.fold(grp, b)
-    out = {"world_seed": ws, "at_year": years, "horizon": horizon, "food": food}
+    out = {"world_seed": ws, "at_year": w.year, "horizon": horizon, "food": food}
     for name, x in (("individuals", ind), ("groups", grp)):
         b0, d0 = x.counts["births"], x.accum["deaths_by_cause"][:C["flood"]].sum()
         hz0 = x.accum["deaths_by_cause"][C["flood"]:].sum()
@@ -357,6 +359,10 @@ def groups_at_limit(ws: int, years: int = 800, horizon: int = 200, food: float =
             sz = x.band_sizes()
             margins.append(float(np.average([b.margin for b in x.living_bands()],
                                             weights=[sz[b.id] + 1e-9 for b in x.living_bands()])))
+            if len(pops) == horizon // 3:          # measure rates over the last two thirds, once crowded
+                b0, d0 = x.counts["births"], x.accum["deaths_by_cause"][:C["flood"]].sum()
+                hz0 = x.accum["deaths_by_cause"][C["flood"]:].sum()
+                py0 = x.accum["person_years"].sum()
             pops.append(x.population())
         py = x.accum["person_years"].sum() - py0
         out[name] = {"birth_rate": (x.counts["births"] - b0) / py,

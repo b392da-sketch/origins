@@ -66,19 +66,28 @@ def report(out: Path, years: int = 5000) -> str:
                    f"{fails} accounting failures; exact replay {sum(rp)} of {len(rp)}; "
                    f"cause chains complete for {res:,} of {chk:,} sampled deaths and events"))
 
-    # 2 spread and sea crossings
-    occ_end = [r["yearly"]["occupied_cells"][-1] for r in survived]
-    start_area = [r["sea"]["areas"][str(r["sea"]["start"])] for r in survived]
-    share = [o / a for o, a in zip(occ_end, start_area)]
+    # 2 spread and sea crossings. "Full" is measured by food capacity: much land (ice, desert, high
+    # mountains) supports almost no foragers, so a share of cells would understate how full the land is.
+    from origins.worldgen import generate
+    from gates.g1 import landmass
+    cap_share, cell_share = [], []
+    for r in survived:
+        pl = generate(r["world_seed"])
+        m = landmass(pl) == r["sea"]["start"]
+        cap_share.append(r["yearly"]["capacity_occupied"][-1] / pl.capacity[m].sum())
+        cell_share.append(r["yearly"]["occupied_cells"][-1] / m.sum())
     crossed = [r for r in survived if r["events"].get("sea_crossing", 0) > 0]
     other = [r for r in survived if len(r["sea"]["occupied_areas"]) > 1]
-    ok2 = bool(survived) and np.median(share) >= 0.5 and len(other) >= 0.5 * len(survived)
+    full = sum(c >= 0.8 for c in cap_share)
+    ok2 = bool(survived) and full >= 0.9 * len(survived) and len(other) >= 0.5 * len(survived)
     checks.append(("2. Spread", ok2,
-                   f"occupied land at year {years:,}: {min(share):.0%}–{max(share):.0%} of the starting land mass "
-                   f"(median {np.median(share):.0%}); {len(crossed)} of {len(survived)} histories made at least one "
-                   f"sea crossing (median {np.median([r['events'].get('sea_crossing', 0) for r in survived]):.0f}), "
-                   f"and {len(other)} have people living on more than one land mass at the end "
-                   f"(every planet has islands within one sea cell)"))
+                   f"at year {years:,}, occupied land holds {min(cap_share):.0%}–{max(cap_share):.0%} of the starting "
+                   f"land mass's food capacity (median {np.median(cap_share):.0%}; at least 80% in {full} of "
+                   f"{len(survived)} histories, pass mark 90%), on {min(cell_share):.0%}–{max(cell_share):.0%} of its "
+                   f"cells (the rest is mostly ice, desert and high mountains); {len(crossed)} of {len(survived)} "
+                   f"histories made at least one sea crossing (median "
+                   f"{np.median([r['events'].get('sea_crossing', 0) for r in survived]):.0f}), and {len(other)} have "
+                   f"people on more than one land mass at the end (every planet has islands within one sea cell)"))
 
     # 3 drift with distance. Cultural distance = mean of customs distance (named customs and neutral drift)
     # and language distance (share of core words not shared); each part is also reported on its own.
@@ -176,7 +185,7 @@ def report(out: Path, years: int = 5000) -> str:
     rows8, good8, tot8 = [], 0, 0
     for k in ("flood", "wildfire", "eruption", "earthquake", "outbreak"):
         hs = [h for r in runs for h in r["hazard_after"] if h["kind"] == k and h["deaths"] > 0 and h["before"] > 0
-              and "after20" in h]
+              and "after20" in h and "after1" in h]
         if not hs:
             rows8.append(f"{k}: none with deaths among people")
             continue
@@ -210,13 +219,13 @@ def report(out: Path, years: int = 5000) -> str:
             i, q = g["individuals"], g["groups"]
             br, dr = q["birth_rate"] / i["birth_rate"], q["death_rate"] / i["death_rate"]
             pi = i["population"]
-            late = pi[-1] / max(pi[len(pi) // 2], 1)
-            ok10 &= abs(br - 1) <= 0.15 and abs(dr - 1) <= 0.15 and abs(late - 1) <= 0.15
-            rows.append(f"planet {g['world_seed']}: births {br:.2f}×, deaths {dr:.2f}× (population of the individuals' "
-                        f"world {pi[0]:,} → {pi[len(pi) // 2]:,} → {pi[-1]:,}: held at the food limit)")
+            ok10 &= abs(br - 1) <= 0.15 and abs(dr - 1) <= 0.15 and i["food_margin_late"] < 1.5
+            rows.append(f"planet {g['world_seed']} (from year {g['at_year']:,}): births {br:.2f}×, deaths {dr:.2f}× "
+                        f"(food gathered ÷ needed {i['food_margin_late']:.2f} for individuals, "
+                        f"{q['food_margin_late']:.2f} for groups; population {pi[0]:,} → {pi[-1]:,})")
         checks.append(("10. Groups match individuals at the food limit", ok10,
-                       "groups ÷ individuals over 200 years from the same world made crowded (wild food cut to 30%): "
-                       + "; ".join(rows) + " (pass: within 15%, with the population level over the second 100 years, i.e. held by food)"))
+                       "groups ÷ individuals from the same world made crowded (wild food cut to 20% from year 800, or later once 15,000 people live there; rates over years 100–300 of the test): "
+                       + "; ".join(rows) + " (pass: within 15%, with food gathered ÷ needed below 1.5, where food holds births down)"))
     else:
         checks.append(("10. Groups match individuals at the food limit", False, "not run"))
 
