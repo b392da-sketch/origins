@@ -31,3 +31,4 @@ Working notes for M1 "spreading and drifting apart": what was built, what was tr
 ## Open findings from the first G1 histories
 - Outbreaks cause about 9% of all deaths. Infectious disease was a leading cause of death among foragers, but whether epidemic outbreaks (as opposed to everyday illness) should be this large a share at low density is doubtful.
 - Island languages do not yet diverge faster than mainland languages split the same time ago (19% shared words either way at 3,000–5,000 years apart). Borrowing is the only process that differs with isolation, and it is small.
+- **Memory.** One gate history on planet 4 was stopped by the machine's memory limit (over 4 GB): group rows were never reused, and group fission and recombination create tens of thousands of them per century. Rows of ended groups are now dropped every 50 years. Checked from a saved world: 60 years with and without this give the same population, births, deaths and events (rows 65,355 → 2,843).

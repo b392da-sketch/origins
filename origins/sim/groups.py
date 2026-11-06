@@ -84,6 +84,20 @@ class Groups:
     def arrays(self):
         return {k: getattr(self, k).copy() for k in self.KEYS}
 
+    def compact(self) -> dict:
+        """Drop inactive rows (memory only: active rows keep their order). Returns old row -> new row."""
+        rows = self.rows()
+        old = {k: getattr(self, k)[rows].copy() for k in self.KEYS}
+        self.n = 0
+        self._F = None
+        for k in self.KEYS:
+            setattr(self, "_" + k, None)
+        self._alloc(max(64, 2 * len(rows)))
+        for k in self.KEYS:
+            getattr(self, "_" + k)[:len(rows)] = old[k]
+        self.n = len(rows)
+        return {int(r): i for i, r in enumerate(rows)}
+
     @classmethod
     def from_arrays(cls, d):
         g = cls()
@@ -93,6 +107,18 @@ class Groups:
         for k in cls.KEYS:
             getattr(g, "_" + k)[:n] = d[k]
         return g
+
+
+def compact(w):
+    """Every so often, drop the rows of groups that have ended (results are unchanged)."""
+    G = w.groups
+    live = int(G.active.sum())
+    if G.n - live < max(2000, live):
+        return
+    remap = G.compact()
+    for b in w.bands.values():
+        if b.group >= 0:
+            b.group = remap.get(b.group, -1)
 
 
 def sizes(w) -> np.ndarray:

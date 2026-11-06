@@ -286,7 +286,7 @@ def band_detail(w, bid: int) -> dict:
                        for j, k in enumerate(customs.NAMES)],
            "custom_changes": [{"bp": P.START_YEARS_BP - t // 4, "custom": c, "from": a, "to": z, "how": how}
                               for t, c, a, z, how in w.custom_log.get(b.id, [])][::-1]}
-    if b.mode == "group":
+    if b.mode == "group" and b.group >= 0:
         G = w.groups
         out["pyramid"] = {"female": G.F[b.group].astype(int).tolist(), "male": G.M[b.group].astype(int).tolist()}
         out["size"] = int(G.total(b.group))

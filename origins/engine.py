@@ -20,6 +20,7 @@ PHASES = [
     ("fission_merge", bands.fission_and_merge),
     ("discovery", bands.reveal),
     ("fold", lambda w: bands.fold_distant(w) if w.quarter == 3 else None),
+    ("compact", lambda w: groups.compact(w) if w.quarter == 3 and w.year % 50 == 0 else None),
     ("hazards", lambda w: hazards.yearly(w) if w.quarter == 1 else None),
     ("customs", lambda w: customs.yearly(w) if w.quarter == 1 else None),
     ("language", lambda w: language.check(w)
