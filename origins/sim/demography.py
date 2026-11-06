@@ -213,7 +213,9 @@ def births(w):
     y = p.youngest[ei]
     yy = np.where(y >= 0, y, 0)
     yage = np.where((y >= 0) & p.alive[yy], (w.t - p.birth[yy]) / P.TICKS_PER_YEAR, 99.0)
-    nurse = np.where(yage < 2, P.NURSING_SUPPRESS_1, np.where(yage < 3, P.NURSING_SUPPRESS_2, 1.0))
+    settled = w.farm_share[p.band[ei]] >= 0.5          # weaning foods in farming villages shorten birth spacing
+    sup1 = np.where(settled, P.FARMER_NURSING_1, P.NURSING_SUPPRESS_1)
+    nurse = np.where(yage < 2, sup1, np.where(yage < 3, P.NURSING_SUPPRESS_2, 1.0))
     cond = np.clip((p.condition[ei] - P.FERTILE_CONDITION[0]) / P.FERTILE_CONDITION[1], 0, 1)
     marg = np.ones(w.next_band)
     for b in w.living_bands():

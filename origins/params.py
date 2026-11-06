@@ -102,6 +102,27 @@ OUTBREAK_IMMUNITY, IMMUNITY_LOSS = 0.8, 0.05
 CROSSING_HUNGER = 0.9              # a band receiving less than this share of its needs may cross the sea
 CROSSING_RATE = 0.2                # yearly chance such a band crosses, when land is visible across one ocean cell
 
+# --- Farming (M2)
+FARM_RATE = 3.0                    # food units per worker-day farming a fully domesticated species on ideal land
+FARM_CAPACITY = 1200               # people a cell (about 3,100 km2) of ideal farmland can feed; foraging feeds 10-200
+FARM_RISK = 0.8                    # farmers discount a harvest's promise for its risk
+FARM_INERTIA = 0.15                # yearly share of the gap between current and preferred work split that is closed
+HARVEST_QUARTER = 2                # crops come in once a year (third season)
+PRESSURE_MARGIN = 1.6              # food gathered / needed below this presses a people towards new food
+TEND_STILL_YEARS = 5               # years in one area before a people begins to tend a wild plant or herd
+TEND_RATE = 1 / 200                # yearly progress of tending at full pressure on ideal land
+CULTIVATE_RATE = 1 / 400           # yearly progress from tending to cultivation
+DOMESTICATE_RATE = 1 / 800         # yearly progress from cultivation to domestication (when farming fully)
+LEARN_CHANCE = 0.1                 # yearly chance a band compares notes with a neighbour
+LEARN_SHARE = 0.3                  # share of a neighbour's lead in a skill learned at once
+FIRST_VILLAGE_YEARS = 75           # years mainly farming before a village counts as a lasting farming village
+STORAGE = True                     # gate G2 knock-out: False keeps every store at the foragers' size and spoilage
+GRANARY_DAYS = 400                 # days of needs a farming household can store (grain in pits, baskets, pots)
+GRAIN_SPOIL = 0.05                 # share of stored grain lost each season
+FARMER_NURSING_1 = 0.25            # settled mothers with weaning foods: conception multiplier with a child under 2
+FORAGER_OUTBREAK = 0.3             # outbreak start rate multiplier for foragers (scattered, mobile)
+VILLAGE_OUTBREAK = 2.0             # ... for villages (crowded, settled, near animals)
+
 
 def need(age, sex, pregnant, nursing):
     """Daily food units needed by one person (vectorised)."""
