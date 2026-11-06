@@ -213,6 +213,7 @@ def consolidate_groups(w):
         b.store = 0.0
         b.alive = False
         b.ended = w.t
+        del b.trail[:-3]
         b.last_move = f"combined with {w.band_name(o)} (same land)"
         w.counts["consolidated"] = w.counts.get("consolidated", 0) + 1
         w.bands_changed()
@@ -245,6 +246,7 @@ def fold_distant(w):
 
 def end_band(w, b, why, log=True):
     b.alive = False
+    del b.trail[:-3]                  # ended bands keep only their last steps (memory)
     w.bands_changed()
     b.ended = w.t
     if b.store:

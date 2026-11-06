@@ -101,15 +101,27 @@ jobs:
           find artifacts -name '*.json' -exec cp {} gates/results_$GATE/ \;
           python -m gates.$GATE report > report.md || echo "report failed" >> report.md
           cp "$REQ" request.json
+          # publish from a separate clean clone of the results branch (the main checkout has local changes)
+          REPO="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}"
+          if git ls-remote --exit-code --heads "$REPO" gate-results >/dev/null; then
+            git clone -q --depth 1 --branch gate-results "$REPO" pub
+          else
+            mkdir pub && git -C pub init -q && git -C pub checkout -q -b gate-results && git -C pub remote add origin "$REPO"
+          fi
+          rm -rf pub/results/$LABEL && mkdir -p pub/results/$LABEL
+          cp gates/results_$GATE/*.json report.md request.json pub/results/$LABEL/
+          echo "run ${{ github.run_id }} commit ${{ github.sha }}" > pub/results/$LABEL/RUN.txt
+          cd pub
           git config user.name "origins-gate"
           git config user.email "origins-gate@users.noreply.github.com"
-          git fetch origin gate-results || true
-          git checkout -B gate-results origin/gate-results 2>/dev/null || git checkout --orphan gate-results
-          git rm -rq --cached . 2>/dev/null || true
-          git rm -rq --ignore-unmatch results/$LABEL
-          rm -rf results/$LABEL && mkdir -p results/$LABEL
-          cp gates/results_$GATE/*.json results/$LABEL/ && cp report.md request.json results/$LABEL/
-          echo "run ${{ github.run_id }} commit ${{ github.sha }}" > results/$LABEL/RUN.txt
-          git add results/$LABEL
+          git add -A results/$LABEL
           git commit -qm "Gate results: $LABEL (run ${{ github.run_id }})"
-          git push origin gate-results
+          for i in 1 2 3; do git push -q origin gate-results && break; git pull -q --rebase origin gate-results; done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gate-report
+          path: |
+            report.md
+            gates/results_*/
+          retention-days: 90
