@@ -32,5 +32,5 @@ A farming world on planet 1 passed 4 GB at about year 5,000 here (2.2 million pe
 
 ## Open findings
 
-- **Outbreaks in villages** cause about 18% of deaths on planet 3 once villages dominate (foragers' share fell, villagers' rose). Disease rising with settled life is real, but this share may be high.
+- **Outbreaks in villages** cause about 18–20% of deaths on planet 3 once villages dominate. Tested from the same farming world at year 7,000 over 100 years: halving the village outbreak rate gave 17% outbreak deaths and 11% hunger (population +6%); halving outbreak deaths as well gave 9% outbreak deaths but 16% hunger (population +15%). Outbreak and hunger deaths trade against each other because food still limits population: fewer epidemic deaths mostly become hunger deaths. Kept as set; to be judged from the gate, not tuned blind.
 - **Hunger** is still about 9% of deaths in farming worlds; to be measured again once the gate runs.
