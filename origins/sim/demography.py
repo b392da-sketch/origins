@@ -149,12 +149,15 @@ def partnerships(w):
         by_cell.setdefault(int(cell[p.band[m]]), []).append(int(m))
     taken = set()
     rings: dict[int, list] = {}
+    from .language import ring2
+    r2 = ring2(w)
     for i in rng.permutation(seekers):
         i = int(i)
         c = int(cell[p.band[i]])
         near = rings.get(c)
         if near is None:
-            near = rings[c] = _ring(nb, c, P.PARTNER_RINGS)
+            # the partner network is two rings of land; the planet keeps those cells cached (same cells, same order)
+            near = rings[c] = (r2[c].tolist() if P.PARTNER_RINGS == 2 else _ring(nb, c, P.PARTNER_RINGS))
         cand = [m for cc in near for m in by_cell.get(cc, ()) if m not in taken and not _kin(p, i, m)]
         if not cand:
             continue
