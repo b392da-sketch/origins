@@ -68,6 +68,10 @@ def fission_and_merge(w):
     occupied: dict[int, float] = {}
     for b in live:
         occupied[b.cell] = occupied.get(b.cell, 0) + float(sizes[b.id])
+    group_at = {}
+    for b in live:
+        if b.mode == "group" and b.cell not in group_at:
+            group_at[b.cell] = b
     for b in live:
         s = int(sizes[b.id])
         limit = P.GROUP_FISSION_SIZE if b.mode == "group" else P.FISSION_SIZE
@@ -86,10 +90,24 @@ def fission_and_merge(w):
             if target == b.cell or there < 1.3 * here:
                 continue
         if b.mode == "group":
+            dst = group_at.get(target)
+            if dst is not None and dst.alive and dst.id != b.id:
+                # people moving into a neighbouring local population join it directly (the same result as
+                # splitting off a new group that then combines with it, without creating a band record)
+                count = groups.transfer(w, b, dst, rng)
+                if count == 0:
+                    continue
+                share = b.store * count / s
+                dst.store, b.store = dst.store + share, b.store - share
+                occupied[b.cell] -= count
+                occupied[target] = occupied.get(target, 0) + count
+                w.counts["group_splits"] = w.counts.get("group_splits", 0) + 1
+                continue
             res = groups.split(w, b, target, rng)
             if res is None:
                 continue
             nb_, count = res
+            group_at[target] = nb_
         else:
             mem = w.members(b.id)
             units = _households(w, mem)

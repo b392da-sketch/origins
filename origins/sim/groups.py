@@ -316,6 +316,29 @@ def split(w, b, target_cell, rng):
     return nb, moved
 
 
+def transfer(w, b, dst, rng) -> int:
+    """Move half of group b's people (drawn by age and sex) into neighbouring group dst."""
+    G = w.groups
+    g, d = b.group, dst.group
+    hF = rng.binomial(np.rint(G.F[g]).astype(np.int64), 0.5)
+    hM = rng.binomial(np.rint(G.M[g]).astype(np.int64), 0.5)
+    hP = rng.binomial(np.rint(G.preg[g]).astype(np.int64), 0.5)
+    moved = int(hF.sum() + hM.sum())
+    if moved == 0 or moved == G.total(g):
+        return 0
+    td = G.total(d)
+    G.F[g] -= hF
+    G.M[g] -= hM
+    G.preg[g] -= hP
+    G.F[d] += hF
+    G.M[d] += hM
+    G.preg[d] += hP
+    tot = max(td + moved, 1e-9)
+    G.cond_child[d] = (G.cond_child[d] * td + G.cond_child[g] * moved) / tot
+    G.cond_rest[d] = (G.cond_rest[d] * td + G.cond_rest[g] * moved) / tot
+    return moved
+
+
 def merge_into(w, src, dst):
     """Merge band src into dst; both groups, or an individual band into a group."""
     G = w.groups

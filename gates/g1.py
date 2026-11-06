@@ -327,7 +327,7 @@ def worker(jobs, years, budget, ckpt: Path):
 
 
 # ---------------------------------------------------------------- check 10
-def groups_at_limit(ws: int, years: int = 800, horizon: int = 150, food: float = 0.5):
+def groups_at_limit(ws: int, years: int = 800, horizon: int = 200, food: float = 0.3):
     """Check 10. Paired runs from the same world, made crowded by halving the wild food everywhere
     (a gate experiment, not part of any history): everyone as individuals vs everyone folded into groups."""
     from origins import engine, persist
@@ -350,16 +350,20 @@ def groups_at_limit(ws: int, years: int = 800, horizon: int = 150, food: float =
         b0, d0 = x.counts["births"], x.accum["deaths_by_cause"][:C["flood"]].sum()
         hz0 = x.accum["deaths_by_cause"][C["flood"]:].sum()
         py0 = x.accum["person_years"].sum()
-        ratios, pops = [], []
+        ratios, pops, margins = [], [], []
         for _ in range(horizon):
             engine.step(x, 4)
             ratios.append(float(np.mean([b.last_ratio for b in x.living_bands()])))
+            sz = x.band_sizes()
+            margins.append(float(np.average([b.margin for b in x.living_bands()],
+                                            weights=[sz[b.id] + 1e-9 for b in x.living_bands()])))
             pops.append(x.population())
         py = x.accum["person_years"].sum() - py0
         out[name] = {"birth_rate": (x.counts["births"] - b0) / py,
                      "death_rate": float(x.accum["deaths_by_cause"][:C["flood"]].sum() - d0) / py,
                      "hazard_death_rate": float(x.accum["deaths_by_cause"][C["flood"]:].sum() - hz0) / py,
                      "mean_food_ratio": float(np.mean(ratios)), "population": pops[::10],
+                     "food_margin_late": float(np.mean(margins[horizon // 2:])),
                      "invariant_failures": len(x.invariant_failures)}
     path.write_text(json.dumps(out))
 

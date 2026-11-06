@@ -97,7 +97,7 @@ def yearly(w):
         o = near[int(rng.integers(len(near)))]
         k = int(rng.integers(len(NAMES)))
         old, new = int(w.customs[b.id, k]), int(w.customs[o, k])
-        w.neutral[b.id] += 0.1 * (w.neutral[o] - w.neutral[b.id])
+        w.neutral[b.id] += P.NEUTRAL_COPY * (w.neutral[o] - w.neutral[b.id])
         if old != new:
             w.customs[b.id, k] = new
             _log(w, b.id, t, k, old, new, f"copied from {w.band_name(w.bands[o])}")

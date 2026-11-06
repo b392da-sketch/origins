@@ -77,10 +77,11 @@ LANGUAGE_SHIFT_MAJORITY = 0.5      # ... when this share of the people within tw
 LANGUAGE_MAX_CELLS = 40            # a language spread over more land than this splits in two
 
 # --- Customs (M1)
-CUSTOM_INVENTION = 0.0005          # per custom per band per year
-CUSTOM_COPYING = 0.02              # per band per year, copy one custom from a band in contact
-NEUTRAL_DRIFT = 0.02               # yearly random drift of each neutral trait (standard deviation)
-NEUTRAL_SCALE = 1.0                # neutral distance at which cultural distance saturates
+CUSTOM_INVENTION = 0.0002          # per custom per band per year
+CUSTOM_COPYING = 0.05              # per band per year, copy one custom from a band in contact
+NEUTRAL_DRIFT = 0.007               # yearly random drift of each neutral trait (standard deviation)
+NEUTRAL_COPY = 0.3                 # share of the difference closed when copying from a band in contact
+NEUTRAL_SCALE = 0.5                # neutral distance at which cultural distance saturates
 
 # --- Hazards (M1). Yearly chances per land cell unless stated.
 HAZARD_RECOVERY = 0.35             # share of lost wild food recovered each year
@@ -94,8 +95,8 @@ ERUPTION_FOOD, ASH_FOOD, ERUPTION_DEATHS = 0.05, 0.6, 0.25
 ERUPTION_COOLING = 1.5             # climate anomaly (standard deviations) after a large eruption, fading over years
 QUAKE_RATE = 1 / 600               # plate-boundary cells
 QUAKE_DEATHS = 0.02                # foragers in light shelters: few deaths
-OUTBREAK_RATE = 0.0004             # per 100 people per year, rising with crowding
-OUTBREAK_SPREAD = 0.45             # yearly chance to reach each peopled cell in contact
+OUTBREAK_RATE = 0.0002             # per 100 people per year, rising with crowding
+OUTBREAK_SPREAD = 0.3             # yearly chance to reach each peopled cell in contact
 OUTBREAK_DEATHS = 0.15             # deaths among the non-immune at full severity
 OUTBREAK_IMMUNITY, IMMUNITY_LOSS = 0.8, 0.05
 CROSSING_HUNGER = 0.9              # a band receiving less than this share of its needs may cross the sea
