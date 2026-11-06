@@ -299,9 +299,20 @@ def retention(w, snaps) -> list:
 
 
 # ---------------------------------------------------------------- slicing
+def apply_overrides():
+    """Parameter overrides for a gate run, from the ORIGINS_PARAMS environment variable (JSON)."""
+    import os
+    from origins import params
+    for k, v in json.loads(os.environ.get("ORIGINS_PARAMS", "{}") or "{}").items():
+        if not hasattr(params, k):
+            raise SystemExit(f"unknown parameter {k}")
+        setattr(params, k, v)
+
+
 def worker(jobs, years, budget, ckpt: Path):
     from origins import engine, persist
     from origins.state import World
+    apply_overrides()
     t_end = time.time() + budget
     for ws, rs in jobs:
         if (OUT / f"run_w{ws}_s{rs}_{years}y.json").exists():
@@ -410,6 +421,7 @@ def main():
         print(report(OUT))
         return
     if a.what == "groups":
+        apply_overrides()
         for ws in _range(a.worlds):
             groups_at_limit(ws)
             print(f"groups w{ws} done", flush=True)

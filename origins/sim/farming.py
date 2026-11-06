@@ -167,6 +167,8 @@ def season_food(w, ids, cells, effort):
 
 # ------------------------------------------------------------------ each year: skills, choices, villages
 def yearly(w):
+    if not P.FARMING:
+        return
     rng = w.rng["farming"]
     bands = w.living_bands()
     if not bands:

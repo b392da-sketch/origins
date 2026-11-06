@@ -110,14 +110,20 @@ def forage_and_eat(w):
     if P.STORAGE:
         # farmers store grain (granaries, pits, pots): more room and slower spoilage, in proportion to farming
         fs = w.farm_share[:nb_]
-        cap = (P.STORE_DAYS + np.minimum(1.0, 2 * fs) * P.GRANARY_DAYS) * total_need / P.SEASON_DAYS
-        spoil = P.STORE_SPOIL * (1 - fs) + P.GRAIN_SPOIL * fs
+        grain = np.minimum(1.0, 2 * fs)          # a band farming half its work or more stores mostly grain
+        cap = (P.STORE_DAYS + grain * P.GRANARY_DAYS) * total_need / P.SEASON_DAYS
+        spoil = P.STORE_SPOIL * (1 - grain) + P.GRAIN_SPOIL * grain
     else:
         cap = P.STORE_DAYS * total_need / P.SEASON_DAYS
         spoil = P.STORE_SPOIL
     kept = np.minimum(left, cap) * (1 - spoil)
     spoiled = left - kept
-    margin = np.where(total_need > 0, avail / np.maximum(total_need, 1e-12), 1.6)
+    # food security: farmers must make what they hold last until the next harvest, so their margin is measured
+    # against the needs of every season until then (foragers live season to season)
+    horizon = ((P.HARVEST_QUARTER - w.quarter - 1) % P.TICKS_PER_YEAR) + 1
+    fsh = w.farm_share[:nb_]
+    seasons = 1 + fsh * (horizon - 1)
+    margin = np.where(total_need > 0, avail / np.maximum(total_need * seasons, 1e-12), 1.6)
     for b in bands:
         b.margin = P.MARGIN_MEMORY * b.margin + (1 - P.MARGIN_MEMORY) * float(min(margin[b.id], 3.0))
         b.store = float(kept[b.id])

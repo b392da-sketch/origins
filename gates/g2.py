@@ -132,9 +132,20 @@ def done(w) -> bool:
     return fv is not None and w.year >= w.events[fv]["data"]["year"] + AFTER_FIRST
 
 
+def apply_overrides():
+    """Parameter overrides for a gate run, from the ORIGINS_PARAMS environment variable (JSON)."""
+    import os
+    from origins import params
+    for k, v in json.loads(os.environ.get("ORIGINS_PARAMS", "{}") or "{}").items():
+        if not hasattr(params, k):
+            raise SystemExit(f"unknown parameter {k}")
+        setattr(params, k, v)
+
+
 def worker(jobs, budget, ckpt: Path, storage: bool):
     from origins import engine, params, persist
     from origins.state import World
+    apply_overrides()
     params.STORAGE = storage
     tag = "" if storage else "_nostore"
     t_end = time.time() + budget

@@ -57,6 +57,7 @@ jobs:
         env:
           REQ: ${{ needs.plan.outputs.request }}
         run: |
+          export ORIGINS_PARAMS=$(python3 -c "import json;print(json.dumps(json.load(open('$REQ')).get('params',{})))")
           GATE=$(python3 -c "import json;print(json.load(open('$REQ'))['gate'])")
           YEARS=$(python3 -c "import json;print(json.load(open('$REQ')).get('years',5000))")
           rm -rf gates/results_$GATE     # keep only this job's own results (the repository holds earlier ones)
@@ -93,6 +94,7 @@ jobs:
         env:
           REQ: ${{ needs.plan.outputs.request }}
         run: |
+          export ORIGINS_PARAMS=$(python3 -c "import json;print(json.dumps(json.load(open('$REQ')).get('params',{})))")
           GATE=$(python3 -c "import json;print(json.load(open('$REQ'))['gate'])")
           LABEL=$(python3 -c "import json;print(json.load(open('$REQ'))['label'])")
           rm -rf gates/results_$GATE && mkdir -p gates/results_$GATE

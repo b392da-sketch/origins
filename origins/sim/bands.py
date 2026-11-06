@@ -70,8 +70,9 @@ def fission_and_merge(w):
         occupied[b.cell] = occupied.get(b.cell, 0) + float(sizes[b.id])
     group_at = {}
     for b in live:
-        if b.mode == "group" and b.cell not in group_at:
-            group_at[b.cell] = b
+        key = (b.cell, bool(w.farm_share[b.id] >= 0.5))
+        if b.mode == "group" and key not in group_at:
+            group_at[key] = b
     for b in live:
         s = int(sizes[b.id])
         limit = P.GROUP_FISSION_SIZE if b.mode == "group" else P.FISSION_SIZE
@@ -92,15 +93,20 @@ def fission_and_merge(w):
             if target == b.cell or there < 1.3 * here:
                 continue
         if b.mode == "group":
-            dst = group_at.get(target)
+            now = w.groups.total(b.group)          # current size: this group may already have taken people in this season
+            dst = group_at.get((target, bool(w.farm_share[b.id] >= 0.5)))
             if dst is not None and dst.alive and dst.id != b.id:
                 # people moving into a neighbouring local population join it directly (the same result as
                 # splitting off a new group that then combines with it, without creating a band record)
                 count = groups.transfer(w, b, dst, rng)
                 if count == 0:
                     continue
-                share = b.store * count / s
+                frac = min(1.0, count / max(now, 1e-9))
+                share = b.store * frac
                 dst.store, b.store = dst.store + share, b.store - share
+                crop = w.crop_store[b.id] * frac
+                w.crop_store[dst.id] += crop
+                w.crop_store[b.id] -= crop
                 occupied[b.cell] -= count
                 occupied[target] = occupied.get(target, 0) + count
                 w.counts["group_splits"] = w.counts.get("group_splits", 0) + 1
@@ -109,7 +115,7 @@ def fission_and_merge(w):
             if res is None:
                 continue
             nb_, count = res
-            group_at[target] = nb_
+            group_at[(target, bool(w.farm_share[b.id] >= 0.5))] = nb_
         else:
             mem = w.members(b.id)
             units = _households(w, mem)
@@ -119,15 +125,20 @@ def fission_and_merge(w):
                     break
                 moving += units[int(k)]
                 count += len(units[int(k)])
-            if count == 0 or count == s:
+            now = len(mem)
+            if count == 0 or count == now:
                 continue
             moving = np.array(moving)
             leader = int(moving[np.argmin(p.birth[moving])])
             nb_ = w.new_band(target, parent=b.id, leader=leader)
             p.band[moving] = nb_.id
             w.people_changed()
-        share = b.store * count / s
+        frac = min(1.0, count / max(now, 1e-9))
+        share = b.store * frac
         nb_.store, b.store = share, b.store - share
+        crop = w.crop_store[b.id] * frac               # the standing crop is shared with the people
+        w.crop_store[nb_.id] += crop
+        w.crop_store[b.id] -= crop
         nb_.last_ratio = b.last_ratio
         occupied[b.cell] -= count
         occupied[target] = occupied.get(target, 0) + count
@@ -187,13 +198,15 @@ def fission_and_merge(w):
 def consolidate_groups(w):
     """Groups sharing a cell become one local population (a change of representation, not a social event)."""
     from . import groups
-    first: dict[int, object] = {}
+    first: dict[tuple, object] = {}
     for b in w.living_bands():
         if b.mode != "group":
             continue
-        o = first.get(b.cell)
+        # villages and foragers sharing land stay separate peoples (different ways of life, different stores)
+        key = (b.cell, bool(w.farm_share[b.id] >= 0.5))
+        o = first.get(key)
         if o is None:
-            first[b.cell] = b
+            first[key] = b
             continue
         groups.merge_into(w, b, o)
         o.store += b.store

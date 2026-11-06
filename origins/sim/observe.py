@@ -43,6 +43,8 @@ def end_tick(w):
         w.invariant_failures.append(f"t={w.t}: food change {d_food:.3f} vs flows {flows:.3f}")
     if (w.stock < -1e-9).any():
         w.invariant_failures.append(f"t={w.t}: negative wild food")
+    if any(b.store < -1e-6 for b in w.living_bands()):
+        w.invariant_failures.append(f"t={w.t}: negative food store")
     cond = p.condition[:p.n][p.alive[:p.n]]
     if len(cond) and (cond.min() < -1e-9 or cond.max() > 1 + 1e-9):
         w.invariant_failures.append(f"t={w.t}: body condition out of range")

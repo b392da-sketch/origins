@@ -104,6 +104,7 @@ CROSSING_HUNGER = 0.9              # a band receiving less than this share of it
 CROSSING_RATE = 0.2                # yearly chance such a band crosses, when land is visible across one ocean cell
 
 # --- Farming (M2)
+FARMING = True                     # False: no tending, cultivation or domestication (for regression checks of M0/M1)
 FARM_RATE = 3.0                    # food units per worker-day farming a fully domesticated species on ideal land
 FARM_CAPACITY = 1200               # people a cell (about 3,100 km2) of ideal farmland can feed; foraging feeds 10-200
 FARM_RISK = 0.8                    # farmers discount a harvest's promise for its risk
