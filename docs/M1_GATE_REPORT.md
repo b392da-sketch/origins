@@ -45,3 +45,8 @@ Deaths by cause, all histories: accident or illness 38.0%, old age 24.2%, infanc
 2. **Whether to close M1** with the two findings above carried forward, or to address either first (founder effects for small isolated groups; outbreak frequency).
 
 All rates are tunable starting values (`origins/params.py`), not measurements.
+
+## Decision (Ben, 7 November 2026)
+
+- Check 5 pass mark adopted: **at least 50 living languages by year 5,000 in at least 90% of histories.** Result: 60 of 60, so check 5 passes.
+- **M1 closed.** The two findings (islands not diverging faster; outbreak share of deaths) are carried forward as open items for later milestones.
