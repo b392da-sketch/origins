@@ -15,14 +15,17 @@ from . import names as N
 from . import params as P
 from .worldgen import Planet, generate
 
-SCHEMA = 1
-VERSION = "0.1.0-M0"
+SCHEMA = 2
+READABLE_SCHEMAS = (1, 2)
+VERSION = "0.2.0-M1"
 
 CAUSES = ["", "infancy and early childhood", "hunger", "accident or illness",
-          "old age", "orphaned infant", "childbirth"]
+          "old age", "orphaned infant", "childbirth",
+          "flood", "wildfire", "volcanic eruption", "earthquake", "disease outbreak"]   # appended in M1
 C = {name: i for i, name in enumerate(CAUSES)}
 
-STREAMS = ["climate", "deaths", "partners", "births", "movement", "fission", "names", "founding"]
+STREAMS = ["climate", "deaths", "partners", "births", "movement", "fission", "names", "founding",
+           "language", "customs", "hazards", "crossing"]   # new streams are appended, never inserted
 
 FIELDS = {
     "alive": bool, "sex": np.int8, "cause": np.int8, "name_a": np.int16, "name_b": np.int16,
@@ -30,7 +33,7 @@ FIELDS = {
     "birth": np.int64, "death": np.int64, "mother": np.int64, "father": np.int64,
     "partner": np.int64, "band": np.int64, "preg_due": np.int64, "preg_father": np.int64,
     "youngest": np.int64, "partner_since": np.int64, "death_bad": np.int64,
-    "death_cell": np.int64, "birth_cell": np.int64, "folded": np.int64, "unfolded": np.int64, "death_interv": np.int64,
+    "death_cell": np.int64, "lang": np.int64, "birth_cell": np.int64, "folded": np.int64, "unfolded": np.int64, "death_interv": np.int64, "death_hazard": np.int64,
 }
 _ZERO_DEFAULT = {"alive", "sex", "cause", "condition", "death_cond", "death_ratio"}
 
@@ -62,7 +65,13 @@ class People:
         self.n += k
         return ids
 
+    languages = None            # set by World: names are spoken in each person's language
+
     def name(self, i: int) -> str:
+        lg = int(self.lang[i])
+        if self.languages is not None and lg >= 0 and lg in self.languages:
+            from .sim.language import compose_name
+            return compose_name(self.languages[lg], int(self.name_a[i]), int(self.name_b[i]), self.sex[i] == 0)
         return N.render(int(self.name_a[i]), int(self.name_b[i]), self.sex[i] == 0)
 
     def arrays(self) -> dict:
@@ -100,6 +109,7 @@ class Band:
     group_name: str = ""
     group_deaths: int = 0
     trail: list = field(default_factory=list)   # recent (tick, cell), newest last
+    language: int = 0           # the language this band speaks (sim/language.py)
 
 
 class World:
@@ -144,6 +154,15 @@ class World:
         self.season_stats: dict = {}
         self.intervened = False
         self._live = None
+        from .sim import customs, language
+        language.init(self)
+        customs.init(self)
+        self.people.languages = self.languages
+        self.hazards: list = []                    # active hazards (sim/hazards.py)
+        self.hazard_food = np.ones(n)              # hazard effect on wild food, recovering over years
+        self.hazard_event = -np.ones(n, dtype=np.int64)
+        self.immune = np.zeros(n)                  # share of a cell's people immune to the last outbreak
+        self.timing: dict = {}
 
     # ------------------------------------------------------------------ time
     @property
@@ -182,6 +201,10 @@ class World:
     def new_band(self, cell: int, parent: int = -1, leader: int = -1) -> Band:
         b = Band(self.next_band, int(cell), self.t, parent, leader)
         b.trail.append((self.t, int(cell)))
+        if parent >= 0:
+            b.language = self.bands[parent].language
+        from .sim import customs
+        customs.ensure(self, b.id, parent)
         self.bands[b.id] = b
         self.reveal_pending.add(b.id)
         self._living = None
@@ -230,6 +253,7 @@ class World:
         p.band[ids] = band
         p.condition[ids] = condition
         p.birth_cell[ids] = cell
+        p.lang[ids] = [self.bands[int(x)].language for x in band]
         for i in ids:
             a, b = N.draw(rng)
             p.name_a[i], p.name_b[i] = a, b

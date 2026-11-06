@@ -58,6 +58,10 @@ class Planet:
     n_regions: int
     minerals: dict = field(default_factory=dict)       # name -> bool array (unused in M0)
     domesticables: dict = field(default_factory=dict)  # name -> bool array (unused in M0)
+    plate: np.ndarray = None         # tectonic plate per cell
+    convergence: np.ndarray = None   # >0 plates moving together at this cell's boundary, <0 apart
+    volcanic: np.ndarray = None      # bool: volcanic belt (convergent boundaries, rifts, hotspots)
+    seismic: np.ndarray = None       # bool: earthquake zone (plate boundaries)
     start_cell: int = -1
     fingerprint: str = ""
 
@@ -119,8 +123,11 @@ def generate(seed: int, level: int = GRID_LEVEL, radius_km: float = PLANET_RADIU
     land = raw > sea
     above = np.clip(raw - sea, 0, None)
     above = above / max(above.max(), 1e-9)
-    mountain = np.clip(ridges - 0.45, 0, None) / 0.55
-    elevation = np.where(land, 40 + 2200 * above ** 1.3 + 3200 * mountain ** 2 * np.clip(above * 4, 0, 1),
+    plates = _plates(grid, seed, nz)
+    # mountains rise where plates converge; ridged noise gives them shape
+    uplift = plates["uplift"]
+    mountain = np.clip(uplift * (0.55 + 0.45 * ridges), 0, 1)
+    elevation = np.where(land, 40 + 2000 * above ** 1.3 + 6500 * mountain ** 1.3 * np.clip(above * 6 + 0.35, 0, 1),
                          -4000 * np.clip((sea - raw) / max(sea - raw.min(), 1e-9), 0, 1) ** 0.6)
 
     # --- Coast, distance to ocean (in cells) by breadth-first search
@@ -252,9 +259,69 @@ def generate(seed: int, level: int = GRID_LEVEL, radius_km: float = PLANET_RADIU
     planet = Planet(seed, grid, elevation, land & ~lake, lake, downstream, flow, river, coast,
                     t_mean, temp_season, rain, biome, capacity, season_food, region, n_regions,
                     minerals, domesticables)
+    planet.plate = plates["plate"]
+    planet.convergence = plates["convergence"]
+    planet.volcanic = plates["volcanic"]
+    planet.seismic = plates["seismic"]
     planet.start_cell = _choose_start(planet, rng)
     planet.fingerprint = fingerprint(planet)
     return planet
+
+
+N_PLATES = 14
+
+
+def _plates(grid: Grid, seed: int, nz) -> dict:
+    """A simple plate model: irregular plates, each rotating about its own axis.
+
+    Boundary cells where plates converge get uplift (mountains) and, where
+    convergence is strong, volcanoes (as at subduction zones); diverging
+    boundaries (rifts) get weaker volcanism; a few hotspots sit inside plates.
+    Every boundary is an earthquake zone. A cartoon of plate tectonics, not a
+    geophysical model.
+    """
+    rng = np.random.default_rng([seed, 2])
+    xyz = grid.xyz
+    nb = grid.neighbours
+    n = grid.n
+    centres = rng.normal(size=(N_PLATES, 3))
+    centres /= np.linalg.norm(centres, axis=1, keepdims=True)
+    wobble = np.stack([Noise3(int(rng.integers(2**31))).fbm(xyz, octaves=3, freq=2.5) for _ in range(N_PLATES)], axis=1)
+    plate = np.argmax(xyz @ centres.T + 0.25 * wobble, axis=1)
+    axes = rng.normal(size=(N_PLATES, 3))
+    axes /= np.linalg.norm(axes, axis=1, keepdims=True)
+    speed = rng.uniform(0.3, 1.0, size=N_PLATES)
+    vel = np.cross(axes[plate] * speed[plate, None], xyz)            # velocity of each cell's plate there
+    conv = np.zeros(n)
+    boundary = np.zeros(n, dtype=bool)
+    for k in range(6):
+        m = nb[:, k]
+        ok = (m >= 0)
+        mm = np.clip(m, 0, None)
+        diff = ok & (plate[mm] != plate)
+        boundary |= diff
+        normal = xyz[mm] - xyz
+        normal /= np.maximum(np.linalg.norm(normal, axis=1, keepdims=True), 1e-12)
+        rel = ((vel - vel[mm]) * normal).sum(1)                     # >0: this cell moves toward the neighbour
+        c = np.where(diff, rel, 0.0)
+        conv = np.where(np.abs(c) > np.abs(conv), c, conv)
+    # spread uplift a few cells into the overriding side
+    up = np.clip(conv, 0, None)
+    up = up / max(up.max(), 1e-9)
+    field = up.copy()
+    for _ in range(3):
+        nbmax = np.max(np.where(nb >= 0, field[np.clip(nb, 0, None)], 0.0), axis=1)
+        field = np.maximum(field, 0.7 * nbmax)
+    volcanic = boundary & (conv > np.quantile(conv[boundary], 0.55)) if boundary.any() else boundary
+    rift = boundary & (conv < np.quantile(conv[boundary], 0.15)) if boundary.any() else boundary
+    hotspots = rng.choice(n, size=4, replace=False)
+    volcanic = volcanic | rift
+    volcanic[hotspots] = True
+    seismic = boundary.copy()
+    for k in range(6):
+        m = nb[:, k]
+        seismic |= (m >= 0) & boundary[np.clip(m, 0, None)]
+    return {"plate": plate, "convergence": conv, "uplift": field, "volcanic": volcanic, "seismic": seismic}
 
 
 def _choose_start(p: Planet, rng) -> int:
@@ -281,7 +348,7 @@ def _choose_start(p: Planet, rng) -> int:
 
 def fingerprint(p: Planet) -> str:
     h = hashlib.sha256()
-    for arr in (p.elevation, p.biome, p.capacity, p.river, p.region):
+    for arr in (p.elevation, p.biome, p.capacity, p.river, p.region, p.plate, p.volcanic):
         h.update(np.ascontiguousarray(arr).tobytes())
     h.update(str(p.start_cell).encode())
     return h.hexdigest()[:16]

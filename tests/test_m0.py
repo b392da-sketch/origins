@@ -15,7 +15,7 @@ from origins import engine, explain, interventions, persist  # noqa: E402
 from origins import names as N  # noqa: E402
 from origins import params as P  # noqa: E402
 from origins.sim import bands, groups, observe  # noqa: E402
-from origins.state import World  # noqa: E402
+from origins.state import C, World  # noqa: E402
 from origins.worldgen import BIOMES, generate  # noqa: E402
 
 _PLANET = {}
@@ -203,11 +203,13 @@ class GroupsMatchIndividuals(unittest.TestCase):
         self.assertEqual(ind.population(), grp.population())
         stats = []
         for w in (ind, grp):
-            b0, d0 = w.counts["births"], w.counts["deaths"]
+            # hazard deaths (M1) are applied identically to both and are rare, large events:
+            # compare the everyday demographic rates
+            b0, d0 = w.counts["births"], w.accum["deaths_by_cause"][:C["flood"]].sum()
             py0 = w.accum["person_years"].sum()
             engine.step(w, 4 * 150)
             py = w.accum["person_years"].sum() - py0
-            stats.append(((w.counts["births"] - b0) / py, (w.counts["deaths"] - d0) / py))
+            stats.append(((w.counts["births"] - b0) / py, (w.accum["deaths_by_cause"][:C["flood"]].sum() - d0) / py))
             self.assertEqual(w.invariant_failures, [])
         (bi, di), (bg, dg) = stats
         self.assertAlmostEqual(bg / bi, 1.0, delta=0.15, msg=stats)

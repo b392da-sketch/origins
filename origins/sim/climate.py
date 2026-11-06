@@ -1,6 +1,6 @@
 """Climate variability and wild-food regrowth.
 
-reads: planet (capacity, season_food, region), t, region_z, food_modifier
+reads: planet (capacity, season_food, region), t, region_z, food_modifier, hazard_food
 writes: region_z, region_factor, region_bad_event, stock, ledger['regrowth'], events (bad_year)
 """
 from __future__ import annotations
@@ -26,7 +26,7 @@ def seasonal_max(w, quarter=None):
     p = w.planet
     q = w.quarter if quarter is None else quarter
     return (p.capacity * P.SEASON_DAYS * P.STOCK_MULTIPLIER * p.season_food[:, q]
-            * w.region_factor[p.region] * w.food_modifier)
+            * w.region_factor[p.region] * w.food_modifier * w.hazard_food)
 
 
 def yearly(w):

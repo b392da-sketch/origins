@@ -12,6 +12,7 @@ from __future__ import annotations
 import numpy as np
 
 from .. import params as P
+from . import customs
 from ..state import C, age_group
 
 _COMPONENT_CAUSE = np.array([C["infancy and early childhood"], C["hunger"], C["accident or illness"],
@@ -165,7 +166,7 @@ def partnerships(w):
         p.partner[i], p.partner[j] = j, i
         p.partner_since[i] = p.partner_since[j] = w.t
         if p.band[i] != p.band[j]:
-            if rng.random() < P.RESIDENCE_WITH_HUSBAND:
+            if rng.random() < customs.residence_share(w, int(p.band[j])):   # the husband's people's custom
                 kids = idx[(p.mother[idx] == i) & (age < 12)]
                 p.band[i] = p.band[j]
                 p.band[kids] = p.band[j]

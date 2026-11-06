@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 from . import interventions
-from .sim import bands, climate, demography, foraging, groups, observe
+from . import params as P
+from .sim import bands, climate, customs, demography, foraging, groups, hazards, language, observe
 
 PHASES = [
     ("interventions", interventions.restore_due),
@@ -19,6 +20,10 @@ PHASES = [
     ("fission_merge", bands.fission_and_merge),
     ("discovery", bands.reveal),
     ("fold", lambda w: bands.fold_distant(w) if w.quarter == 3 else None),
+    ("hazards", lambda w: hazards.yearly(w) if w.quarter == 1 else None),
+    ("customs", lambda w: customs.yearly(w) if w.quarter == 1 else None),
+    ("language", lambda w: language.check(w)
+     if w.quarter == 2 and w.year % P.LANGUAGE_CHECK_YEARS == 0 and w.t > 0 else None),
 ]
 
 

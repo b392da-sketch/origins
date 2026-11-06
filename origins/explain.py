@@ -40,6 +40,8 @@ def describe(w, ref: dict) -> dict:
                 causes.append({"event": int(p.death_bad[i])})
             if p.death_interv[i] >= 0:
                 causes.append({"event": int(p.death_interv[i])})
+        if p.death_hazard[i] >= 0:
+            causes.append({"event": int(p.death_hazard[i])})
         if p.cause[i] == C["orphaned infant"] and p.mother[i] >= 0:
             causes.append({"death": int(p.mother[i])})
         if p.cause[i] == C["childbirth"]:

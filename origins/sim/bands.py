@@ -147,6 +147,8 @@ def fission_and_merge(w):
         if b.mode == "individual" and o.mode == "individual":
             mem = w.members(b.id)
             p.band[mem] = o.id
+            if b.language != o.language:          # joining another people: they take up its speech
+                p.lang[mem] = o.language
             w.people_changed()
         else:
             groups.merge_into(w, b, o)

@@ -18,7 +18,8 @@ from pathlib import Path
 
 import numpy as np
 
-from .state import SCHEMA, VERSION, Band, People, World, new_accumulators
+from .state import READABLE_SCHEMAS, SCHEMA, VERSION, Band, People, World, new_accumulators
+from .sim import language
 from .sim.groups import Groups
 from .worldgen import generate
 
@@ -56,10 +57,14 @@ def to_bytes(w: World) -> bytes:
         "bands": [dataclasses.asdict(b) for b in w.bands.values()],
         "reveal_pending": sorted(w.reveal_pending), "pending_restore": w.pending_restore,
         "env": environment(),
+        "language": language.to_json(w), "custom_log": w.custom_log, "hazards": w.hazards,
+        "timing": w.timing,
     }
     arrays = {"stock": w.stock, "known": w.known, "discovered_by": w.discovered_by,
               "discovered_at": w.discovered_at, "food_modifier": w.food_modifier,
-              "intervention_event": w.intervention_event, "cell_hunger": w.cell_hunger, "cell_births": w.cell_births}
+              "intervention_event": w.intervention_event, "cell_hunger": w.cell_hunger, "cell_births": w.cell_births,
+              "customs": w.customs, "neutral": w.neutral, "hazard_food": w.hazard_food,
+              "hazard_event": w.hazard_event, "immune": w.immune}
     arrays.update({"p_" + k: v for k, v in w.people.arrays().items()})
     arrays.update({"g_" + k: v for k, v in w.groups.arrays().items()})
     buf = io.BytesIO()
@@ -75,8 +80,8 @@ def from_bytes(data: bytes, planet=None) -> World:
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         meta = json.loads(z.read("meta.json"))
         arrays = dict(np.load(io.BytesIO(z.read("arrays.npz"))))
-    if meta.get("schema") != SCHEMA:
-        raise ValueError(f"unsupported save schema {meta.get('schema')} (this version reads {SCHEMA})")
+    if meta.get("schema") not in READABLE_SCHEMAS:
+        raise ValueError(f"unsupported save schema {meta.get('schema')} (this version reads {READABLE_SCHEMAS})")
     planet = planet if planet is not None and planet.seed == meta["world_seed"] else generate(meta["world_seed"])
     if planet.fingerprint != meta["planet_fingerprint"]:
         raise ValueError("planet fingerprint mismatch: this save was made with different world-generation code")
@@ -114,11 +119,17 @@ def from_bytes(data: bytes, planet=None) -> World:
     w.reveal_pending = set(meta["reveal_pending"])
     w.pending_restore = [(a, list(b), c) for a, b, c in meta.get("pending_restore", [])]
     for k in ("stock", "known", "discovered_by", "discovered_at", "food_modifier", "intervention_event",
-              "cell_hunger", "cell_births"):
+              "cell_hunger", "cell_births", "customs", "neutral", "hazard_food", "hazard_event", "immune"):
         if k in arrays:                      # older saves of this schema may lack optional arrays
             setattr(w, k, arrays[k])
     w.people = People.from_arrays({k[2:]: v for k, v in arrays.items() if k.startswith("p_")})
     w.groups = Groups.from_arrays({k[2:]: v for k, v in arrays.items() if k.startswith("g_")})
+    if "language" in meta:                   # schema 1 (M0) saves: everyone speaks the proto-language
+        language.from_json(w, meta["language"])
+        w.custom_log = {int(k): v for k, v in meta["custom_log"].items()}
+        w.hazards = meta["hazards"]
+        w.timing = meta.get("timing", {})
+    w.people.languages = w.languages
     w.people_changed()
     w.bands_changed()
     return w
@@ -158,10 +169,11 @@ def digest(w: World) -> str:
     for k, v in sorted(w.groups.arrays().items()):
         h.update(k.encode())
         h.update(np.ascontiguousarray(v).tobytes())
-    for arr in (w.stock, w.known, w.region_z):
+    for arr in (w.stock, w.known, w.region_z, w.customs, w.neutral, w.hazard_food, w.immune):
         h.update(np.ascontiguousarray(arr).tobytes())
     small = {"t": w.t, "counts": w.counts, "ledger": w.ledger, "bands": [dataclasses.asdict(b) for b in w.bands.values()],
              "rng": {k: g.bit_generator.state for k, g in w.rng.items()}, "n_events": len(w.events),
-             "last_event": w.events[-1] if w.events else None}
+             "last_event": w.events[-1] if w.events else None,
+             "language": language.to_json(w), "hazards": w.hazards}
     h.update(json.dumps(_jsonable(small), sort_keys=True).encode())
     return h.hexdigest()[:20]

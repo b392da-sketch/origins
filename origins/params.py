@@ -1,4 +1,4 @@
-"""Tunable starting values for M0. None of these are measurements.
+"""Tunable starting values (M0, with M1 additions at the end). None of these are measurements.
 
 Units: one food unit = one adult's food needs for one day.
 Time: one tick = one season = 91.25 days; four ticks per year.
@@ -48,7 +48,7 @@ PREGNANCY_TICKS = 3
 PAIRING = 0.6                      # per season, chance an unpartnered woman finds a partner
 PARTNER_RINGS = 2                  # partners are sought within two rings of land (a regional marriage network)
 SEPARATION = 0.005                 # per season
-RESIDENCE_WITH_HUSBAND = 0.5
+RESIDENCE_WITH_HUSBAND = 0.5       # M0 only; from M1 set by each band's marriage-residence custom (sim/customs.py)
 FERTILE_CONDITION = (0.5, 0.4)     # conception zero below body condition 0.5, full above 0.9
 FERTILE_MARGIN = (1.0, 0.5, 0.15)  # food gathered/needed (recent seasons): full fertility above 1.5, falling to 15% at 1.0 or less
 MARGIN_MEMORY = 0.5                # weight of the previous seasons in the band's food margin
@@ -60,9 +60,44 @@ STRESS_FISSION_MIN = 24
 STRESS_FISSION_RATIO = 0.85
 GROUP_HUNGER_EVENT = 0.03         # log group hunger deaths only above this share of the group in a season
 MERGE_SIZE = 10
-MOVE_THRESHOLD = 1.15
+MOVE_THRESHOLD = 1.15             # move if a neighbouring cell offers this much more food per person
 INDIVIDUAL_THRESHOLD = 20_000      # above this many individuals, distant bands fold into groups
-FOLD_TARGET = 0.9                   # fold down to this share of the threshold             # move if a neighbouring cell offers this much more food per person
+FOLD_TARGET = 0.9                  # fold down to this share of the threshold
+
+
+# --- Languages (M1). Retention target: about 80% of core words per 1,000 years (Lees 1953), a plausibility range.
+LANGUAGE_CHECK_YEARS = 25
+SOUND_CHANGE_YEARS = 450           # mean years between regular sound changes in one language
+WORD_REPLACEMENT_RATE = 0.0002     # per meaning per year
+BORROWING_RATE = 0.004             # words borrowed per year by a language in contact with others
+LANGUAGE_SPLIT_CHECKS = 6          # checks in a row with separated speakers before a split (about 150 years, several generations)
+LANGUAGE_SPLIT_PEOPLE = 250        # a separated community must have at least this many people to become its own language
+LANGUAGE_MAX_CELLS = 40            # a language spread over more land than this splits in two
+
+# --- Customs (M1)
+CUSTOM_INVENTION = 0.0005          # per custom per band per year
+CUSTOM_COPYING = 0.02              # per band per year, copy one custom from a band in contact
+NEUTRAL_DRIFT = 0.02               # yearly random drift of each neutral trait (standard deviation)
+NEUTRAL_SCALE = 1.0                # neutral distance at which cultural distance saturates
+
+# --- Hazards (M1). Yearly chances per land cell unless stated.
+HAZARD_RECOVERY = 0.35             # share of lost wild food recovered each year
+FLOOD_RATE = 0.015                 # river cells, scaled by the year's wetness
+FLOOD_FOOD, FLOOD_DEATHS = 0.75, 0.01
+FIRE_RATE = 0.001                  # burnable vegetation, scaled by dryness
+FIRE_FOOD, FIRE_DEATHS = 0.6, 0.003
+ERUPTION_RATE = 1 / 4000           # volcanic cells
+LARGE_ERUPTION = 0.08              # share of eruptions that are large (wide ash, regional cooling)
+ERUPTION_FOOD, ASH_FOOD, ERUPTION_DEATHS = 0.05, 0.6, 0.25
+ERUPTION_COOLING = 1.5             # climate anomaly (standard deviations) after a large eruption, fading over years
+QUAKE_RATE = 1 / 600               # plate-boundary cells
+QUAKE_DEATHS = 0.02                # foragers in light shelters: few deaths
+OUTBREAK_RATE = 0.0004             # per 100 people per year, rising with crowding
+OUTBREAK_SPREAD = 0.45             # yearly chance to reach each peopled cell in contact
+OUTBREAK_DEATHS = 0.15             # deaths among the non-immune at full severity
+OUTBREAK_IMMUNITY, IMMUNITY_LOSS = 0.8, 0.05
+CROSSING_HUNGER = 0.9              # a band receiving less than this share of its needs may cross the sea
+CROSSING_RATE = 0.2                # yearly chance such a band crosses, when land is visible across one ocean cell
 
 
 def need(age, sex, pregnant, nursing):
