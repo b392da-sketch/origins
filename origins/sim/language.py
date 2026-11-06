@@ -34,6 +34,7 @@ class Language:
     history: list = field(default_factory=list)     # [t, kind, payload...]
     applied: list = field(default_factory=list)     # sound-change ids in this lineage
     sep: int = 0                                    # consecutive checks with separated speakers
+    qual: str = ""                                  # geographic qualifier given at the split ("Northern")
 
     @property
     def alive(self):
@@ -43,6 +44,43 @@ class Language:
 def name_of(lang: Language) -> str:
     s = roman(tuple(lang.lexicon["people"][0])) or "?"
     return s[:1].upper() + s[1:]
+
+
+def label(w, lang: Language) -> str:
+    """Display name: the people's own word for themselves, with the qualifier from their split."""
+    base = name_of(lang)
+    return f"{lang.qual} {base}" if lang.qual else base
+
+
+_DIRS = ["Northern", "North-eastern", "Eastern", "South-eastern", "Southern", "South-western", "Western",
+         "North-western"]
+
+
+def _qualifiers(w, groups) -> list:
+    """Name daughters by where they lie relative to the whole speech area."""
+    g = w.planet.grid
+    allc = sorted(set().union(*groups))
+    c0 = g.xyz[allc].mean(0)
+    lat0, lon0 = np.degrees(np.arcsin(np.clip(c0[2] / np.linalg.norm(c0), -1, 1))), np.degrees(np.arctan2(c0[1], c0[0]))
+    out = []
+    for cells in groups:
+        c = g.xyz[sorted(cells)].mean(0)
+        lat = np.degrees(np.arcsin(np.clip(c[2] / np.linalg.norm(c), -1, 1)))
+        lon = np.degrees(np.arctan2(c[1], c[0]))
+        dlon = (lon - lon0 + 180) % 360 - 180
+        ang = np.degrees(np.arctan2(dlon * np.cos(np.radians(lat0)), lat - lat0)) % 360
+        q = _DIRS[int(((ang + 22.5) % 360) // 45)]
+        out.append(q)
+    # siblings sharing a direction are told apart by order of size
+    seen = {}
+    for i, q in enumerate(out):
+        seen.setdefault(q, []).append(i)
+    for q, ix in seen.items():
+        if len(ix) > 1:
+            for k, i in enumerate(sorted(ix, key=lambda i: -len(groups[i]))):
+                if k:
+                    out[i] = f"{q} {['', 'Lesser', 'Outer', 'Far'][min(k, 3)]}".strip()
+    return out
 
 
 def init(w):
@@ -183,10 +221,11 @@ def split(w, lang: Language, groups: list, why: str):
     t = w.t
     lang.ended = t
     kids = []
-    for cells in groups:
+    quals = _qualifiers(w, groups)
+    for cells, q in zip(groups, quals):
         k = Language(w.next_lang, lang.id, t,
                      lexicon={m: [list(e[0]), e[1], e[2]] for m, e in lang.lexicon.items()},
-                     applied=list(lang.applied))
+                     applied=list(lang.applied), qual=q)
         w.languages[k.id] = k
         w.next_lang += 1
         for b in w.living_bands():
@@ -197,7 +236,7 @@ def split(w, lang: Language, groups: list, why: str):
                     w.people.lang[mem[w.people.lang[mem] == lang.id]] = k.id
         kids.append(k)
     w.event("language_split", cause_note=why, causes=[{"note": why}], language=lang.id,
-            daughters=[k.id for k in kids], name=name_of(lang))
+            daughters=[k.id for k in kids], name=label(w, lang), names=[label(w, k) for k in kids])
     return kids
 
 
@@ -240,6 +279,7 @@ def check(w):
         if len(cells) > P.LANGUAGE_MAX_CELLS:
             split(w, lang, _bisect(w, bands), f"{name_of(lang)} spread over {len(cells)} areas of land, too wide "
                                                f"to remain one speech community")
+    shift(w, rng, r2)
     speakers = _speakers(w)
     # contact: which languages are spoken within two rings of each language's land
     cell_langs: dict[int, set] = {}
@@ -282,6 +322,79 @@ def check(w):
                 lang.history.append([t, "borrow", m, form, root, name_of(d)])
 
 
+def shift(w, rng, r2):
+    """Language shift: a band living among speakers of another language may take it up.
+
+    Bands wander and split, so without this, languages would scatter across the land like
+    confetti. Real speech communities are local because neighbours talk to each other; a band
+    surrounded mostly by speakers of another language tends, over a few generations, to shift.
+    """
+    sizes = w.band_sizes()
+    bands = w.living_bands()
+    by_cell: dict[int, list] = {}
+    for b in bands:
+        by_cell.setdefault(b.cell, []).append(b)
+    changes = []
+    for b in bands:
+        tally: dict[int, float] = {}
+        for c in r2[b.cell]:
+            for o in by_cell.get(int(c), ()):
+                if o.id != b.id:
+                    tally[o.language] = tally.get(o.language, 0.0) + float(sizes[o.id])
+        if not tally:
+            continue
+        total = sum(tally.values()) + float(sizes[b.id])
+        top = max(sorted(tally), key=lambda k: tally[k])
+        if top != b.language and tally[top] / total > P.LANGUAGE_SHIFT_MAJORITY and rng.random() < P.LANGUAGE_SHIFT:
+            changes.append((b, top, tally[top] / total))
+    for b, top, share in changes:
+        old = b.language
+        b.language = top
+        mem = w.members(b.id)
+        if len(mem):
+            young = mem[w.ages(mem) < 15]
+            w.people.lang[young] = top          # children grow up in the new speech; adults keep their own
+        w.counts["language_shifts"] = w.counts.get("language_shifts", 0) + 1
+        log = w.custom_log.setdefault(int(b.id), [])
+        log.append([w.t, "language", label(w, w.languages[old]), label(w, w.languages[top]),
+                    f"{share:.0%} of the people around them spoke it"])
+        del log[:-12]
+
+
+def display_names(w) -> dict:
+    """Unique display names for living languages: the parent's qualifier, then a number, separate namesakes."""
+    key = (w.t, w.next_lang)
+    cache = getattr(w, "_lang_names", None)
+    if cache and cache[0] == key:
+        return cache[1]
+    alive = [l for l in w.languages.values() if l.alive]
+    out = {l.id: label(w, l) for l in alive}
+    groups: dict[str, list] = {}
+    for l in alive:
+        groups.setdefault(out[l.id], []).append(l)
+    for name, ls in groups.items():
+        if len(ls) < 2:
+            continue
+        for l in ls:
+            par = w.languages[l.parent] if l.parent >= 0 else None
+            if par is not None and par.qual:
+                out[l.id] = f"{name} ({par.qual.lower()} branch)"
+        again: dict[str, list] = {}
+        for l in ls:
+            again.setdefault(out[l.id], []).append(l)
+        for nm, ll in again.items():
+            if len(ll) > 1:
+                for k, l in enumerate(sorted(ll, key=lambda x: x.id)):
+                    out[l.id] = f"{nm} {k + 1}"
+    w._lang_names = (key, out)
+    return out
+
+
+def display(w, lid: int) -> str:
+    names = display_names(w)
+    return names.get(lid) or label(w, w.languages[lid])
+
+
 # ------------------------------------------------------------------ measures
 def shared_roots(a: Language, b: Language) -> float:
     return sum(a.lexicon[m][1] == b.lexicon[m][1] for m in MEANINGS) / len(MEANINGS)
@@ -298,12 +411,12 @@ def common_ancestor_time(w, a: int, b: int) -> int:
 
 def to_json(w):
     return {"next_lang": w.next_lang, "next_root": w.next_root,
-            "languages": [[l.id, l.parent, l.born, l.ended, l.lexicon, l.history, l.applied, l.sep]
+            "languages": [[l.id, l.parent, l.born, l.ended, l.lexicon, l.history, l.applied, l.sep, l.qual]
                           for l in w.languages.values()]}
 
 
 def from_json(w, d):
     w.next_lang, w.next_root = d["next_lang"], d["next_root"]
     w.languages = {}
-    for i, par, born, ended, lex, hist, applied, sep in d["languages"]:
-        w.languages[i] = Language(i, par, born, ended, lex, hist, applied, sep)
+    for i, par, born, ended, lex, hist, applied, sep, qual in d["languages"]:
+        w.languages[i] = Language(i, par, born, ended, lex, hist, applied, sep, qual)

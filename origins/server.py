@@ -21,7 +21,8 @@ import numpy as np
 from . import engine, explain, persist
 from . import params as P
 from .names import etymology
-from .sim import groups
+from .lang.proto import MEANINGS, NAME_FIRST, NAME_SECOND
+from .sim import customs, groups, language
 from .state import CAUSES, World
 from .worldgen import BIOMES
 
@@ -157,8 +158,107 @@ def bands_view(w) -> list:
     sizes = w.band_sizes()
     g = w.planet.grid
     return [{"id": b.id, "cell": b.cell, "lon": round(float(g.lon[b.cell]), 3), "lat": round(float(g.lat[b.cell]), 3),
-             "size": int(round(sizes[b.id])), "mode": b.mode, "name": w.band_name(b), "ratio": round(b.last_ratio, 3)}
+             "size": int(round(sizes[b.id])), "mode": b.mode, "name": w.band_name(b), "ratio": round(b.last_ratio, 3),
+             "lang": b.language, "hue": lang_hue(w, b.language), "custom": custom_key(w, b.id)}
             for b in w.living_bands()]
+
+
+def lang_hue(w, lid: int) -> int:
+    """Related languages get related colours: each daughter's hue is near its parent's."""
+    cache = state.setdefault("hues", {})
+    key = (w.world_seed, w.run_seed, lid)
+    if key in cache:
+        return cache[key]
+    lang = w.languages[lid]
+    if lang.parent < 0:
+        h = 35.0
+    else:
+        par = w.languages[lang.parent]
+        sibs = sorted(k.id for k in w.languages.values() if k.parent == par.id)
+        depth = len(language.lineage(w, lid)) - 1
+        spread = 300.0 / (1.8 ** (depth - 1))
+        k = sibs.index(lid)
+        h = lang_hue(w, par.id) + (k - (len(sibs) - 1) / 2) * spread / max(len(sibs), 1)
+    cache[key] = int(h % 360)
+    return cache[key]
+
+
+def custom_key(w, bid: int) -> int:
+    """A number standing for a band's set of customs (for colouring the customs layer)."""
+    v = w.customs[bid].astype(np.int64)
+    return int(sum(int(x) * 7 ** k for k, x in enumerate(v)) % 360)
+
+
+def language_detail(w, lid: int) -> dict:
+    lang = w.languages[lid]
+    chain = language.lineage(w, lid)
+    speakers = [b for b in w.living_bands() if b.language == lid]
+    sizes = w.band_sizes()
+    rel = []
+    for k in w.languages.values():
+        if k.alive and k.id != lid:
+            sr = language.shared_roots(lang, k)
+            if sr > 0.3:
+                rel.append({"id": k.id, "name": language.display(w, k.id), "shared": round(sr, 2),
+                            "split_bp": P.START_YEARS_BP - language.common_ancestor_time(w, lid, k.id) // P.TICKS_PER_YEAR})
+    rel.sort(key=lambda r: -r["shared"])
+    changes = []
+    for anc in chain:
+        for ev in anc.history:
+            if ev[1] == "rule":
+                changes.append({"bp": P.START_YEARS_BP - ev[0] // P.TICKS_PER_YEAR, "rule": language.CH.describe(ev[2]),
+                                "in": language.display(w, anc.id)})
+    words = [{"meaning": m, "proto": language.show(language.parse(language.PROTO[m])),
+              "now": language.show(tuple(lang.lexicon[m][0])), "origin": lang.lexicon[m][2]} for m in MEANINGS]
+    return {"id": lid, "name": language.display(w, lang.id), "self_name": language.name_of(lang), "alive": lang.alive,
+            "born_bp": P.START_YEARS_BP - lang.born // P.TICKS_PER_YEAR,
+            "ended_bp": P.START_YEARS_BP - lang.ended // P.TICKS_PER_YEAR if lang.ended >= 0 else None,
+            "lineage": [{"id": a.id, "name": language.display(w, a.id)} for a in chain],
+            "daughters": [{"id": k.id, "name": language.display(w, k.id)} for k in w.languages.values() if k.parent == lid],
+            "speakers": int(sum(sizes[b.id] for b in speakers)), "bands": len(speakers),
+            "sound_changes": changes, "relatives": rel[:12], "words": words}
+
+
+def language_tree(w) -> list:
+    sizes = w.band_sizes()
+    spk = {}
+    for b in w.living_bands():
+        spk[b.language] = spk.get(b.language, 0) + float(sizes[b.id])
+    return [{"id": l.id, "parent": l.parent, "name": language.display(w, l.id), "born_bp": P.START_YEARS_BP - l.born // 4,
+             "ended_bp": P.START_YEARS_BP - l.ended // 4 if l.ended >= 0 else None, "speakers": int(spk.get(l.id, 0)),
+             "hue": lang_hue(w, l.id)} for l in w.languages.values()]
+
+
+def name_story(w, i: int) -> dict:
+    """How a person's name came from the proto-language's words into their own language."""
+    p = w.people
+    lid = int(p.lang[i])
+    if lid < 0:
+        return {"text": etymology(int(p.name_a[i]), int(p.name_b[i])), "parts": []}
+    a, b = int(p.name_a[i]), int(p.name_b[i])
+    until = int(p.death[i]) if p.death[i] >= 0 else None
+    parts = []
+    for meaning in [NAME_FIRST[a]] + ([NAME_SECOND[b]] if b >= 0 else []):
+        hist = language.word_history(w, lid, meaning, until)
+        parts.append({"meaning": meaning, "steps": [{"bp": P.START_YEARS_BP - t // 4, "form": f, "why": why}
+                                                    for t, f, why in hist]})
+    lang = w.languages[lid]
+    text = (f"in {language.display(w, lang.id)}: " + " + ".join(f"'{q['meaning']}' ({q['steps'][-1]['form']})" for q in parts))
+    return {"text": text, "parts": parts, "language": lid}
+
+
+def hazard_view(w, years: int = 60) -> list:
+    t0 = w.t - years * P.TICKS_PER_YEAR
+    g = w.planet.grid
+    out = []
+    for e in reversed(w.events):
+        if e["t"] < t0:
+            break
+        if e["kind"] in ("flood", "wildfire", "eruption", "earthquake", "outbreak", "sea_crossing") and e["cell"] >= 0:
+            out.append({"ref": f"event:{e['id']}", "kind": e["kind"], "lon": round(float(g.lon[e["cell"]]), 2),
+                        "lat": round(float(g.lat[e["cell"]]), 2), "bp": P.START_YEARS_BP - e["t"] // 4,
+                        "title": explain.describe(w, {"event": e["id"]})["title"]})
+    return out[:300]
 
 
 def person_brief(w, i) -> dict:
@@ -180,7 +280,12 @@ def band_detail(w, bid: int) -> dict:
            "ratio": round(b.last_ratio, 3), "last_move": b.last_move, "season": season_name(w, b.cell),
            "biome": BIOMES[w.planet.biome[b.cell]], "capacity": float(w.planet.capacity[b.cell]),
            "trail": [[P.START_YEARS_BP - t // P.TICKS_PER_YEAR, c] for t, c in b.trail[-20:]],
-           "parent": b.parent, "followed": w.follow == b.id}
+           "parent": b.parent, "followed": w.follow == b.id,
+           "language": {"id": b.language, "name": language.display(w, b.language)},
+           "customs": [{"custom": k, "practice": customs.CUSTOMS[k][int(w.customs[b.id, j])]}
+                       for j, k in enumerate(customs.NAMES)],
+           "custom_changes": [{"bp": P.START_YEARS_BP - t // 4, "custom": c, "from": a, "to": z, "how": how}
+                              for t, c, a, z, how in w.custom_log.get(b.id, [])][::-1]}
     if b.mode == "group":
         G = w.groups
         out["pyramid"] = {"female": G.F[b.group].astype(int).tolist(), "male": G.M[b.group].astype(int).tolist()}
@@ -202,7 +307,9 @@ def band_detail(w, bid: int) -> dict:
 def person_detail(w, i: int) -> dict:
     p = w.people
     out = person_brief(w, i)
-    out["etymology"] = etymology(int(p.name_a[i]), int(p.name_b[i]))
+    story = name_story(w, i)
+    out["etymology"] = story["text"]
+    out["name_story"] = story["parts"]
     out["born_bp"] = P.START_YEARS_BP - int(p.birth[i]) // P.TICKS_PER_YEAR
     rel = {}
     for key, j in (("mother", p.mother[i]), ("father", p.father[i]), ("partner", p.partner[i])):
@@ -359,6 +466,12 @@ class Handler(BaseHTTPRequestHandler):
                                             "wild_food_days": round(float(w.stock[c]) / max(1.0, pl.capacity[c] * 0.8), 1),
                                             "discovered_bp": (P.START_YEARS_BP - int(w.discovered_at[c]) // P.TICKS_PER_YEAR)
                                             if w.discovered_at[c] >= 0 else None})
+                if u.path == "/api/language":
+                    return self._send(200, language_detail(w, int(q["id"])))
+                if u.path == "/api/languages":
+                    return self._send(200, language_tree(w))
+                if u.path == "/api/hazards":
+                    return self._send(200, hazard_view(w, int(q.get("years", 60))))
                 if u.path == "/api/saves":
                     return self._send(200, sorted(f.name for f in SAVES.glob("*.zip")))
             return self._send(404, {"error": "not found"})

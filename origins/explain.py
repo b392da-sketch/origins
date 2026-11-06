@@ -109,6 +109,18 @@ def _event_title(w, e) -> str:
         return f"Observer intervention: {d.get('what', '')}"
     if k == "extinction":
         return "Humanity died out"
+    if k == "language_split":
+        return f"{d.get('name')} divided into {', '.join(d.get('names', [])) or 'daughter languages'}"
+    if k == "language_extinct":
+        return f"The last speakers of {d.get('name')} are gone"
+    if k == "sea_crossing":
+        return f"{bn} ({d.get('size')} people) crossed the sea to new land"
+    if k == "outbreak":
+        return f"Outbreak of illness: {d.get('deaths', 0)} deaths across {d.get('cells', 0)} areas"
+    if k in ("flood", "wildfire", "earthquake", "eruption"):
+        what = {"flood": "Flood", "wildfire": "Wildfire", "earthquake": "Earthquake",
+                "eruption": "Large volcanic eruption" if d.get("large") else "Volcanic eruption"}[k]
+        return f"{what} ({d.get('deaths', 0)} deaths)"
     return k.replace("_", " ")
 
 

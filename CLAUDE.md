@@ -1,6 +1,6 @@
 # Origins — working rules for Claude sessions
 
-Ben owns the design. Read `../DESIGN_DRAFT_v0.4.md` (or newer) and the current milestone spec (`../M0_SPECIFICATION_v1.md`) before changing anything. Ben approves milestone gates only; propose design changes, don't make them silently.
+Ben owns the design. Read `../DESIGN_DRAFT_v0.4.md` (or newer) and the current milestone spec (`docs/M1_SPECIFICATION_v1.md`) before changing anything. Ben approves milestone gates only; propose design changes, don't make them silently.
 
 ## Rules
 - **Behavioural gates decide progress, not test counts.** No new layer until the current gate passes. Record failed attempts and negative results in `docs/`.

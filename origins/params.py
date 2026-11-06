@@ -72,6 +72,8 @@ WORD_REPLACEMENT_RATE = 0.0002     # per meaning per year
 BORROWING_RATE = 0.004             # words borrowed per year by a language in contact with others
 LANGUAGE_SPLIT_CHECKS = 6          # checks in a row with separated speakers before a split (about 150 years, several generations)
 LANGUAGE_SPLIT_PEOPLE = 250        # a separated community must have at least this many people to become its own language
+LANGUAGE_SHIFT = 0.8              # chance per check (25 years, about a generation) that a band surrounded by another language takes it up
+LANGUAGE_SHIFT_MAJORITY = 0.5      # ... when this share of the people within two rings speak it
 LANGUAGE_MAX_CELLS = 40            # a language spread over more land than this splits in two
 
 # --- Customs (M1)

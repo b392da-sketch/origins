@@ -49,27 +49,37 @@ def _occupancy(w):
     return occ
 
 
-def kill_share(w, cell_probs: dict, cause: str, event_id: int, rng) -> int:
+def kill_share(w, cell_probs: dict, cause: str, event_id: int, rng, occ=None) -> int:
     """Each person in each cell dies with the given probability; returns deaths."""
     from . import demography
+    from .groups import AGE_GROUP
     if not cell_probs:
         return 0
     p = w.people
     G = w.groups
     code = C[cause]
     n = 0
+    cells = np.fromiter(cell_probs.keys(), dtype=np.int64, count=len(cell_probs))
+    probs = np.fromiter(cell_probs.values(), dtype=float, count=len(cell_probs))
     idx = w.alive_idx()
     if len(idx):
         cell, _ = demography._band_info(w)
         pc = cell[p.band[idx]]
-        prob = np.array([cell_probs.get(int(c), 0.0) for c in pc])
-        hit = idx[rng.random(len(idx)) < prob]
-        if len(hit):
-            demography.kill(w, hit, np.full(len(hit), code, dtype=np.int8))
-            p.death_hazard[hit] = event_id
-            n += len(hit)
-    for b in w.living_bands():
-        if b.mode != "group" or b.cell not in cell_probs:
+        sel = np.isin(pc, cells)
+        if sel.any():
+            cand = idx[sel]
+            pr = np.zeros(w.planet.n)
+            pr[cells] = probs
+            hit = cand[rng.random(len(cand)) < pr[pc[sel]]]
+            if len(hit):
+                demography.kill(w, hit, np.full(len(hit), code, dtype=np.int8))
+                p.death_hazard[hit] = event_id
+                n += len(hit)
+    if occ is None:
+        occ = _occupancy(w)
+    in_cells = [b for c in sorted(cell_probs) for b in occ.get(c, ())]
+    for b in in_cells:
+        if b.mode != "group" or not b.alive:
             continue
         g = b.group
         for X in (G.F, G.M):
@@ -81,7 +91,6 @@ def kill_share(w, cell_probs: dict, cause: str, event_id: int, rng) -> int:
                 n += k
                 w.counts["deaths"] += k
                 w.accum["deaths_by_cause"][code] += k
-                from .groups import AGE_GROUP
                 w.accum["deaths"] += np.bincount(AGE_GROUP, weights=d, minlength=18)
     return n
 
@@ -104,8 +113,12 @@ def yearly(w):
     u = rng.random((5, pl.n))
     year_deaths = 0
 
+    def count(kind):
+        w.counts["hz_" + kind] = w.counts.get("hz_" + kind, 0) + 1
+
     def struck(cells, food, note, kind, death_p, ring_p=0.0, **data):
         nonlocal year_deaths
+        count(kind)
         cells = sorted(cells)
         w.hazard_food[cells] = np.minimum(w.hazard_food[cells], food)
         peopled = [c for c in cells if c in occ]
@@ -118,7 +131,7 @@ def yearly(w):
             for c in _ring(nb, peopled, 1):
                 if c in occ and c not in probs:
                     probs[c] = ring_p
-        d = kill_share(w, probs, kind_cause[kind], eid, rng)
+        d = kill_share(w, probs, kind_cause[kind], eid, rng, occ)
         w.events[eid]["data"]["deaths"] = d
         year_deaths += d
 
@@ -142,6 +155,7 @@ def yearly(w):
         p_erupt = np.where(pl.volcanic & land, P.ERUPTION_RATE, 0.0)
         for c in np.nonzero(u[2] < p_erupt)[0]:
             c = int(c)
+            count("eruption")
             large = rng.random() < P.LARGE_ERUPTION
             ash = sorted(_ring(nb, [c], 4 if large else 2) - {c})
             w.hazard_food[c] = min(w.hazard_food[c], P.ERUPTION_FOOD)
@@ -154,7 +168,7 @@ def yearly(w):
                                                                    " volcanic eruption; ash fell over the land around"}],
                               cells=len(ash) + 1, large=bool(large))
                 w.hazard_event[[c] + ash] = eid
-                d = kill_share(w, probs, "volcanic eruption", eid, rng)
+                d = kill_share(w, probs, "volcanic eruption", eid, rng, occ)
                 w.events[eid]["data"]["deaths"] = d
             if large:
                 regions = sorted({int(pl.region[x]) for x in _ring(nb, [c], 8)})
@@ -187,11 +201,19 @@ def outbreaks(w, rng, occ):
                 if m in pop and m not in ob["seen"] and rng.random() < P.OUTBREAK_SPREAD * (1 - w.immune[m]):
                     new.add(m)
         if new:
-            _strike_outbreak(w, rng, ob, sorted(new))
+            w.counts["ob_contact_infections"] = w.counts.get("ob_contact_infections", 0) + len(new)
+            _strike_outbreak(w, rng, ob, sorted(new), occ)
             still.append(ob)
         else:
             w.events[ob["event"]]["data"]["ended"] = w.t
     w.hazards = still
+    # exposure accounting for gate G1 check 9: peopled cells in contact with an outbreak vs not
+    exposed = set()
+    for ob in still:
+        for c in ob["front"]:
+            exposed.update(int(m) for m in r2[c] if int(m) in pop and int(m) not in ob["seen"])
+    w.counts["ob_contact_cell_years"] = w.counts.get("ob_contact_cell_years", 0) + len(exposed)
+    w.counts["ob_other_cell_years"] = w.counts.get("ob_other_cell_years", 0) + len(set(pop) - exposed)
     # new outbreaks, more likely where people are crowded
     for c in sorted(pop):
         dens = pop[c] / max(w.planet.capacity[c], 1.0)
@@ -199,15 +221,16 @@ def outbreaks(w, rng, occ):
             eid = w.event("outbreak", cell=c, causes=[{"note": f"a new illness appeared among {int(pop[c])} people "
                                                                f"living at {dens:.0%} of the land's food supply"}],
                           cells=0, deaths=0, severity=round(float(rng.uniform(0.3, 1.0)), 2))
+            w.counts["ob_new_starts"] = w.counts.get("ob_new_starts", 0) + 1
             ob = {"kind": "outbreak", "event": eid, "front": [], "seen": [], "severity": w.events[eid]["data"]["severity"]}
-            _strike_outbreak(w, rng, ob, [c])
+            _strike_outbreak(w, rng, ob, [c], occ)
             w.hazards.append(ob)
 
 
-def _strike_outbreak(w, rng, ob, cells):
+def _strike_outbreak(w, rng, ob, cells, occ):
     sev = ob["severity"]
     probs = {c: P.OUTBREAK_DEATHS * sev * (1 - w.immune[c]) for c in cells}
-    d = kill_share(w, probs, "disease outbreak", ob["event"], rng)
+    d = kill_share(w, probs, "disease outbreak", ob["event"], rng, occ)
     for c in cells:
         w.immune[c] = max(w.immune[c], P.OUTBREAK_IMMUNITY)
         w.hazard_event[c] = ob["event"]

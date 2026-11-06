@@ -28,6 +28,10 @@ canvas#map{position:absolute;inset:0;width:100%;height:100%;cursor:grab}
 #legend{position:absolute;left:12px;bottom:12px;background:rgba(15,19,22,.85);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:11px system-ui,sans-serif;color:var(--muted);max-width:420px}
 #legend span{display:inline-flex;align-items:center;gap:4px;margin:2px 8px 2px 0}
 #legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+#layers{position:absolute;left:12px;top:12px;display:flex;gap:4px;align-items:center;font:12px system-ui,sans-serif;background:rgba(15,19,22,.85);padding:5px 7px;border-radius:8px;border:1px solid var(--line)}
+#layers button{padding:3px 8px;font-size:12px} #layers button.on{border-color:var(--accent);color:var(--accent)}
+table.words{width:100%;border-collapse:collapse;font:12px system-ui,sans-serif} table.words td{padding:2px 4px;border-bottom:1px solid #20292f}
+table.words td:first-child{color:var(--muted)}
 #hint{position:absolute;right:12px;top:12px;font:11px system-ui,sans-serif;color:var(--muted);background:rgba(15,19,22,.8);padding:6px 8px;border-radius:6px}
 aside{border-left:1px solid var(--line);background:var(--panel);overflow-y:auto}
 section{border-bottom:1px solid var(--line);padding:12px 14px}
@@ -73,6 +77,9 @@ input[type=range]{width:140px}
   <div id="mapwrap">
     <canvas id="map"></canvas>
     <div id="hint">Drag to pan · wheel to zoom · click a band or land</div>
+    <div id="layers"><span class="muted">Show</span>
+      <button data-layer="land" class="on">Land</button><button data-layer="language">Languages</button>
+      <button data-layer="customs">Customs</button><button data-layer="hazards">Hazards</button></div>
     <div id="legend"></div>
   </div>
   <aside>
@@ -85,6 +92,10 @@ input[type=range]{width:140px}
     <section id="sel-sec">
       <h2>Selected</h2>
       <div id="sel" class="muted">Click a band on the map, or a person, to see who they are.</div>
+    </section>
+    <section>
+      <h2>Peoples and languages</h2>
+      <div id="langs" class="muted" style="font:12.5px system-ui">—</div>
     </section>
     <section>
       <h2>Why?</h2>
@@ -114,7 +125,14 @@ const BIOME_COLOUR = {ocean:"#14283b", ice:"#e9eef2", tundra:"#9fa89a", boreal_f
 const $ = s => document.querySelector(s);
 const api = (p, body) => fetch(p, body ? {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)} : {})
   .then(r => r.json().then(j => { if (!r.ok) throw new Error(j.error || r.statusText); return j; }));
-let G = null, S = null, BANDS = [], known = new Set(), lastKnownT = 0;
+let G = null, S = null, BANDS = [], HAZ = [], LAYER = "land", known = new Set(), lastKnownT = 0;
+const HAZ_COLOUR = {flood:"#4f9ad6", wildfire:"#ff8a3d", eruption:"#ff3b30", earthquake:"#c58cff", outbreak:"#9be564", sea_crossing:"#ffffff"};
+const hsl = (h, l) => `hsl(${h},70%,${l}%)`;
+function bandColour(b){
+  if (LAYER === "language") return hsl(b.hue, 62);
+  if (LAYER === "customs") return hsl(b.custom, 58);
+  return b.mode === "group" ? "#c9d6dc" : (b.ratio < .85 ? "#ff6b57" : "#fff1c9");
+}
 let view = {x:0, y:0, k:1};            // pan offset in px, zoom
 const base = document.createElement("canvas"), fog = document.createElement("canvas");
 const W = 4096, H = 2048;
@@ -191,10 +209,23 @@ function draw(){
     const r = (2.5 + Math.sqrt(b.size) * 0.45) * devicePixelRatio / view.k;
     for (const dx of [-W, 0, W]){
       ctx.beginPath(); ctx.arc(x + dx, y, r, 0, 2*Math.PI);
-      ctx.fillStyle = b.mode === "group" ? "#c9d6dc" : (b.ratio < .85 ? "#ff6b57" : "#fff1c9");
+      ctx.fillStyle = bandColour(b);
       ctx.fill();
       ctx.lineWidth = 1.5 * devicePixelRatio / view.k; ctx.strokeStyle = "#101418"; ctx.stroke();
+      if (LAYER !== "land" && b.mode === "group"){ ctx.lineWidth = 2.5 * devicePixelRatio / view.k; ctx.strokeStyle = "#0b0e10"; ctx.stroke(); }
       if (S && b.id === S.follow){ ctx.beginPath(); ctx.arc(x + dx, y, r * 1.9, 0, 2*Math.PI); ctx.lineWidth = 2 * devicePixelRatio / view.k; ctx.strokeStyle = "#ffffff"; ctx.stroke(); }
+    }
+  }
+  drawHazards();
+}
+function drawHazards(){
+  if (LAYER !== "hazards") return;
+  for (const h of HAZ){
+    const [x, y] = proj(h.lon, h.lat);
+    const r = (h.kind === "eruption" || h.kind === "outbreak" ? 9 : 5) * devicePixelRatio / view.k;
+    for (const dx of [-W, 0, W]){
+      ctx.beginPath(); ctx.arc(x + dx, y, r, 0, 2*Math.PI); ctx.lineWidth = 2 * devicePixelRatio / view.k;
+      ctx.strokeStyle = HAZ_COLOUR[h.kind] || "#fff"; ctx.stroke();
     }
   }
 }
@@ -271,7 +302,10 @@ async function showBand(id){
     <div class="kv"><dt>People</dt><dd>${d.size}</dd><dt>Founded</dt><dd>${bp(d.founded_bp)}</dd>
     <dt>Land</dt><dd>${esc(d.biome.replace("_"," "))} · ${d.season}</dd>
     <dt>Food last season</dt><dd>${Math.round(d.ratio * 100)}% of needs</dd>
-    <dt>Last move</dt><dd>${esc(d.last_move || "—")}</dd></div>
+    <dt>Last move</dt><dd>${esc(d.last_move || "—")}</dd>
+    <dt>Language</dt><dd><a style="cursor:pointer;color:var(--accent2)" onclick="showLanguage(${d.language.id})">${esc(d.language.name)}</a></dd></div>
+    <details style="margin:6px 0;font:12.5px system-ui"><summary>Customs</summary><div class="kv">${d.customs.map(c => `<dt>${esc(c.custom)}</dt><dd>${esc(c.practice)}</dd>`).join("")}</div>
+    ${d.custom_changes.length ? `<ul class="list">${d.custom_changes.map(c => `<li>${esc(c.custom)}: ${esc(c.from)} → ${esc(c.to)} <small>${esc(c.how)}, ${bp(c.bp)}</small></li>`).join("")}</ul>` : ""}</details>
     ${body}
     <h2 style="margin-top:10px">Band history</h2><ul class="list">${d.events.map(e => `<li onclick="why('event:${e.id}')">${esc(e.title)} <small>${bp(e.bp)}</small></li>`).join("") || '<li class="muted">—</li>'}</ul>`;
 }
@@ -280,12 +314,32 @@ async function showPerson(id){
   const link = p => p ? `<a onclick="showPerson(${p.id})">${esc(p.name)}</a>${p.alive ? "" : (p.died ? " †" : "")}` : "—";
   const f = d.family;
   $("#sel").innerHTML = `<b>${esc(d.name)}</b> <span class="tag">${d.sex}, ${d.age}${d.alive ? "" : (d.died ? " — died: " + esc(d.cause) : " — now followed as a group")}</span>
-    <p class="muted" style="font:12px system-ui;margin:4px 0">Name from ${esc(d.etymology)}</p>
+    <p class="muted" style="font:12px system-ui;margin:4px 0">Name ${esc(d.etymology)}</p>
+    ${(d.name_story || []).length ? `<details style="font:12px system-ui;margin:2px 0 6px"><summary>How the name came to sound this way</summary>${d.name_story.map(part =>
+      `<div style="margin:4px 0"><b>'${esc(part.meaning)}'</b>: ${part.steps.map(st => `<span title="${esc(st.why)} (${bp(st.bp)})">${esc(st.form)}</span>`).join(" → ")}</div>`).join("")}</details>` : ""}
     <div class="kv why"><dt>Born</dt><dd>${bp(d.born_bp)}</dd><dt>Mother</dt><dd>${link(f.mother)}</dd><dt>Father</dt><dd>${link(f.father)}</dd>
     <dt>Partner</dt><dd>${link(f.partner)}</dd><dt>Children</dt><dd>${f.children.map(link).join(", ") || "—"}</dd>
     <dt>Siblings</dt><dd>${f.siblings.map(link).join(", ") || "—"}</dd></div>
     <ul class="list" style="margin-top:6px">${d.life.map(l => `<li ${l.ref ? `onclick="why('${l.ref}')"` : ""}>${esc(l.title)}</li>`).join("")}</ul>
     <a class="muted" style="font:12px system-ui;cursor:pointer" onclick="showBand(${d.band})">← band</a>`;
+}
+async function showLanguage(id){
+  const d = await api("/api/language?id=" + id);
+  const lin = d.lineage.map(a => `<a style="cursor:pointer;color:var(--accent2)" onclick="showLanguage(${a.id})">${esc(a.name)}</a>`).join(" → ");
+  $("#sel").innerHTML = `<b>${esc(d.name)}</b> <span class="tag">${d.alive ? `${d.speakers.toLocaleString()} speakers, ${d.bands} bands` : `no longer spoken (${bp(d.ended_bp)})`}</span>
+    <p class="muted" style="font:12px system-ui;margin:4px 0">They call themselves <b>${esc(d.self_name)}</b> (their word for “people”). Separate language since ${bp(d.born_bp)}.</p>
+    <div class="kv why"><dt>Descent</dt><dd>${lin}</dd>
+    <dt>Daughters</dt><dd>${d.daughters.map(k => `<a style="cursor:pointer;color:var(--accent2)" onclick="showLanguage(${k.id})">${esc(k.name)}</a>`).join(", ") || "—"}</dd>
+    <dt>Closest</dt><dd>${d.relatives.slice(0, 5).map(r => `<a style="cursor:pointer;color:var(--accent2)" onclick="showLanguage(${r.id})">${esc(r.name)}</a> <small class="muted">${Math.round(r.shared*100)}% shared words, apart since ${bp(r.split_bp)}</small>`).join("<br>") || "—"}</dd></div>
+    <details style="margin-top:6px;font:12.5px system-ui"><summary>Sound changes (${d.sound_changes.length})</summary><ul class="list">${d.sound_changes.map(c => `<li>${esc(c.rule)} <small>${esc(c.in)}, ${bp(c.bp)}</small></li>`).join("")}</ul></details>
+    <details style="margin-top:6px"><summary style="font:12.5px system-ui">Words: proto-language → now</summary><table class="words">${d.words.map(x => `<tr><td>${esc(x.meaning)}</td><td>${esc(x.proto)}</td><td>${esc(x.now)}</td><td class="muted">${x.origin === "inherited" ? "" : esc(x.origin)}</td></tr>`).join("")}</table></details>`;
+}
+async function refreshLanguages(){
+  const t = await api("/api/languages");
+  const alive = t.filter(l => l.ended_bp == null).sort((a, b) => b.speakers - a.speakers);
+  $("#langs").classList.remove("muted");
+  $("#langs").innerHTML = `${alive.length} living languages (${t.length} ever spoken). Largest:<ul class="list">` +
+    alive.slice(0, 15).map(l => `<li onclick="showLanguage(${l.id})"><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${hsl(l.hue, 62)}"></i> ${esc(l.name)} <small>${l.speakers.toLocaleString()} speakers</small></li>`).join("") + `</ul>`;
 }
 function renderWhy(n, depth){
   const kids = (n.causes || []).map(c => renderWhy(c, depth + 1)).join("");
@@ -336,6 +390,9 @@ async function refresh(force){
     <dt>Accounting checks</dt><dd>${S.invariant_failures ? `<span class="err">${S.invariant_failures} failures</span>` : "all passing"}</dd>`;
   $("#err").textContent = S.error || S.load_warning || "";
   chart(S.series);
+  if (LAYER === "hazards") HAZ = await api("/api/hazards?years=100");
+  if (force || !refresh.n || refresh.n % 5 === 0) refreshLanguages();
+  refresh.n = (refresh.n || 0) + 1;
   const ev = await api("/api/events");
   $("#events").innerHTML = ev.map(e => `<li onclick="why('${e.ref}')">${esc(e.title)} <small>${bp(e.bp)}</small></li>`).join("");
   draw();
@@ -346,8 +403,20 @@ document.querySelectorAll("[data-fast]").forEach(b => b.onclick = () => act({act
 $("#b-save").onclick = async () => { const name = prompt("Name for this save", "my-world"); if (name){ await act({action:"save", name}); loadSaves(); } };
 $("#b-load").onclick = async () => { await act({action:"load", name:$("#saves").value}); location.reload(); };
 $("#b-new").onclick = async () => { if (confirm("Start a new world? Save the current one first if you want to keep it.")){ await act({action:"new", world_seed:+$("#ws").value, run_seed:+$("#rs").value}); location.reload(); } };
-$("#legend").innerHTML = Object.entries(BIOME_COLOUR).map(([k, v]) => `<span><i style="background:${v}"></i>${k.replace("_"," ")}</span>`).join("")
+document.querySelectorAll("[data-layer]").forEach(b => b.onclick = async () => {
+  LAYER = b.dataset.layer;
+  document.querySelectorAll("[data-layer]").forEach(x => x.classList.toggle("on", x === b));
+  if (LAYER === "hazards") HAZ = await api("/api/hazards?years=100");
+  legend(); draw();
+});
+function legend(){
+  if (LAYER === "language"){ $("#legend").innerHTML = "Each colour is a language; related languages have similar colours."; return; }
+  if (LAYER === "customs"){ $("#legend").innerHTML = "Each colour is a set of customs; bands that share their customs share a colour."; return; }
+  if (LAYER === "hazards"){ $("#legend").innerHTML = Object.entries(HAZ_COLOUR).map(([k, v]) => `<span><i style="border:2px solid ${v};border-radius:50%"></i>${k.replace("_"," ")}</span>`).join("") + " · last 100 years"; return; }
+  $("#legend").innerHTML = Object.entries(BIOME_COLOUR).map(([k, v]) => `<span><i style="background:${v}"></i>${k.replace("_"," ")}</span>`).join("")
   + `<span><i style="background:#fff1c9;border:1px solid #101418;border-radius:50%"></i>band</span><span><i style="background:#ff6b57;border:1px solid #101418;border-radius:50%"></i>hungry band</span><span><i style="background:#c9d6dc;border:1px solid #101418;border-radius:50%"></i>group</span>`;
+}
+legend();
 (async function init(){
   G = await api("/api/geometry");
   drawBase();

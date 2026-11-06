@@ -170,6 +170,7 @@ def partnerships(w):
                 kids = idx[(p.mother[idx] == i) & (age < 12)]
                 p.band[i] = p.band[j]
                 p.band[kids] = p.band[j]
+                p.lang[kids] = w.bands[int(p.band[j])].language     # young children grow up speaking it
             else:
                 p.band[j] = p.band[i]
 
