@@ -197,7 +197,7 @@ def yearly(w):
                 # deliberate sowing grows with how much a people farms, or how pressed it is for food
                 sk[k] = min(2.0, sk[k] + P.CULTIVATE_RATE * max(share, pressure))
             elif sk[k] < 3:
-                sk[k] = min(3.0, sk[k] + P.DOMESTICATE_RATE * max(share, 0.3 * pressure))
+                sk[k] = min(3.0, sk[k] + P.DOMESTICATE_RATE * max(share, pressure))
         # learning from neighbours who know more about something that can live here
         if rng.random() < P.LEARN_CHANCE:
             near = [o for cc in r2[c] for o in by_cell.get(int(cc), ()) if o.id != b.id]

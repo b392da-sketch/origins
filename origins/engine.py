@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from . import interventions
 from . import params as P
-from .sim import bands, climate, customs, demography, farming, foraging, groups, hazards, language, observe
+from .sim import bands, climate, customs, demography, farming, foraging, groups, hazards, language, observe, surplus
 
 PHASES = [
     ("interventions", interventions.restore_due),
@@ -23,6 +23,7 @@ PHASES = [
     ("compact", lambda w: groups.compact(w) if w.quarter == 3 and w.year % 50 == 0 else None),
     ("hazards", lambda w: hazards.yearly(w) if w.quarter == 1 else None),
     ("farming", lambda w: farming.yearly(w) if w.quarter == 3 else None),
+    ("surplus", lambda w: surplus.yearly(w) if w.quarter == P.HARVEST_QUARTER else None),
     ("customs", lambda w: customs.yearly(w) if w.quarter == 1 else None),
     ("language", lambda w: language.check(w)
      if w.quarter == 2 and w.year % P.LANGUAGE_CHECK_YEARS == 0 and w.t > 0 else None),

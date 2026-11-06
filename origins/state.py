@@ -26,7 +26,7 @@ C = {name: i for i, name in enumerate(CAUSES)}
 
 STREAMS = ["climate", "deaths", "partners", "births", "movement", "fission", "names", "founding",
            "language", "customs", "hazards", "crossing",
-           "farming"]   # new streams are appended, never inserted
+           "farming", "surplus"]   # new streams are appended, never inserted
 
 FIELDS = {
     "alive": bool, "sex": np.int8, "cause": np.int8, "name_a": np.int16, "name_b": np.int16,
@@ -34,9 +34,9 @@ FIELDS = {
     "birth": np.int64, "death": np.int64, "mother": np.int64, "father": np.int64,
     "partner": np.int64, "band": np.int64, "preg_due": np.int64, "preg_father": np.int64,
     "youngest": np.int64, "partner_since": np.int64, "death_bad": np.int64,
-    "death_cell": np.int64, "lang": np.int64, "birth_cell": np.int64, "folded": np.int64, "unfolded": np.int64, "death_interv": np.int64, "death_hazard": np.int64,
+    "death_cell": np.int64, "lang": np.int64, "role": np.int8, "wealth": np.float32, "birth_cell": np.int64, "folded": np.int64, "unfolded": np.int64, "death_interv": np.int64, "death_hazard": np.int64,
 }
-_ZERO_DEFAULT = {"alive", "sex", "cause", "condition", "death_cond", "death_ratio"}
+_ZERO_DEFAULT = {"alive", "sex", "cause", "condition", "death_cond", "death_ratio", "role", "wealth"}
 
 
 class People:
@@ -159,10 +159,11 @@ class World:
         self.season_stats: dict = {}
         self.intervened = False
         self._live = None
-        from .sim import customs, farming, language
+        from .sim import customs, farming, language, surplus
         language.init(self)
         customs.init(self)
         farming.init(self)
+        surplus.init(self)
         self.people.languages = self.languages
         self.hazards: list = []                    # active hazards (sim/hazards.py)
         self.hazard_food = np.ones(n)              # hazard effect on wild food, recovering over years
@@ -209,9 +210,10 @@ class World:
         b.trail.append((self.t, int(cell)))
         if parent >= 0:
             b.language = self.bands[parent].language
-        from .sim import customs, farming
+        from .sim import customs, farming, surplus
         customs.ensure(self, b.id, parent)
         farming.ensure(self, b.id, parent)
+        surplus.ensure(self, b.id, parent)
         self.bands[b.id] = b
         if self._pool is not None:
             self._pool[b.id] = b

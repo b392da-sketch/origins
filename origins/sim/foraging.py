@@ -79,7 +79,8 @@ def forage_and_eat(w):
 
     ids = np.array([b.id for b in bands])
     cells = np.array([b.cell for b in bands])
-    from . import farming
+    from . import farming, surplus
+    effort[ids] *= surplus.work_share(w, ids)            # specialists eat but do not produce food
     effort, farm_food = farming.season_food(w, ids, cells, effort)
     cell_effort = np.zeros(w.planet.n)
     np.add.at(cell_effort, cells, effort[ids])
@@ -109,7 +110,7 @@ def forage_and_eat(w):
     if P.STORAGE:
         # farmers store grain (granaries, pits, pots): more room and slower spoilage, in proportion to farming
         fs = w.farm_share[:nb_]
-        cap = (P.STORE_DAYS + fs * P.GRANARY_DAYS) * total_need / P.SEASON_DAYS
+        cap = (P.STORE_DAYS + np.minimum(1.0, 2 * fs) * P.GRANARY_DAYS) * total_need / P.SEASON_DAYS
         spoil = P.STORE_SPOIL * (1 - fs) + P.GRAIN_SPOIL * fs
     else:
         cap = P.STORE_DAYS * total_need / P.SEASON_DAYS

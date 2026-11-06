@@ -75,6 +75,8 @@ def fission_and_merge(w):
     for b in live:
         s = int(sizes[b.id])
         limit = P.GROUP_FISSION_SIZE if b.mode == "group" else P.FISSION_SIZE
+        if b.village:
+            limit = max(limit, P.VILLAGE_FISSION_SIZE)
         if 0 < s <= limit and (s < P.STRESS_FISSION_MIN or b.last_ratio >= P.STRESS_FISSION_RATIO):
             continue
         if s == 0:

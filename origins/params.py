@@ -55,6 +55,7 @@ MARGIN_MEMORY = 0.5                # weight of the previous seasons in the band'
 
 # --- Bands
 FISSION_SIZE = 50
+VILLAGE_FISSION_SIZE = 150        # farming villages hold more people before a daughter village is founded
 GROUP_FISSION_SIZE = 200          # groups are local populations, not single bands
 STRESS_FISSION_MIN = 24
 STRESS_FISSION_RATIO = 0.85
@@ -112,7 +113,7 @@ PRESSURE_MARGIN = 1.6              # food gathered / needed below this presses a
 TEND_STILL_YEARS = 5               # years in one area before a people begins to tend a wild plant or herd
 TEND_RATE = 1 / 200                # yearly progress of tending at full pressure on ideal land
 CULTIVATE_RATE = 1 / 400           # yearly progress from tending to cultivation
-DOMESTICATE_RATE = 1 / 800         # yearly progress from cultivation to domestication (when farming fully)
+DOMESTICATE_RATE = 1 / 600         # yearly progress from cultivation to domestication (when farming fully, or fully pressed)
 LEARN_CHANCE = 0.1                 # yearly chance a band compares notes with a neighbour
 LEARN_SHARE = 0.3                  # share of a neighbour's lead in a skill learned at once
 FIRST_VILLAGE_YEARS = 75           # years mainly farming before a village counts as a lasting farming village
@@ -120,6 +121,11 @@ STORAGE = True                     # gate G2 knock-out: False keeps every store 
 GRANARY_DAYS = 400                 # days of needs a farming household can store (grain in pits, baskets, pots)
 GRAIN_SPOIL = 0.05                 # share of stored grain lost each season
 FARMER_NURSING_1 = 0.25            # settled mothers with weaning foods: conception multiplier with a child under 2
+SURPLUS_RESERVE = 0.75            # share of a year's needs kept back after harvest before anything counts as surplus
+SPECIALIST_MAX = 0.3               # at most this share of a band can be specialists
+PROPERTY_SHARE = 0.5               # bands farming at least this share of their work hold fields and stores by household
+WEALTH_LUCK = 0.25                 # yearly spread of households' harvest luck (log scale) at full surplus
+SURPLUS_FOR_FULL_LUCK = 150.0      # surplus per person (food units) at which luck has its full effect
 FORAGER_OUTBREAK = 0.3             # outbreak start rate multiplier for foragers (scattered, mobile)
 VILLAGE_OUTBREAK = 2.0             # ... for villages (crowded, settled, near animals)
 

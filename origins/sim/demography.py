@@ -61,6 +61,10 @@ def kill(w, ids: np.ndarray, causes: np.ndarray):
     p.death_cell[ids] = c
     p.death_bad[ids] = np.where(c >= 0, w.region_bad_event[w.planet.region[np.clip(c, 0, None)]], -1)
     p.death_interv[ids] = np.where(c >= 0, w.intervention_event[np.clip(c, 0, None)], -1)
+    rich = ids[p.wealth[ids] > 0]
+    if len(rich):
+        from .surplus import inherit
+        inherit(w, rich)
     hung = (causes == C["hunger"]) & (c >= 0)
     np.add.at(w.cell_hunger, c[hung], 1)
     p.preg_due[ids] = -1
