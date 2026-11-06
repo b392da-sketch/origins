@@ -59,6 +59,7 @@ jobs:
         run: |
           GATE=$(python3 -c "import json;print(json.load(open('$REQ'))['gate'])")
           YEARS=$(python3 -c "import json;print(json.load(open('$REQ')).get('years',5000))")
+          rm -rf gates/results_$GATE     # keep only this job's own results (the repository holds earlier ones)
           if [ "${{ matrix.kind }}" = "run" ]; then
             python -m gates.$GATE run --jobs ${{ matrix.ws }}:${{ matrix.rs }} --years $YEARS \
               --budget 20000 --workers 1 --ckpt /tmp/ckpt
@@ -100,7 +101,8 @@ jobs:
           git fetch origin gate-results || true
           git checkout -B gate-results origin/gate-results 2>/dev/null || git checkout --orphan gate-results
           git rm -rq --cached . 2>/dev/null || true
-          mkdir -p results/$LABEL
+          git rm -rq --ignore-unmatch results/$LABEL
+          rm -rf results/$LABEL && mkdir -p results/$LABEL
           cp gates/results_$GATE/*.json results/$LABEL/ && cp report.md request.json results/$LABEL/
           echo "run ${{ github.run_id }} commit ${{ github.sha }}" > results/$LABEL/RUN.txt
           git add results/$LABEL
