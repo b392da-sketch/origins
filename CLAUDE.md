@@ -1,6 +1,6 @@
 # Origins — working rules for Claude sessions
 
-Ben owns the design. Read `../DESIGN_DRAFT_v0.4.md` (or newer) and the current milestone spec (`docs/M1_SPECIFICATION_v1.md`) before changing anything. Ben approves milestone gates only; propose design changes, don't make them silently.
+Ben owns the design. Read `docs/DESIGN_DRAFT_v0.5.md` (or newer) and the current milestone spec (`docs/M2_SPECIFICATION_v1.md`) before changing anything. Ben approves milestone gates only; propose design changes, don't make them silently.
 
 ## Rules
 - **Behavioural gates decide progress, not test counts.** No new layer until the current gate passes. Record failed attempts and negative results in `docs/`.
@@ -23,4 +23,4 @@ Ben owns the design. Read `../DESIGN_DRAFT_v0.4.md` (or newer) and the current m
 ## Current milestone
 M0 "the first people survive": gate G0 passed and **closed with Ben's approval on 6 November 2026** (`docs/M0_GATE_REPORT.md`).
 M1 "spreading and drifting apart": specification **approved by Ben on 6 November 2026** (`docs/M1_SPECIFICATION_v1.md`, decisions in section 9); gate G1 passed on 60 histories and **closed with Ben's approval on 7 November 2026** (`docs/M1_GATE_REPORT.md`). Open items carried forward: island peoples do not diverge faster; outbreaks cause about 9% of deaths.
-M2 "farming is an option, not a destiny": specification in draft (`docs/M2_SPECIFICATION_DRAFT.md`); do not build until Ben approves it.
+M2 "farming is an option, not a destiny": specification **approved by Ben on 7 November 2026** (`docs/M2_SPECIFICATION_v1.md`); in build. Gates run on GitHub Actions (`.github/workflows/gate.yml`).

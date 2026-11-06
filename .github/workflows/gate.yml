@@ -1,0 +1,108 @@
+name: gate
+
+# Runs a milestone gate on GitHub's machines, one history per job, many at once.
+# Start it by pushing a request file to gates/requests/ on the "gate" branch
+# (or with "Run workflow" on the Actions page, naming the request file).
+# Results and the report are committed to the "gate-results" branch under results/<label>/.
+
+on:
+  push:
+    branches: [gate]
+    paths: ["gates/requests/*.json"]
+  workflow_dispatch:
+    inputs:
+      request:
+        description: "Request file, e.g. gates/requests/g1.json"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      request: ${{ steps.pick.outputs.request }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - id: pick
+        run: |
+          if [ -n "${{ github.event.inputs.request }}" ]; then
+            echo "request=${{ github.event.inputs.request }}" >> "$GITHUB_OUTPUT"
+          else
+            f=$(git diff --name-only HEAD~1 HEAD -- gates/requests/ | head -n 1)
+            echo "request=$f" >> "$GITHUB_OUTPUT"
+          fi
+      - id: plan
+        run: echo "matrix=$(python3 gates/plan.py '${{ steps.pick.outputs.request }}')" >> "$GITHUB_OUTPUT"
+
+  run:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    name: ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements.txt
+      - name: run
+        env:
+          REQ: ${{ needs.plan.outputs.request }}
+        run: |
+          GATE=$(python3 -c "import json;print(json.load(open('$REQ'))['gate'])")
+          YEARS=$(python3 -c "import json;print(json.load(open('$REQ')).get('years',5000))")
+          if [ "${{ matrix.kind }}" = "run" ]; then
+            python -m gates.$GATE run --jobs ${{ matrix.ws }}:${{ matrix.rs }} --years $YEARS \
+              --budget 20000 --workers 1 --ckpt /tmp/ckpt
+          else
+            python -m gates.$GATE ${{ matrix.kind }} --worlds ${{ matrix.ws }}
+          fi
+          mkdir -p out && cp gates/results_$GATE/*.json out/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: out/
+          retention-days: 30
+
+  report:
+    needs: [plan, run]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: report and publish
+        env:
+          REQ: ${{ needs.plan.outputs.request }}
+        run: |
+          GATE=$(python3 -c "import json;print(json.load(open('$REQ'))['gate'])")
+          LABEL=$(python3 -c "import json;print(json.load(open('$REQ'))['label'])")
+          rm -rf gates/results_$GATE && mkdir -p gates/results_$GATE
+          find artifacts -name '*.json' -exec cp {} gates/results_$GATE/ \;
+          python -m gates.$GATE report > report.md || echo "report failed" >> report.md
+          cp "$REQ" request.json
+          git config user.name "origins-gate"
+          git config user.email "origins-gate@users.noreply.github.com"
+          git fetch origin gate-results || true
+          git checkout -B gate-results origin/gate-results 2>/dev/null || git checkout --orphan gate-results
+          git rm -rq --cached . 2>/dev/null || true
+          mkdir -p results/$LABEL
+          cp gates/results_$GATE/*.json results/$LABEL/ && cp report.md request.json results/$LABEL/
+          echo "run ${{ github.run_id }} commit ${{ github.sha }}" > results/$LABEL/RUN.txt
+          git add results/$LABEL
+          git commit -qm "Gate results: $LABEL (run ${{ github.run_id }})"
+          git push origin gate-results

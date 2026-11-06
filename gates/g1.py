@@ -214,7 +214,8 @@ def finish(w, ws, rs, years, seconds, pr, replay=None):
         "flood": int((pl.river & land).sum()), "eruption": int((pl.volcanic & land).sum()),
         "earthquake": int((pl.seismic & land).sum()),
         "wildfire": int((np.isin(pl.biome, __import__("origins.sim.hazards", fromlist=["x"]).FIRE_BIOMES) & land).sum())}
-    rec["hazard_after"] = pr["hazard_after"]
+    rec["hazard_summary"] = hazard_summary(pr["hazard_after"])
+    rec["hazard_after"] = [h for k in HAZARD_KINDS for h in [x for x in pr["hazard_after"] if x["kind"] == k][:20]]
     # regular sound change and traceability: rebuild every word of up to 20 living languages
     alive = [l for l in w.languages.values() if l.alive]
     bad = checked = 0
@@ -257,6 +258,20 @@ def finish(w, ws, rs, years, seconds, pr, replay=None):
     rec["status"] = "completed"
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / f"run_w{ws}_s{rs}_{years}y.json").write_text(json.dumps(rec))
+
+
+def hazard_summary(hs) -> dict:
+    """Totals per hazard kind over peopled hazards with deaths, watched for 20 years."""
+    out = {}
+    for h in hs:
+        if h["deaths"] <= 0 or h["before"] <= 0 or "after20" not in h or "after1" not in h:
+            continue
+        s = out.setdefault(h["kind"], {"n": 0, "death_share": 0.0, "lower_after_1": 0, "recovered_20": 0})
+        s["n"] += 1
+        s["death_share"] += h["deaths"] / h["before"]
+        s["lower_after_1"] += int(h["after1"] < h["before"])
+        s["recovered_20"] += int(h["after20"] >= 0.9 * h["before"])
+    return out
 
 
 def retention(w, snaps) -> list:

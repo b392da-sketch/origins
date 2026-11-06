@@ -28,7 +28,10 @@ def _load(out: Path, pattern: str):
     return [json.loads(f.read_text()) for f in sorted(out.glob(pattern))]
 
 
-def report(out: Path, years: int = 5000) -> str:
+def report(out: Path, years: int | None = None) -> str:
+    if years is None:                       # the length most histories were run for
+        found = [int(f.stem.split("_")[-1][:-1]) for f in out.glob("run_w*_*y.json")]
+        years = max(set(found), key=found.count) if found else 5000
     runs = [r for r in _load(out, f"run_w*_{years}y.json") if r.get("status") == "completed"]
     grp = _load(out, "groups_w*.json")
     L = []
@@ -182,18 +185,24 @@ def report(out: Path, years: int = 5000) -> str:
                    + "; ".join(f"{k} 1/{1 / hi:,.0f}–1/{1 / lo:,.0f}" for k, (lo, hi) in HAZARD_RANGES.items())))
 
     # 8 hazard responses
+    from gates.g1 import hazard_summary
+    tot = {}
+    for r in runs:
+        s = r.get("hazard_summary") or hazard_summary(r["hazard_after"])
+        for k, v in s.items():
+            t = tot.setdefault(k, {"n": 0, "death_share": 0.0, "lower_after_1": 0, "recovered_20": 0})
+            for kk in t:
+                t[kk] += v[kk]
     rows8, good8, tot8 = [], 0, 0
     for k in ("flood", "wildfire", "eruption", "earthquake", "outbreak"):
-        hs = [h for r in runs for h in r["hazard_after"] if h["kind"] == k and h["deaths"] > 0 and h["before"] > 0
-              and "after20" in h and "after1" in h]
-        if not hs:
+        t = tot.get(k)
+        if not t or not t["n"]:
             rows8.append(f"{k}: none with deaths among people")
             continue
-        drop = np.mean([h["after1"] < h["before"] for h in hs])
-        rec = np.mean([h["after20"] >= 0.9 * h["before"] for h in hs])
-        dpp = np.mean([h["deaths"] / h["before"] for h in hs])
-        rows8.append(f"{k}: {len(hs)} with deaths (mean {dpp:.1%} of the area's people); local population lower a year "
-                     f"later in {drop:.0%}, back to 90% within 20 years in {rec:.0%}")
+        n = t["n"]
+        rec = t["recovered_20"] / n
+        rows8.append(f"{k}: {n:,} with deaths (mean {t['death_share'] / n:.1%} of the area's people); local population "
+                     f"lower a year later in {t['lower_after_1'] / n:.0%}, back to 90% within 20 years in {rec:.0%}")
         tot8 += 1
         good8 += rec >= 0.6
     ok8 = tot8 > 0 and good8 == tot8
