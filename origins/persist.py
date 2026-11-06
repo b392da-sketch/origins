@@ -131,6 +131,7 @@ def from_bytes(data: bytes, planet=None) -> World:
         w.timing = meta.get("timing", {})
     w.people.languages = w.languages
     w.people_changed()
+    w._pool = None
     w.bands_changed()
     return w
 

@@ -147,6 +147,7 @@ class World:
         self.reveal_pending: set = set()
         self._binfo = None
         self._living = None
+        self._pool = None            # candidate living bands (speed only)
         self.ledger = {"regrowth": 0.0, "harvest": 0.0, "eaten": 0.0, "spoiled": 0.0}
         self.invariant_failures: list[str] = []
         self.yearly: list[dict] = []
@@ -206,6 +207,8 @@ class World:
         from .sim import customs
         customs.ensure(self, b.id, parent)
         self.bands[b.id] = b
+        if self._pool is not None:
+            self._pool[b.id] = b
         self.reveal_pending.add(b.id)
         self._living = None
         self.next_band += 1
@@ -218,7 +221,11 @@ class World:
 
     def living_bands(self):
         if self._living is None:
-            self._living = [b for b in self.bands.values() if b.alive]
+            # bands never come back to life, so only bands alive at the last rebuild (plus new ones) need checking
+            if self._pool is None:
+                self._pool = dict(self.bands)
+            self._living = [b for b in self._pool.values() if b.alive]
+            self._pool = {b.id: b for b in self._living}
         return self._living
 
     def bands_changed(self):
