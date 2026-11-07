@@ -92,7 +92,7 @@ class People:
         return p
 
 
-@dataclass
+@dataclass(slots=True)          # many thousands of bands are kept for history: keep each record small
 class Band:
     id: int
     cell: int
