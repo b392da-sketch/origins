@@ -1,0 +1,3 @@
+{"gate": "g1", "label": "g1-after-band-packing", "years": 5000, "planets": "1-5", "seeds": "1-15", "extras": ["groups"],
+ "params": {"FARMING": false},
+ "note": "Gate G1 rerun with the final M2 code (farming switched off): group movement as approved in M1, band records packed, standing-crop and split fixes."}
