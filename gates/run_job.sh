@@ -7,7 +7,7 @@ export ORIGINS_PARAMS=$(python3 -c "import json;print(json.dumps(json.load(open(
 GATE=$(python3 -c "import json;print(json.load(open('$REQ'))['gate'])")
 YEARS=$(python3 -c "import json;print(json.load(open('$REQ')).get('years',5000))")
 CKPT=${CKPT:-/tmp/ckpt}
-BUDGET=${BUDGET:-19800}
+BUDGET=${BUDGET:-16200}          # 4.5 hours, leaving time to save a large world before the 5h50m limit
 rm -rf gates/results_$GATE          # keep only this job's own results (the repository holds earlier ones)
 mkdir -p "$CKPT"
 case "$KIND" in

@@ -5,7 +5,7 @@ name: gate
 # (or with "Run workflow" on the Actions page, naming the request file).
 # Results and the report are committed to the "gate-results" branch under results/<label>/.
 # A history that is not finished after one machine's time limit continues from its checkpoint in a second
-# stage (about 11 hours in all); a request can also name only some jobs ("jobs": ["4:1", ...]).
+# stage and, if needed, a third (about 13 hours in all); a request can also name only some jobs ("jobs": ["4:1", ...]).
 
 on:
   push:
@@ -107,9 +107,54 @@ jobs:
           path: out/
           if-no-files-found: ignore
           retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: steps.need.outputs.go == '1'
+        with:
+          name: ckpt2-${{ matrix.name }}
+          path: /tmp/ckpt/
+          if-no-files-found: ignore
+          retention-days: 2
+
+  continue2:
+    needs: [plan, continue]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    name: last-${{ matrix.name }}
+    steps:
+      - uses: actions/download-artifact@v4
+        id: ck
+        continue-on-error: true
+        with:
+          name: ckpt2-${{ matrix.name }}
+          path: /tmp/ckpt
+      - name: anything to continue?
+        id: need
+        run: if [ -n "$(ls -A /tmp/ckpt 2>/dev/null)" ]; then echo "go=1" >> "$GITHUB_OUTPUT"; else echo "finished in the first stage"; fi
+      - uses: actions/checkout@v4
+        if: steps.need.outputs.go == '1'
+      - uses: actions/setup-python@v5
+        if: steps.need.outputs.go == '1'
+        with:
+          python-version: "3.13"
+      - if: steps.need.outputs.go == '1'
+        run: pip install -r requirements.txt
+      - name: continue
+        if: steps.need.outputs.go == '1'
+        run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} ${{ matrix.ws }} ${{ matrix.rs }}
+      - uses: actions/upload-artifact@v4
+        if: steps.need.outputs.go == '1'
+        with:
+          name: last-${{ matrix.name }}
+          path: out/
+          if-no-files-found: ignore
+          retention-days: 30
 
   report:
-    needs: [plan, run, continue]
+    needs: [plan, run, continue, continue2]
     if: always()
     runs-on: ubuntu-latest
     steps:

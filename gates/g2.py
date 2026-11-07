@@ -169,7 +169,7 @@ def worker(jobs, budget, ckpt: Path, storage: bool):
             probe(w, pr)
             if time.time() > t_end:
                 tmp = cp.with_suffix(".tmp")
-                tmp.write_bytes(persist.to_bytes(w))
+                tmp.write_bytes(persist.to_bytes(w, fast=True))
                 tmp.replace(cp)
                 meta.write_text(json.dumps({"seconds": spent + time.time() - start, "year": w.year, "probe": pr}))
                 print(f"w{ws} s{rs}{tag}: checkpoint at year {w.year}", flush=True)
