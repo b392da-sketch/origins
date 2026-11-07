@@ -4,6 +4,8 @@ name: gate
 # Start it by pushing a request file to gates/requests/ on the "gate" branch
 # (or with "Run workflow" on the Actions page, naming the request file).
 # Results and the report are committed to the "gate-results" branch under results/<label>/.
+# A history that is not finished after one machine's time limit continues from its checkpoint in a second
+# stage (about 11 hours in all); a request can also name only some jobs ("jobs": ["4:1", ...]).
 
 on:
   push:
@@ -54,31 +56,60 @@ jobs:
           python-version: "3.13"
       - run: pip install -r requirements.txt
       - name: run
-        env:
-          REQ: ${{ needs.plan.outputs.request }}
-        run: |
-          export ORIGINS_PARAMS=$(python3 -c "import json;print(json.dumps(json.load(open('$REQ')).get('params',{})))")
-          GATE=$(python3 -c "import json;print(json.load(open('$REQ'))['gate'])")
-          YEARS=$(python3 -c "import json;print(json.load(open('$REQ')).get('years',5000))")
-          rm -rf gates/results_$GATE     # keep only this job's own results (the repository holds earlier ones)
-          if [ "${{ matrix.kind }}" = "run" ]; then
-            python -m gates.$GATE run --jobs ${{ matrix.ws }}:${{ matrix.rs }} --years $YEARS \
-              --budget 20000 --workers 1 --ckpt /tmp/ckpt
-          elif [ "${{ matrix.kind }}" = "run_nostore" ]; then
-            python -m gates.$GATE run --jobs ${{ matrix.ws }}:${{ matrix.rs }} --years $YEARS \
-              --budget 20000 --workers 1 --ckpt /tmp/ckpt --no-storage
-          else
-            python -m gates.$GATE ${{ matrix.kind }} --worlds ${{ matrix.ws }}
-          fi
-          mkdir -p out && cp gates/results_$GATE/*.json out/ 2>/dev/null || echo "no result (history did not finish within the job's time)"
+        run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} ${{ matrix.ws }} ${{ matrix.rs }}
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
           path: out/
+          if-no-files-found: ignore
+          retention-days: 30
+      - uses: actions/upload-artifact@v4            # a history that ran out of time carries on in the next stage
+        with:
+          name: ckpt-${{ matrix.name }}
+          path: /tmp/ckpt/
+          if-no-files-found: ignore
+          retention-days: 2
+
+  continue:
+    needs: [plan, run]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    name: more-${{ matrix.name }}
+    steps:
+      - uses: actions/download-artifact@v4
+        id: ck
+        continue-on-error: true
+        with:
+          name: ckpt-${{ matrix.name }}
+          path: /tmp/ckpt
+      - name: anything to continue?
+        id: need
+        run: if [ -n "$(ls -A /tmp/ckpt 2>/dev/null)" ]; then echo "go=1" >> "$GITHUB_OUTPUT"; else echo "finished in the first stage"; fi
+      - uses: actions/checkout@v4
+        if: steps.need.outputs.go == '1'
+      - uses: actions/setup-python@v5
+        if: steps.need.outputs.go == '1'
+        with:
+          python-version: "3.13"
+      - if: steps.need.outputs.go == '1'
+        run: pip install -r requirements.txt
+      - name: continue
+        if: steps.need.outputs.go == '1'
+        run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} ${{ matrix.ws }} ${{ matrix.rs }}
+      - uses: actions/upload-artifact@v4
+        if: steps.need.outputs.go == '1'
+        with:
+          name: more-${{ matrix.name }}
+          path: out/
+          if-no-files-found: ignore
           retention-days: 30
 
   report:
-    needs: [plan, run]
+    needs: [plan, run, continue]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -98,7 +129,7 @@ jobs:
           GATE=$(python3 -c "import json;print(json.load(open('$REQ'))['gate'])")
           LABEL=$(python3 -c "import json;print(json.load(open('$REQ'))['label'])")
           rm -rf gates/results_$GATE && mkdir -p gates/results_$GATE
-          find artifacts -name '*.json' -exec cp {} gates/results_$GATE/ \;
+          find artifacts \( -name 'run_*.json' -o -name 'groups_*.json' \) -not -path '*/ckpt-*' -exec cp {} gates/results_$GATE/ \;
           python -m gates.$GATE report > report.md || echo "report failed" >> report.md
           cp "$REQ" request.json
           # publish from a separate clean clone of the results branch (the main checkout has local changes)
