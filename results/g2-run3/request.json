@@ -1,0 +1,2 @@
+{"gate": "g2", "label": "g2-run3", "planets": "1-5", "seeds": "1-10", "nostore_seeds": "1-4",
+ "note": "Gate G2, third run: all histories, with continuation across up to three machines (see docs/M2_GATE_ATTEMPT2.md)."}
