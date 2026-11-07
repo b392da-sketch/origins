@@ -38,21 +38,11 @@ def move(w):
     settled = w.farm_share[ids] >= 0.5                 # villages stay with their fields
     want = (vals.max(1) > cur * P.MOVE_THRESHOLD) & (s > 0) & ~settled
     cand = np.nonzero(want)[0]
-    # a local population (group) moves only into land without one of its own kind: moving into another group's
-    # land would simply merge the two, which splitting and sharing already handle
-    has_group = {}
-    for b in bands:
-        if b.mode == "group":
-            has_group[b.cell] = True
     for k in cand[w.rng["movement"].permutation(len(cand))]:
         b = bands[int(k)]
         sz = s[k]
         here = w.stock[b.cell] / max(occ[b.cell], 1)
         ns = nbs[k][valid[k]]
-        if b.mode == "group":
-            ns = np.array([m for m in ns if not has_group.get(int(m))], dtype=ns.dtype)
-            if len(ns) == 0:
-                continue
         v = w.stock[ns] / (occ[ns] + sz)
         j = int(np.argmax(v))
         if v[j] > here * P.MOVE_THRESHOLD:
@@ -61,9 +51,6 @@ def move(w):
             occ[best] += sz
             b.last_move = (f"moved for food: {v[j] / P.SEASON_DAYS:.2f} vs "
                            f"{here / P.SEASON_DAYS:.2f} food units per person-day available")
-            if b.mode == "group":
-                has_group.pop(b.cell, None)
-                has_group[best] = True
             b.cell = best
             b.trail = (b.trail + [(w.t, best)])[-40:]
             w.reveal_pending.add(b.id)

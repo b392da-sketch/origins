@@ -56,3 +56,13 @@ All 75 histories survived and the M0 numbers held, but two checks fell short:
 
 - **Check 1 (explainability): 31,705 of 31,707 references resolved.** The two misses (and a third found by rerunning one history here) were `band_extinct` events for groups that had been folded from individuals and then died out: the event cited a folded member (no longer followed one by one, not dead) as the band's "last death". An old bug (M0's extinction code predates folding), seen now only because more short-lived groups are folded. Fixed: only members who actually died are cited; test added.
 - **Check 3 (drift with distance): clearly positive in 65 of 75 histories (pass mark 90%, so 68).** Nine of the ten misses are on planet 3, the smallest world, where drift with distance was already weak before the change (median correlation 0.21 then, 0.20 now). The change also weakened it elsewhere: planet 4's median fell from 0.44 to 0.33 and planet 1's from 0.46 to 0.41; planet 2 was barely affected. Restricting how groups move appears to slow how cultures separate over distance. To be decided with Ben (see the gate update).
+
+## Band churn, second approach (after the G1 rerun)
+
+The movement restriction above weakened M1 behaviour: in the G1 rerun after it, check 3 (customs and languages drift apart with distance) fell from 75/75 to 65/75 histories clearly positive (planet 4 median 0.44 → 0.33, planet 1 0.46 → 0.41; planet 3 was already weak, 0.21 → 0.20). Since that is approved M1 behaviour, the restriction is withdrawn: groups move as they did when G1 passed. The memory problem is solved in the records instead:
+
+- bands that ended more than ten years ago are packed every 50 years into columns, one row per band id (numbers as arrays, text through a shared table), instead of one Python object each; they are read back on demand for histories and the observatory;
+- saves store packed bands as arrays rather than as a JSON list (save schema 3; schemas 1 and 2 still load);
+- a daughter group's name no longer repeats "(daughter group)" down the generations (names reached 400 characters).
+
+Kept from the earlier change: a group never splits into its own land, and the standing crop goes with the people when groups combine. Checks: with packing on and off, planet 2 to year 1,220 gives identical people, groups, random states, ledger and event count; saves round-trip and replay exactly; all 38 tests pass. Gates G1 and G2 are rerun with this code.
