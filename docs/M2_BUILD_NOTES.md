@@ -49,3 +49,10 @@ GitHub machines running long planet 4 histories ran out of memory ("the hosted r
 - when groups combine, the standing crop goes with the people (it was lost before; the food accounting did not see it because standing crops are not yet food).
 
 Effect in planet 2 at year 1,800: band records 8,219 instead of 31,621; new bands in 50 years 287 instead of about 2,100–3,600; population 243,800 against 228,300, within the run-to-run variation seen before. Because this changes how groups move, gates G1 and G2 are both rerun.
+
+## G1 rerun after the group movement change
+
+All 75 histories survived and the M0 numbers held, but two checks fell short:
+
+- **Check 1 (explainability): 31,705 of 31,707 references resolved.** The two misses (and a third found by rerunning one history here) were `band_extinct` events for groups that had been folded from individuals and then died out: the event cited a folded member (no longer followed one by one, not dead) as the band's "last death". An old bug (M0's extinction code predates folding), seen now only because more short-lived groups are folded. Fixed: only members who actually died are cited; test added.
+- **Check 3 (drift with distance): clearly positive in 65 of 75 histories (pass mark 90%, so 68).** Nine of the ten misses are on planet 3, the smallest world, where drift with distance was already weak before the change (median correlation 0.21 then, 0.20 now). The change also weakened it elsewhere: planet 4's median fell from 0.44 to 0.33 and planet 1's from 0.46 to 0.41; planet 2 was barely affected. Restricting how groups move appears to slow how cultures separate over distance. To be decided with Ben (see the gate update).

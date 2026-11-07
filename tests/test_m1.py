@@ -170,5 +170,28 @@ class Crossing(unittest.TestCase):
         self.assertTrue(hazards._walkable(pl, nb, c, x))
 
 
+
+class BandExtinctionCause(unittest.TestCase):
+    def test_folded_members_are_not_cited_as_deaths(self):
+        """A group whose members were folded (not killed) must not cite them as its last death."""
+        from origins.sim import bands, groups
+        w = run(1, 1, 300)
+        p = w.people
+        # a new band none of whose own members has died (as in the case found in the G1 rerun)
+        old = w.living_bands()[0]
+        mem = w.members(old.id)[:6]
+        b = w.new_band(old.cell, old.id, int(mem[0]))
+        p.band[mem] = b.id
+        w.people_changed()
+        groups.fold(w, b)
+        G = w.groups
+        G.F[b.group] = 0
+        G.M[b.group] = 0
+        bands.end_band(w, b, "no surviving members")
+        e = w.events[-1]
+        self.assertEqual(e["kind"], "band_extinct")
+        self.assertTrue(explain.resolvable(w, {"event": e["id"]}), e)
+
+
 if __name__ == "__main__":
     unittest.main()

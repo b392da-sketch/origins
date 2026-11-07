@@ -263,7 +263,8 @@ def end_band(w, b, why, log=True):
         b.store = 0.0
     if log:
         p = w.people
-        dead = np.nonzero((p.band[:p.n] == b.id) & ~p.alive[:p.n])[0]
+        # members who died (not those who were folded into a group, who are no longer followed one by one)
+        dead = np.nonzero((p.band[:p.n] == b.id) & ~p.alive[:p.n] & (p.death[:p.n] >= 0))[0]
         causes = [{"note": why}]
         if len(dead):
             last = int(dead[np.argmax(p.death[dead])])
