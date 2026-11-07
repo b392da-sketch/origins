@@ -276,6 +276,8 @@ def yearly(w):
             if not b.village:
                 b.village = True
                 b.village_since = w.t
+                if b.farming_since < 0:
+                    b.farming_since = w.t
         else:
             b.farm_years = 0
             b.village = False

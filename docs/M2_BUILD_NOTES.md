@@ -34,3 +34,8 @@ A farming world on planet 1 passed 4 GB at about year 5,000 here (2.2 million pe
 
 - **Outbreaks in villages** cause about 18–20% of deaths on planet 3 once villages dominate. Tested from the same farming world at year 7,000 over 100 years: halving the village outbreak rate gave 17% outbreak deaths and 11% hunger (population +6%); halving outbreak deaths as well gave 9% outbreak deaths but 16% hunger (population +15%). Outbreak and hunger deaths trade against each other because food still limits population: fewer epidemic deaths mostly become hunger deaths. Kept as set; to be judged from the gate, not tuned blind.
 - **Hunger** is still about 9% of deaths in farming worlds; to be measured again once the gate runs.
+
+## After the second G2 run
+
+- Planet 4 (the largest world) is slow: at year 4,500 without farming, about 476,000 people, 0.9 s of computing per simulated year, 2 GB of memory and 659,000 band records (every band that ever existed is kept for the history). Band records are now compact; the best crop for every band is chosen at once (same results); histories can continue across up to three GitHub machines (about 13 hours).
+- Inequality: Gini between households in farming villages is about 0.37–0.55 late in histories and zero without storage. The second run could not show whether it rises with time, because its log kept only the end of each history and measured time from when a band became a village (a daughter village restarts that clock while carrying its households' holdings). Now measured against how long a people has farmed, from logs sampled across the whole history.

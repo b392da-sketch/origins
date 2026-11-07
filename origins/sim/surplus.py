@@ -30,7 +30,7 @@ ANNUAL = 365.0 * 0.95                         # food units a typical person need
 
 def init(w):
     w.spec = np.zeros(64)                      # specialists per band (counts, also for groups)
-    w.gini_log = []                            # [year, band, gini, surplus per person, households, village age]
+    w.gini_log = []                            # [year, band, gini, surplus per person, households, years its people have farmed]
     w.spec_log = []                            # every 50 years: [year, band, surplus per person, specialist share, farm share]
 
 
@@ -110,8 +110,8 @@ def yearly(w):
             p.role[chosen[0]] = 1
             for j, i in enumerate(chosen[1:]):
                 p.role[i] = 2 if j % 4 == 0 else 3
-        if len(heads) >= 3:
-            age = (w.t - b.village_since) // P.TICKS_PER_YEAR if b.village_since >= 0 else 0
+        if len(heads) >= 3 and w.year % 10 == 0:          # sampled every 10 years so the log spans the whole history
+            age = (w.t - b.farming_since) // P.TICKS_PER_YEAR if b.farming_since >= 0 else 0
             w.gini_log.append([w.year, b.id, round(gini(hw), 4), round(per_person, 1), len(heads), int(age)])
     del w.gini_log[:-20000]
     del w.spec_log[:-20000]

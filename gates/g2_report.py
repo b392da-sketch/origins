@@ -122,7 +122,9 @@ def report(out: Path) -> str:
     ok7 = np.nanmedian(rhos) > 0.3
     checks.append(("7. Specialists follow surplus", ok7,
                    f"rank correlation between surplus per person and the share of specialists, across bands and years: "
-                   f"median {np.nanmedian(rhos):.2f} ({np.nanmin(rhos):.2f}–{np.nanmax(rhos):.2f}) (pass: above 0.3)"))
+                   f"median {np.nanmedian(rhos):.2f} ({np.nanmin(rhos):.2f}–{np.nanmax(rhos):.2f}) (pass: above 0.3). "
+                   f"Note: specialists are set from surplus by rule, so this checks the bookkeeping more than it tests "
+                   f"a behaviour; check 8 (no storage, no specialists) is the meaningful test"))
 
     # 8 knock-out
     if knock:
@@ -135,20 +137,25 @@ def report(out: Path) -> str:
     else:
         checks.append(("8. No storage, no specialists", False, "knock-out histories not run"))
 
-    # 9 inequality rises with time and surplus
-    rt, rs = [], []
+    # 9 inequality rises with time and surplus: households' holdings by how long their people have farmed
+    rt, rs, early, late = [], [], [], []
     for r in farm:
         g = np.array(r["gini_log"], dtype=float)
         if len(g) < 10:
             continue
-        age = g[:, 5]                                     # years since the band became a village
-        rt.append(_spearman(age, g[:, 2]))
+        rt.append(_spearman(g[:, 5], g[:, 2]))
         rs.append(_spearman(g[:, 3], g[:, 2]))
+        e, l_ = g[g[:, 5] < 100, 2], g[g[:, 5] >= 500, 2]
+        if len(e) and len(l_):
+            early.append(float(np.median(e)))
+            late.append(float(np.median(l_)))
     ok9 = bool(rt) and np.nanmedian(rt) > 0.2 and np.nanmedian(rs) > 0
     checks.append(("9. Property and inequality", ok9,
-                   (f"rank correlation of household inequality with the age of the village: median {np.nanmedian(rt):.2f}; "
-                    f"with surplus per person: median {np.nanmedian(rs):.2f}" if rt else "not enough villages with property")
-                   + " (pass: clearly positive with age, positive with surplus)"))
+                   (f"rank correlation of household inequality (Gini) with how long a people has farmed: median "
+                    f"{np.nanmedian(rt):.2f}; with surplus per person: median {np.nanmedian(rs):.2f}; median Gini in "
+                    f"a people's first 100 years of farming {np.median(early):.2f} vs after 500 years "
+                    f"{np.median(late):.2f}" if rt and early else "not enough villages with property")
+                   + " (pass: clearly positive with time, positive with surplus)"))
 
     # 10 traceable transitions
     checks.append(("10. Traceable transition", ok1 and chk == res,
