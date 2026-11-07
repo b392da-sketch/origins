@@ -110,13 +110,18 @@ class Groups:
 
 
 def compact(w):
-    """Every so often, drop the rows of groups that have ended (results are unchanged)."""
+    """Every so often, drop the rows of groups that have ended, and pack the records of bands that ended more than
+    ten years ago into compact columns (results are unchanged)."""
+    for b in w.bands.live.values():
+        if not b.alive and 0 <= b.ended < w.t - 40:
+            b.group = -1                  # an ended band has no group rows
+    w.bands.pack(w.t - 40)
     G = w.groups
     live = int(G.active.sum())
     if G.n - live < max(2000, live):
         return
     remap = G.compact()
-    for b in w.bands.values():
+    for b in w.bands.live.values():
         if b.group >= 0:
             b.group = remap.get(b.group, -1)
 
@@ -343,7 +348,8 @@ def split(w, b, target_cell, rng):
     nb.mode = "group"
     nb.group = G.add(nb.id, hF.astype(float), hM.astype(float), hP.astype(float),
                      G.cond_child[g], G.cond_rest[g])
-    nb.group_name = f"{getattr(b, 'group_name', '') or w.band_name(b)} (daughter group)"
+    base = (b.group_name or w.band_name(b)).removesuffix(" (daughter group)")   # not repeated down the generations
+    nb.group_name = f"{base} (daughter group)"
     return nb, moved
 
 

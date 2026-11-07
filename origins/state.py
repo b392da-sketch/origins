@@ -15,8 +15,8 @@ from . import names as N
 from . import params as P
 from .worldgen import Planet, generate
 
-SCHEMA = 2
-READABLE_SCHEMAS = (1, 2)
+SCHEMA = 3
+READABLE_SCHEMAS = (1, 2, 3)
 VERSION = "0.2.0-M1"
 
 CAUSES = ["", "infancy and early childhood", "hunger", "accident or illness",
@@ -118,6 +118,138 @@ class Band:
     farm_years: int = 0
 
 
+_NUM = [("cell", np.int32), ("founded", np.int32), ("parent", np.int32), ("leader", np.int64),
+        ("store", np.float64), ("last_ratio", np.float64), ("margin", np.float64), ("ended", np.int32),
+        ("group", np.int32), ("fold_tick", np.int32), ("group_deaths", np.int64), ("language", np.int32),
+        ("village", np.bool_), ("village_since", np.int32), ("farming_since", np.int32), ("farm_years", np.int32)]
+_STR = ["last_move", "mode", "group_name"]
+TRAIL_KEEP = 3
+
+
+class Bands:
+    """Every band that ever existed, by id. Living and recently ended bands are Band objects; bands that ended
+    long ago are packed into columns (one row per band id) so that millions of past bands take little memory.
+    Packed bands are read back as fresh Band objects; they never change again."""
+
+    def __init__(self):
+        self.live: dict[int, Band] = {}
+        self.cap = 0
+        self.packed = np.zeros(0, dtype=np.bool_)
+        self.col = {k: np.zeros(0, dtype=t) for k, t in _NUM}
+        self.code = {k: np.zeros(0, dtype=np.int32) for k in _STR}
+        self.trail = np.zeros((0, TRAIL_KEEP, 2), dtype=np.int64)
+        self.trail_n = np.zeros(0, dtype=np.int8)
+        self.strings: list[str] = [""]
+        self._sid = {"": 0}
+
+    # mapping interface
+    def __getitem__(self, i):
+        i = int(i)
+        b = self.live.get(i)
+        if b is not None:
+            return b
+        if 0 <= i < self.cap and self.packed[i]:
+            return self._unpack(i)
+        raise KeyError(i)
+
+    def get(self, i, default=None):
+        if i is None:
+            return default
+        try:
+            return self[i]
+        except (KeyError, TypeError, ValueError):
+            return default
+
+    def __setitem__(self, i, b):
+        self.live[int(i)] = b
+
+    def __contains__(self, i):
+        i = int(i)
+        return i in self.live or (0 <= i < self.cap and bool(self.packed[i]))
+
+    def __len__(self):
+        return len(self.live) + int(self.packed.sum())
+
+    def values(self):
+        """All bands in id order (packed ones rebuilt: slow for very large worlds)."""
+        ids = sorted(set(self.live) | set(np.nonzero(self.packed)[0].tolist()))
+        return [self[i] for i in ids]
+
+    def _grow(self, n):
+        if n <= self.cap:
+            return
+        cap = max(n, 2 * self.cap, 1024)
+        def g(a, shape=None):
+            out = np.zeros((cap,) + a.shape[1:], dtype=a.dtype)
+            out[:len(a)] = a
+            return out
+        self.packed = g(self.packed)
+        self.col = {k: g(v) for k, v in self.col.items()}
+        self.code = {k: g(v) for k, v in self.code.items()}
+        self.trail = g(self.trail)
+        self.trail_n = g(self.trail_n)
+        self.cap = cap
+
+    def _s(self, x: str) -> int:
+        k = self._sid.get(x)
+        if k is None:
+            k = self._sid[x] = len(self.strings)
+            self.strings.append(x)
+        return k
+
+    def pack(self, before: int):
+        """Pack bands that ended before tick `before`."""
+        done = [i for i, b in self.live.items() if not b.alive and 0 <= b.ended < before]
+        if not done:
+            return 0
+        self._grow(max(done) + 1)
+        for i in done:
+            b = self.live.pop(i)
+            for k, _ in _NUM:
+                self.col[k][i] = getattr(b, k)
+            for k in _STR:
+                self.code[k][i] = self._s(getattr(b, k))
+            tr = b.trail[-TRAIL_KEEP:]
+            self.trail_n[i] = len(tr)
+            for j, (t, c) in enumerate(tr):
+                self.trail[i, j] = (t, c)
+            self.packed[i] = True
+        return len(done)
+
+    def _unpack(self, i) -> Band:
+        b = Band(i, int(self.col["cell"][i]), int(self.col["founded"][i]))
+        for k, t in _NUM:
+            v = self.col[k][i]
+            setattr(b, k, bool(v) if t is np.bool_ else float(v) if t is np.float64 else int(v))
+        for k in _STR:
+            setattr(b, k, self.strings[int(self.code[k][i])])
+        b.alive = False
+        b.trail = [(int(t), int(c)) for t, c in self.trail[i, :int(self.trail_n[i])]]
+        return b
+
+    # saving
+    def arrays(self) -> dict:
+        n = int(np.nonzero(self.packed)[0].max()) + 1 if self.packed.any() else 0
+        out = {"packed": self.packed[:n], "trail": self.trail[:n], "trail_n": self.trail_n[:n]}
+        out.update({"c_" + k: v[:n] for k, v in self.col.items()})
+        out.update({"s_" + k: v[:n] for k, v in self.code.items()})
+        return out
+
+    def load_arrays(self, d: dict, strings: list):
+        n = len(d.get("packed", []))
+        self._grow(n)
+        if n:
+            self.packed[:n] = d["packed"]
+            self.trail[:n] = d["trail"]
+            self.trail_n[:n] = d["trail_n"]
+            for k in self.col:
+                self.col[k][:n] = d["c_" + k]
+            for k in self.code:
+                self.code[k][:n] = d["s_" + k]
+        self.strings = list(strings) or [""]
+        self._sid = {x: k for k, x in enumerate(self.strings)}
+
+
 class World:
     """All mutable simulation state. Construct with World.new(world_seed, run_seed)."""
 
@@ -142,7 +274,7 @@ class World:
         self.cell_hunger = np.zeros(n)             # diagnostics: hunger deaths and births recorded per land cell
         self.cell_births = np.zeros(n)
         self.people = People()
-        self.bands: dict[int, Band] = {}
+        self.bands = Bands()
         self.next_band = 0
         self.events: list[dict] = []
         self.counts = {"founders": 0, "births": 0, "deaths": 0, "births_ind": 0,
@@ -234,7 +366,7 @@ class World:
         if self._living is None:
             # bands never come back to life, so only bands alive at the last rebuild (plus new ones) need checking
             if self._pool is None:
-                self._pool = dict(self.bands)
+                self._pool = dict(self.bands.live)
             self._living = [b for b in self._pool.values() if b.alive]
             self._pool = {b.id: b for b in self._living}
         return self._living
