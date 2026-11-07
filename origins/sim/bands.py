@@ -97,6 +97,8 @@ def fission_and_merge(w):
             there = w.stock[target] / (occupied.get(target, 0) + s // 2)
             if target == b.cell or there < 1.3 * here:
                 continue
+        if b.mode == "group" and target == b.cell:
+            continue          # a local population splitting within its own land would only be recombined at once
         if b.mode == "group":
             now = w.groups.total(b.group)          # current size: this group may already have taken people in this season
             dst = group_at.get((target, bool(w.farm_share[b.id] >= 0.5)))
@@ -216,6 +218,8 @@ def consolidate_groups(w):
         groups.merge_into(w, b, o)
         o.store += b.store
         b.store = 0.0
+        w.crop_store[o.id] += w.crop_store[b.id]     # the standing crop goes with the people
+        w.crop_store[b.id] = 0.0
         b.alive = False
         b.ended = w.t
         del b.trail[:-3]

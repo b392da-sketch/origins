@@ -1,9 +1,1 @@
-{
- "gate": "g1",
- "label": "pipeline-check",
- "years": 300,
- "planets": "1-2",
- "seeds": "1-2",
- "extras": [],
- "note": "second run: checks that each job publishes only its own results"
-}
+{"gate": "g1", "label": "pipeline-check", "years": 300, "planets": "1-2", "seeds": "1-2", "extras": []}

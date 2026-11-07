@@ -39,3 +39,13 @@ A farming world on planet 1 passed 4 GB at about year 5,000 here (2.2 million pe
 
 - Planet 4 (the largest world) is slow: at year 4,500 without farming, about 476,000 people, 0.9 s of computing per simulated year, 2 GB of memory and 659,000 band records (every band that ever existed is kept for the history). Band records are now compact; the best crop for every band is chosen at once (same results); histories can continue across up to three GitHub machines (about 13 hours).
 - Inequality: Gini between households in farming villages is about 0.37–0.55 late in histories and zero without storage. The second run could not show whether it rises with time, because its log kept only the end of each history and measured time from when a band became a village (a daughter village restarts that clock while carrying its households' holdings). Now measured against how long a people has farmed, from logs sampled across the whole history.
+
+## Band churn (found during the third G2 run)
+
+GitHub machines running long planet 4 histories ran out of memory ("the hosted runner lost communication… starves it for CPU/Memory"), several while saving a checkpoint. Cause: about 400 new band records a year, nearly all groups that lived a season or two. A large group splits into the neighbouring land with the most food per person, and next season that new group moves on into land already held by another group and is merged into it (a change of representation, not a social event). In planet 2 at year 1,800, 3,098 of 3,640 bands created in 50 years ended that way (median life about six weeks); by year 7,000 on planet 4 there were 1.5 million band records. Changes:
+
+- a group (a local population) moves only into land not already held by a group of its own kind; moving into another group's land would only merge them, and splitting and sharing already move people between neighbouring groups;
+- a group never splits into its own land (it would be recombined at once);
+- when groups combine, the standing crop goes with the people (it was lost before; the food accounting did not see it because standing crops are not yet food).
+
+Effect in planet 2 at year 1,800: band records 8,219 instead of 31,621; new bands in 50 years 287 instead of about 2,100–3,600; population 243,800 against 228,300, within the run-to-run variation seen before. Because this changes how groups move, gates G1 and G2 are both rerun.
