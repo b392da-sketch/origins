@@ -121,6 +121,18 @@ def best(w, b) -> tuple:
     return kp, float(val[kp]), ka, float(val[ka])
 
 
+def best_all(w, ids, cells):
+    """best() for many bands at once: arrays (plant k, plant value, animal k, animal value)."""
+    wild, suit = land_tables(w)
+    sk = w.skill[ids]
+    usable = (sk >= 3) | wild[cells]
+    val = np.where(usable, quality(sk) * suit[cells], 0.0)
+    pv, av = val[:, PLANTS], val[:, ANIMALS]
+    ip, ia = np.argmax(pv, axis=1), np.argmax(av, axis=1)
+    rows = np.arange(len(ids))
+    return np.array(PLANTS)[ip], pv[rows, ip], np.array(ANIMALS)[ia], av[rows, ia]
+
+
 def best_farm_cell(w, b, occupied):
     """Where a daughter village can farm best: a neighbouring land cell where the village's crops or herds
     grow, least crowded for its farm capacity (None if there is nowhere)."""
@@ -158,15 +170,13 @@ def season_food(w, ids, cells, effort):
     vals = np.zeros(nb_)
     caps = np.zeros(nb_)
     animal_part = np.zeros(nb_)
-    for b in w.living_bands():
-        if share[b.id] <= 0:
-            continue
-        kp, vp, ka, va = best(w, b)
-        v = max(vp, va)
-        vals[b.id] = v
-        animal_part[b.id] = va / max(vp + va, 1e-9)
-        # land: farmed food a cell can give per season, by its suitability for the species used
-        caps[b.id] = P.FARM_CAPACITY * max(suit[b.cell, kp], suit[b.cell, ka]) * P.SEASON_DAYS
+    on = share[ids] > 0
+    fid, fcell = ids[on], cells[on]
+    kp, vp, ka, va = best_all(w, fid, fcell)
+    vals[fid] = np.maximum(vp, va)
+    animal_part[fid] = va / np.maximum(vp + va, 1e-9)
+    # land: farmed food a cell can give per season, by its suitability for the species used
+    caps[fid] = P.FARM_CAPACITY * np.maximum(suit[fcell, kp], suit[fcell, ka]) * P.SEASON_DAYS
     cell_eff = np.zeros(w.planet.n)
     np.add.at(cell_eff, cells, farm_eff[ids])
     land_share = np.where(cell_eff[cells] > 0, farm_eff[ids] / np.maximum(cell_eff[cells], 1e-12), 0.0)
@@ -244,8 +254,10 @@ def yearly(w):
                 if old[b.id][k] < thr <= w.skill[b.id][k] or (thr < 1e-6 and old[b.id][k] == 0 < w.skill[b.id][k]):
                     _first(w, b, k, stage)
     # work choice: compare food per day of work
-    for b in bands:
-        kp, vp, ka, va = best(w, b)
+    bid = np.array([b.id for b in bands])
+    KP, VP, KA, VA = best_all(w, bid, np.array([b.cell for b in bands]))
+    for n, b in enumerate(bands):
+        kp, vp, ka, va = int(KP[n]), float(VP[n]), int(KA[n]), float(VA[n])
         v = max(vp, va)
         if v <= 0:
             target = 0.0
@@ -264,6 +276,8 @@ def yearly(w):
             if not b.village:
                 b.village = True
                 b.village_since = w.t
+                if b.farming_since < 0:
+                    b.farming_since = w.t
         else:
             b.farm_years = 0
             b.village = False

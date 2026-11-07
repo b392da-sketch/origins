@@ -22,6 +22,13 @@ def _range(s) -> list:
 
 
 def plan(req: dict) -> dict:
+    if "jobs" in req or "nostore_jobs" in req:          # rerun only the named histories ("planet:seed")
+        jobs = [{"kind": "run", "ws": int(j.split(":")[0]), "rs": int(j.split(":")[1])} for j in req.get("jobs", [])]
+        jobs += [{"kind": "run_nostore", "ws": int(j.split(":")[0]), "rs": int(j.split(":")[1])}
+                 for j in req.get("nostore_jobs", [])]
+        for j in jobs:
+            j["name"] = f"{j['kind']}-w{j['ws']}-s{j['rs']}"
+        return {"include": jobs}
     jobs = [{"kind": "run", "ws": ws, "rs": rs} for rs in _range(req["seeds"]) for ws in _range(req["planets"])]
     if req.get("nostore_seeds"):
         jobs += [{"kind": "run_nostore", "ws": ws, "rs": rs}

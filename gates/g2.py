@@ -110,8 +110,10 @@ def finish(w, ws, rs, seconds, pr, storage, status="completed"):
     rec["forager_cells_end"] = len(forager_cells)
     rec["forager_capacity_end"] = float(pl.capacity[forager_cells].sum()) if forager_cells else 0.0
     rec["village_cells_end"] = len({b.cell for b in w.living_bands() if w.farm_share[b.id] >= 0.5})
-    rec["spec_log"] = w.spec_log[-6000:]
-    rec["gini_log"] = w.gini_log[-6000:]
+    rng_s = np.random.default_rng([ws, rs, 7])
+    sl, gl = w.spec_log, w.gini_log
+    rec["spec_log"] = [sl[i] for i in sorted(rng_s.choice(len(sl), 6000, replace=False))] if len(sl) > 6000 else sl
+    rec["gini_log"] = [gl[i] for i in sorted(rng_s.choice(len(gl), 6000, replace=False))] if len(gl) > 6000 else gl
     rec["village_since"] = {str(b.id): b.village_since for b in w.living_bands() if b.village}
     # explainability of farming events
     sample = [{"event": e["id"]} for e in w.events if e["kind"] in FARM_EVENTS][:60]
@@ -169,7 +171,7 @@ def worker(jobs, budget, ckpt: Path, storage: bool):
             probe(w, pr)
             if time.time() > t_end:
                 tmp = cp.with_suffix(".tmp")
-                tmp.write_bytes(persist.to_bytes(w))
+                tmp.write_bytes(persist.to_bytes(w, fast=True))
                 tmp.replace(cp)
                 meta.write_text(json.dumps({"seconds": spent + time.time() - start, "year": w.year, "probe": pr}))
                 print(f"w{ws} s{rs}{tag}: checkpoint at year {w.year}", flush=True)

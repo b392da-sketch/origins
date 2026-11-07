@@ -45,7 +45,8 @@ def environment() -> dict:
     return {"python": platform.python_version(), "numpy": np.__version__}
 
 
-def to_bytes(w: World) -> bytes:
+def to_bytes(w: World, fast: bool = False) -> bytes:
+    """The whole world as bytes. fast=True (checkpoints) compresses lightly: much quicker for very large worlds."""
     meta = {
         "schema": SCHEMA, "version": VERSION, "world_seed": w.world_seed, "run_seed": w.run_seed,
         "planet_fingerprint": w.planet.fingerprint, "t": w.t, "counts": w.counts, "ledger": w.ledger,
@@ -71,10 +72,10 @@ def to_bytes(w: World) -> bytes:
     arrays.update({"p_" + k: v for k, v in w.people.arrays().items()})
     arrays.update({"g_" + k: v for k, v in w.groups.arrays().items()})
     buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED, compresslevel=1 if fast else None) as z:
         z.writestr("meta.json", json.dumps(_jsonable(meta), separators=(",", ":")))
         a = io.BytesIO()
-        np.savez_compressed(a, **arrays)
+        (np.savez if fast else np.savez_compressed)(a, **arrays)
         z.writestr("arrays.npz", a.getvalue())
     return buf.getvalue()
 

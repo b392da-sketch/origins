@@ -341,7 +341,7 @@ def worker(jobs, years, budget, ckpt: Path):
                     probe_year(w, pr)
             if time.time() > t_end:
                 tmp = cp.with_suffix(".tmp")
-                tmp.write_bytes(persist.to_bytes(w))
+                tmp.write_bytes(persist.to_bytes(w, fast=True))
                 tmp.replace(cp)
                 meta.write_text(json.dumps({"seconds": spent + time.time() - start, "year": len(w.yearly),
                                             "probe": pr, "replay": replay}))

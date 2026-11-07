@@ -92,7 +92,7 @@ class People:
         return p
 
 
-@dataclass
+@dataclass(slots=True)          # many thousands of bands are kept for history: keep each record small
 class Band:
     id: int
     cell: int
@@ -114,6 +114,7 @@ class Band:
     language: int = 0           # the language this band speaks (sim/language.py)
     village: bool = False       # lives mainly from farming and stays put (sim/farming.py)
     village_since: int = -1
+    farming_since: int = -1     # when this people (or the people it split from) first lived mainly by farming
     farm_years: int = 0
 
 
@@ -211,6 +212,7 @@ class World:
         b.trail.append((self.t, int(cell)))
         if parent >= 0:
             b.language = self.bands[parent].language
+            b.farming_since = self.bands[parent].farming_since
         from .sim import customs, farming, surplus
         customs.ensure(self, b.id, parent)
         farming.ensure(self, b.id, parent)
