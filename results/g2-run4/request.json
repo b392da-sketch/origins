@@ -1,0 +1,2 @@
+{"gate": "g2", "label": "g2-run4", "planets": "1-5", "seeds": "1-10", "nostore_seeds": "1-4",
+ "note": "Gate G2, fourth run: after reducing band churn (memory), with continuation across up to three machines."}
