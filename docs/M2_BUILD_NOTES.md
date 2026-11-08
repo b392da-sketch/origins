@@ -66,3 +66,9 @@ The movement restriction above weakened M1 behaviour: in the G1 rerun after it, 
 - a daughter group's name no longer repeats "(daughter group)" down the generations (names reached 400 characters).
 
 Kept from the earlier change: a group never splits into its own land, and the standing crop goes with the people when groups combine. Checks: with packing on and off, planet 2 to year 1,220 gives identical people, groups, random states, ledger and event count; saves round-trip and replay exactly; all 38 tests pass. Gates G1 and G2 are rerun with this code.
+
+## Different GitHub machines compute the same planet very slightly differently (found in the fifth G2 run)
+
+In the fifth G2 run, 10 of the 17 histories that needed a second machine could not continue: "planet fingerprint mismatch". GitHub's machines are of more than one processor type, and NumPy uses different processor instructions on each, so the same planet seed gives values that differ in the last digits. In the G1 results every planet showed two fingerprints (for example planet 4: 6 histories with one, 9 with the other). Comparing the two kinds of computation here (with and without AVX-512): elevation differs by at most about 1e-12 m, rainfall by 1e-12 mm, temperature by 1e-14 °C; land, sea, lakes, rivers, drainage, biomes, food capacity, plates, volcanic and earthquake zones, wild crops and the starting place are identical. So all histories of a planet ran on the same planet in every respect that matters, and no gate result is affected.
+
+Changes: the fingerprint is now taken from elevation rounded to a millimetre and capacity to 1e-6 (both kinds of machine now give the same fingerprint); saves with the old exact fingerprint still load. A consequence worth stating: exact replay holds on one kind of machine; a history continued on a different kind of machine carries on correctly but would not repeat digit for digit if replayed elsewhere. The 10 histories are rerun from the start.

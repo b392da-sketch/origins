@@ -347,6 +347,18 @@ def _choose_start(p: Planet, rng) -> int:
 
 
 def fingerprint(p: Planet) -> str:
+    """Identifies the planet a save belongs to. Elevation and capacity are rounded first: different processors
+    (GitHub's machines are of more than one kind) compute the same planet with differences in the last few
+    digits (about 1e-12 m of elevation), which change nothing else on the planet."""
+    h = hashlib.sha256()
+    for arr in (np.round(p.elevation, 3), p.biome, np.round(p.capacity, 6), p.river, p.region, p.plate, p.volcanic):
+        h.update(np.ascontiguousarray(arr).tobytes())
+    h.update(str(p.start_cell).encode())
+    return h.hexdigest()[:16]
+
+
+def legacy_fingerprint(p: Planet) -> str:
+    """The fingerprint used before November 2026 (exact to the last digit), so older saves still load."""
     h = hashlib.sha256()
     for arr in (p.elevation, p.biome, p.capacity, p.river, p.region, p.plate, p.volcanic):
         h.update(np.ascontiguousarray(arr).tobytes())

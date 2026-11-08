@@ -88,7 +88,8 @@ def from_bytes(data: bytes, planet=None) -> World:
     if meta.get("schema") not in READABLE_SCHEMAS:
         raise ValueError(f"unsupported save schema {meta.get('schema')} (this version reads {READABLE_SCHEMAS})")
     planet = planet if planet is not None and planet.seed == meta["world_seed"] else generate(meta["world_seed"])
-    if planet.fingerprint != meta["planet_fingerprint"]:
+    from .worldgen import legacy_fingerprint
+    if meta["planet_fingerprint"] not in (planet.fingerprint, legacy_fingerprint(planet)):
         raise ValueError("planet fingerprint mismatch: this save was made with different world-generation code")
     w = World(planet, meta["run_seed"])
     saved_env = meta.get("env")
