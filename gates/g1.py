@@ -34,6 +34,22 @@ HAZARD_KINDS = ("flood", "wildfire", "eruption", "earthquake", "outbreak")
 _landmass = {}
 
 
+def reachable(pl, mask) -> np.ndarray:
+    """Cells of a land mass (mask) that can be walked to from the starting cell through land with food."""
+    ok = mask & (pl.capacity > 0)
+    seen = np.zeros(pl.n, dtype=bool)
+    seen[pl.start_cell] = True
+    stack = [int(pl.start_cell)]
+    nb = pl.grid.neighbours
+    while stack:
+        c = stack.pop()
+        for m in nb[c]:
+            if m >= 0 and ok[m] and not seen[m]:
+                seen[m] = True
+                stack.append(int(m))
+    return seen
+
+
 def landmass(pl) -> np.ndarray:
     """Connected land areas (walking only)."""
     if pl.seed in _landmass:
