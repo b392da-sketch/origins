@@ -86,3 +86,14 @@ Changes: the fingerprint is now taken from elevation rounded to a millimetre and
 - Checked on a farming world (planet 3 at 43,000 BP, 640 villages): all three layers, the village page and the panel render without errors. Tests: 40 pass (two new).
 
 Rounding the fingerprint was not enough: in the rerun, 4 more histories (and one third-stage continuation in the main run) again failed with "planet fingerprint mismatch", so on some GitHub machines the planet differs by more than last-digit noise (to be measured). The gate workers now save the planet itself with each checkpoint and continue on that saved planet, so a history always runs on one planet from start to end whatever machine continues it; the log records how the planet computed on the continuing machine differs. The affected histories are rerun from the start.
+
+## Check 9 (property and inequality), fifth G2 run, provisional (42 of 50 histories with storage)
+
+Check 9 fails again: the rank correlation of household inequality (Gini) with how long a people has farmed has a median of −0.05 across histories, and with surplus per person 0.14. Pooled over 141,463 samples from all histories, by years farmed:
+
+| years farmed | 0–50 | 50–100 | 100–200 | 200–500 | 500–1,000 | 1,000–2,000 | 2,000–4,000 |
+|---|---|---|---|---|---|---|---|
+| median Gini | 0.34 | 0.45 | 0.47 | 0.47 | 0.46 | 0.43 | 0.40 |
+| surplus per person | 89 | 89 | 90 | 88 | 87 | 83 | 70 |
+
+Inequality rises over the first century or two of farming, then levels off at a stable level, which slowly falls as surplus per person falls. Within the model this follows from the rules: multiplicative yearly luck pulls households apart, while equal shares to all children and dowries pull them together, and the two balance within a few generations. (This matches the finding that inequality in small-scale societies settles at a level set by how strongly wealth is passed down: Borgerhoff Mulder et al. 2009.) Nothing in M2 makes inequality keep growing over millennia. In the archaeological record that growth in Eurasia is linked to draft animals and plough farming (Kohler et al. 2017), which M2 does not model. Not tuned; for Ben's decision at the gate.
