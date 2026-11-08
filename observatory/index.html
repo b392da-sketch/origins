@@ -66,6 +66,7 @@ input[type=range]{width:140px}
     <div class="stat">Named individuals<b id="s-ind">—</b></div>
     <div class="stat">Bands<b id="s-bands">—</b></div>
     <div class="stat">Known land<b id="s-known">—</b></div>
+    <div class="stat">Farming villages<b id="s-vil">—</b></div>
     <div class="controls">
       <button id="b-play" class="primary">▶ Run</button>
       <button data-fast="10">+10 yrs</button>
@@ -79,7 +80,9 @@ input[type=range]{width:140px}
     <div id="hint">Drag to pan · wheel to zoom · click a band or land</div>
     <div id="layers"><span class="muted">Show</span>
       <button data-layer="land" class="on">Land</button><button data-layer="language">Languages</button>
-      <button data-layer="customs">Customs</button><button data-layer="hazards">Hazards</button></div>
+      <button data-layer="customs">Customs</button><button data-layer="hazards">Hazards</button>
+      <button data-layer="farming">Farming</button><button data-layer="spread">Spread of farming</button>
+      <button data-layer="surplus">Surplus</button></div>
     <div id="legend"></div>
   </div>
   <aside>
@@ -96,6 +99,10 @@ input[type=range]{width:140px}
     <section>
       <h2>Peoples and languages</h2>
       <div id="langs" class="muted" style="font:12.5px system-ui">—</div>
+    </section>
+    <section>
+      <h2>Crops and herds</h2>
+      <div id="crops" class="muted" style="font:12.5px system-ui">—</div>
     </section>
     <section>
       <h2>Why?</h2>
@@ -115,7 +122,7 @@ input[type=range]{width:140px}
         New world: planet seed <input id="ws" type="number" value="1"> history seed <input id="rs" type="number" value="1">
         <button id="b-new">Create</button>
       </div>
-      <p class="muted" style="font-size:12px">Normal speed is 300 years per real day (a season every 72 seconds). Following a band slows the whole world to the speed you choose; stop following to return to normal.</p>
+      <p class="muted" style="font-size:12px">Normal speed is 300 years per real day (a season every 72 seconds) until the world's first farming village; from then on the historical clock runs at 20 years per real day (a season every 18 minutes). Following a band slows the whole world to the speed you choose; stop following to return to normal.</p>
     </section>
   </aside>
 </div>
@@ -128,9 +135,27 @@ const api = (p, body) => fetch(p, body ? {method:"POST", headers:{"Content-Type"
 let G = null, S = null, BANDS = [], HAZ = [], LAYER = "land", known = new Set(), lastKnownT = 0;
 const HAZ_COLOUR = {flood:"#4f9ad6", wildfire:"#ff8a3d", eruption:"#ff3b30", earthquake:"#c58cff", outbreak:"#9be564", sea_crossing:"#ffffff"};
 const hsl = (h, l) => `hsl(${h},70%,${l}%)`;
+const CROP_COLOUR = {grain:"#e6c34a", legumes:"#9ccf5a", tubers:"#c7864a", rice:"#7fd6c2", goats:"#d9a0d0",
+  sheep:"#f2efe6", cattle:"#b36a5e", pigs:"#e88fa0", horses:"#8c7bd6"};
+function spreadColour(bpv){
+  // earliest farming (oldest) dark red, most recent pale yellow; scaled to this world's own range
+  const lo = SPREAD.min, hi = SPREAD.max; const f = hi > lo ? (bpv - lo) / (hi - lo) : 1;   // 1 = oldest
+  return `hsl(${Math.round(55 - 50 * f)},80%,${Math.round(70 - 35 * f)}%)`;
+}
+let SPREAD = {min:0, max:0};
 function bandColour(b){
   if (LAYER === "language") return hsl(b.hue, 62);
   if (LAYER === "customs") return hsl(b.custom, 58);
+  if (LAYER === "farming"){
+    if (b.farm >= .5) return CROP_COLOUR[b.crop] || "#e6c34a";
+    if (b.farm > .02) return "#8a8f73";
+    return "#3b4247";
+  }
+  if (LAYER === "spread") return b.fsince != null ? spreadColour(b.fsince) : "#3b4247";
+  if (LAYER === "surplus"){
+    if (b.spec > 0) return `hsl(${Math.round(45 - 40 * Math.min(1, b.spec / .15))},85%,58%)`;
+    return b.surplus > 0 ? "#8a8f73" : "#3b4247";
+  }
   return b.mode === "group" ? "#c9d6dc" : (b.ratio < .85 ? "#ff6b57" : "#fff1c9");
 }
 let view = {x:0, y:0, k:1};            // pan offset in px, zoom
@@ -212,6 +237,7 @@ function draw(){
       ctx.fillStyle = bandColour(b);
       ctx.fill();
       ctx.lineWidth = 1.5 * devicePixelRatio / view.k; ctx.strokeStyle = "#101418"; ctx.stroke();
+      if (LAYER === "farming" && b.village){ ctx.lineWidth = 1.5 * devicePixelRatio / view.k; ctx.strokeStyle = "#ffffff"; ctx.stroke(); }
       if (LAYER !== "land" && b.mode === "group"){ ctx.lineWidth = 2.5 * devicePixelRatio / view.k; ctx.strokeStyle = "#0b0e10"; ctx.stroke(); }
       if (S && b.id === S.follow){ ctx.beginPath(); ctx.arc(x + dx, y, r * 1.9, 0, 2*Math.PI); ctx.lineWidth = 2 * devicePixelRatio / view.k; ctx.strokeStyle = "#ffffff"; ctx.stroke(); }
     }
@@ -294,7 +320,7 @@ async function showBand(id){
       <div class="kv" style="margin-top:6px"><dt>Condition</dt><dd>children ${d.condition.children}, adults ${d.condition.adults}</dd></div>`;
   } else {
     body = `<ul class="list">` + d.members.map(m =>
-      `<li onclick="showPerson(${m.id})">${esc(m.name)} <small>${m.sex === "female" ? "♀" : "♂"} ${m.age}${m.condition < .6 ? " · hungry" : ""}</small></li>`).join("") + `</ul>`;
+      `<li onclick="showPerson(${m.id})">${esc(m.name)} <small>${m.sex === "female" ? "♀" : "♂"} ${m.age}${m.role ? " · " + esc(m.role) : ""}${m.condition < .6 ? " · hungry" : ""}</small></li>`).join("") + `</ul>`;
   }
   $("#sel").innerHTML = `<div class="row" style="justify-content:space-between"><b>${esc(d.name)}</b>${followBtn}</div>
     <div class="row" style="margin:6px 0">Follow speed <input id="rate" type="range" min="0" max="100" value="${rateToSlider(S ? S.follow_rate : 2)}"
@@ -306,8 +332,35 @@ async function showBand(id){
     <dt>Language</dt><dd><a style="cursor:pointer;color:var(--accent2)" onclick="showLanguage(${d.language.id})">${esc(d.language.name)}</a></dd></div>
     <details style="margin:6px 0;font:12.5px system-ui"><summary>Customs</summary><div class="kv">${d.customs.map(c => `<dt>${esc(c.custom)}</dt><dd>${esc(c.practice)}</dd>`).join("")}</div>
     ${d.custom_changes.length ? `<ul class="list">${d.custom_changes.map(c => `<li>${esc(c.custom)}: ${esc(c.from)} → ${esc(c.to)} <small>${esc(c.how)}, ${bp(c.bp)}</small></li>`).join("")}</ul>` : ""}</details>
+    ${farmingBlock(d.farming)}
     ${body}
     <h2 style="margin-top:10px">Band history</h2><ul class="list">${d.events.map(e => `<li onclick="why('event:${e.id}')">${esc(e.title)} <small>${bp(e.bp)}</small></li>`).join("") || '<li class="muted">—</li>'}</ul>`;
+}
+function farmingBlock(f){
+  if (!f || (!f.crops.length && f.share === 0)) return "";
+  const way = f.village ? `a farming village since ${bp(f.village_since_bp)}` : f.share > .02 ? "foragers who also farm" : "foragers";
+  const crops = f.crops.map(c => `${esc(c.species)} <small class="muted">${esc(c.stage)}</small>`).join(", ") || "—";
+  const roles = f.roles ? Object.entries(f.roles).map(([r, ps]) => `<dt>${esc(r)}</dt><dd>${ps.map(p => `<a style="cursor:pointer;color:var(--accent2)" onclick="showPerson(${p.id})">${esc(p.name)}</a>`).join(", ")}</dd>`).join("") : "";
+  const hh = f.households.length ? `<details style="margin-top:4px"><summary>Households (${f.households.length}) · inequality (Gini) ${f.gini ?? "—"}</summary>
+      <ul class="list">${f.households.map((x, i) => `<li onclick="showPerson(${x.head.id})">${i === 0 ? "<b>leading household</b>: " : ""}${esc(x.head.name)} <small>${x.people} people · ${Math.round(x.share * 100)}% of the fields and stores</small></li>`).join("")}</ul></details>` : "";
+  return `<details open style="margin:6px 0;font:12.5px system-ui"><summary>Farming</summary><div class="kv">
+    <dt>Way of life</dt><dd>${way}; ${Math.round(f.share * 100)}% of work in fields and herds</dd>
+    ${f.farming_since_bp != null ? `<dt>Their people farm since</dt><dd>${bp(f.farming_since_bp)}</dd>` : ""}
+    <dt>Crops and herds</dt><dd>${crops}</dd>
+    <dt>Stores</dt><dd>${f.store_days} days of food${f.granary_days ? ` (granaries hold up to ${f.granary_days})` : " (no storage)"}; standing crop ${f.standing_crop_days} days</dd>
+    <dt>Surplus</dt><dd>${f.surplus_per_person_days} days per person beyond the reserve</dd>
+    <dt>Specialists</dt><dd>${f.specialists}</dd>${roles}</div>${hh}</details>`;
+}
+async function refreshCrops(){
+  const d = await api("/api/farming");
+  const rows = d.species.map(s => {
+    const firsts = s.firsts.map(f => `<a style="cursor:pointer;color:var(--accent2)" onclick="why('event:${f.event}')">${esc(f.stage)} ${bp(f.bp)}</a>`).join(" → ");
+    return `<li><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${CROP_COLOUR[s.species]}"></i> <b>${esc(s.species)}</b>
+      <small>${firsts || "still wild everywhere"}${s.peoples_domesticated ? ` · kept by ${s.peoples_domesticated.toLocaleString()} peoples` : ""}${s.peoples_tending ? ` · tended by ${s.peoples_tending.toLocaleString()}` : ""}</small></li>`;
+  }).join("");
+  const fv = d.first_village ? `<p style="margin:0 0 4px">First farming village: <a style="cursor:pointer;color:var(--accent2)" onclick="why('event:${d.first_village.event}')">${esc(d.first_village.title)}</a> <small class="muted">${bp(d.first_village.bp)}</small></p>` : `<p class="muted" style="margin:0 0 4px">No farming village yet: the prehistoric clock (300 years a day) is running.</p>`;
+  $("#crops").classList.remove("muted");
+  $("#crops").innerHTML = fv + `<ul class="list">${rows}</ul>`;
 }
 async function showPerson(id){
   const d = await api("/api/person?id=" + id);
@@ -381,17 +434,22 @@ async function refresh(force){
   $("#s-ind").textContent = S.individuals.toLocaleString();
   $("#s-bands").textContent = `${S.bands.toLocaleString()}${S.groups ? ` (${S.groups} groups)` : ""}`;
   $("#s-known").textContent = `${(S.known_cells * G.cell_km2 / 1e6).toFixed(2)} M km²`;
-  const modes = {paused:"paused", running:"running · 300 years/day", following:`following · ${fmtRate(S.follow_rate)}`, fast:"fast-forward"};
+  const fsVals = BANDS.filter(b => b.fsince != null).map(b => b.fsince);
+  SPREAD = fsVals.length ? {min: Math.min(...fsVals), max: Math.max(...fsVals)} : {min:0, max:0};
+  $("#s-vil").textContent = S.farming ? S.farming.villages.toLocaleString() : "—";
+  const modes = {paused:"paused", running:`running · ${S.years_per_day_normal} years/day${S.first_village ? " (historical clock)" : ""}`, following:`following · ${fmtRate(S.follow_rate)}`, fast:"fast-forward"};
   $("#mode").textContent = (S.extinct ? "humanity has died out · " : "") + modes[S.mode];
   $("#b-play").textContent = S.mode === "paused" ? "▶ Run" : "❚❚ Pause";
   $("#world-kv").innerHTML = `<dt>Food last season</dt><dd>${Math.round(S.food_ratio * 100)}% of needs met</dd>
     <dt>Followed band</dt><dd>${S.follow >= 0 ? `<a style="cursor:pointer;color:var(--accent2)" onclick="showBand(${S.follow})">band ${S.follow}</a>` : "none"}</dd>
+    <dt>Way of life</dt><dd>${S.farming ? `${S.farming.people.villages.toLocaleString()} in farming villages, ${S.farming.people.mixed.toLocaleString()} foragers who also farm, ${S.farming.people.foragers.toLocaleString()} foragers; ${S.farming.specialists.toLocaleString()} specialists` : "—"}</dd>
+    <dt>Clock</dt><dd>${S.first_village ? `historical, 20 years a day, since <a style="cursor:pointer;color:var(--accent2)" onclick="why('event:${S.first_village.event}')">the first farming village</a> (${bp(S.first_village.bp)})` : "prehistoric, 300 years a day"}</dd>
     <dt>Interventions</dt><dd>${S.intervened ? "yes (this world has been changed by the observer)" : "none"}</dd>
     <dt>Accounting checks</dt><dd>${S.invariant_failures ? `<span class="err">${S.invariant_failures} failures</span>` : "all passing"}</dd>`;
   $("#err").textContent = S.error || S.load_warning || "";
   chart(S.series);
   if (LAYER === "hazards") HAZ = await api("/api/hazards?years=100");
-  if (force || !refresh.n || refresh.n % 5 === 0) refreshLanguages();
+  if (force || !refresh.n || refresh.n % 5 === 0){ refreshLanguages(); refreshCrops(); }
   refresh.n = (refresh.n || 0) + 1;
   const ev = await api("/api/events");
   $("#events").innerHTML = ev.map(e => `<li onclick="why('${e.ref}')">${esc(e.title)} <small>${bp(e.bp)}</small></li>`).join("");
@@ -412,6 +470,10 @@ document.querySelectorAll("[data-layer]").forEach(b => b.onclick = async () => {
 function legend(){
   if (LAYER === "language"){ $("#legend").innerHTML = "Each colour is a language; related languages have similar colours."; return; }
   if (LAYER === "customs"){ $("#legend").innerHTML = "Each colour is a set of customs; bands that share their customs share a colour."; return; }
+  if (LAYER === "farming"){ $("#legend").innerHTML = Object.entries(CROP_COLOUR).map(([k, v]) => `<span><i style="background:${v};border-radius:50%"></i>${k}</span>`).join("")
+    + `<span><i style="background:#8a8f73;border-radius:50%"></i>foragers who also farm</span><span><i style="background:#3b4247;border-radius:50%"></i>foragers</span> · villages by their main crop or herd, ringed white`; return; }
+  if (LAYER === "spread"){ $("#legend").innerHTML = `<span><i style="background:hsl(5,80%,35%);border-radius:50%"></i>farmed longest</span><span><i style="background:hsl(55,80%,70%);border-radius:50%"></i>farming recently</span><span><i style="background:#3b4247;border-radius:50%"></i>never mainly farmers</span> · when each people (or the people it came from) first lived mainly by farming${SPREAD.max ? `: ${bp(SPREAD.max)} – ${bp(SPREAD.min)}` : ""}`; return; }
+  if (LAYER === "surplus"){ $("#legend").innerHTML = `<span><i style="background:hsl(45,85%,58%);border-radius:50%"></i>a few specialists</span><span><i style="background:hsl(5,85%,58%);border-radius:50%"></i>15% or more specialists</span><span><i style="background:#8a8f73;border-radius:50%"></i>surplus, no specialists</span><span><i style="background:#3b4247;border-radius:50%"></i>no surplus</span> · specialists (leaders, ritual specialists, craft workers) live from the surplus`; return; }
   if (LAYER === "hazards"){ $("#legend").innerHTML = Object.entries(HAZ_COLOUR).map(([k, v]) => `<span><i style="border:2px solid ${v};border-radius:50%"></i>${k.replace("_"," ")}</span>`).join("") + " · last 100 years"; return; }
   $("#legend").innerHTML = Object.entries(BIOME_COLOUR).map(([k, v]) => `<span><i style="background:${v}"></i>${k.replace("_"," ")}</span>`).join("")
   + `<span><i style="background:#fff1c9;border:1px solid #101418;border-radius:50%"></i>band</span><span><i style="background:#ff6b57;border:1px solid #101418;border-radius:50%"></i>hungry band</span><span><i style="background:#c9d6dc;border:1px solid #101418;border-radius:50%"></i>group</span>`;

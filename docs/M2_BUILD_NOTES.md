@@ -72,3 +72,15 @@ Kept from the earlier change: a group never splits into its own land, and the st
 In the fifth G2 run, 10 of the 17 histories that needed a second machine could not continue: "planet fingerprint mismatch". GitHub's machines are of more than one processor type, and NumPy uses different processor instructions on each, so the same planet seed gives values that differ in the last digits. In the G1 results every planet showed two fingerprints (for example planet 4: 6 histories with one, 9 with the other). Comparing the two kinds of computation here (with and without AVX-512): elevation differs by at most about 1e-12 m, rainfall by 1e-12 mm, temperature by 1e-14 °C; land, sea, lakes, rivers, drainage, biomes, food capacity, plates, volcanic and earthquake zones, wild crops and the starting place are identical. So all histories of a planet ran on the same planet in every respect that matters, and no gate result is affected.
 
 Changes: the fingerprint is now taken from elevation rounded to a millimetre and capacity to 1e-6 (both kinds of machine now give the same fingerprint); saves with the old exact fingerprint still load. A consequence worth stating: exact replay holds on one kind of machine; a history continued on a different kind of machine carries on correctly but would not repeat digit for digit if replayed elsewhere. The 10 histories are rerun from the start.
+
+## Observatory for M2 (8 November)
+
+- **Historical clock.** The observatory clock runs at 300 simulated years per real day until the world's first farming village, then at 20 years per real day (decision 2), with the switch shown and traceable to the first village's cause chain. This is the observer's clock only, so simulation results are unchanged.
+- **New map layers:**
+  - **Farming:** villages coloured by their main crop or herd and ringed white; foragers who also farm; foragers.
+  - **Spread of farming:** when each people, or the people it split from, first lived mainly by farming, from oldest to most recent. In saves made before 7 November, the date the band became a village is used instead.
+  - **Surplus:** the share of specialists, and bands with surplus but no specialists.
+- **Village page** (the Farming section of a band): way of life and share of work in fields and herds, each crop and herd with its stage (tending, cultivation, domesticated), stores against granary size, standing crop, surplus per person, and specialists by role (leader, ritual specialists, craft workers). It also lists households with their share of fields and stores, the leading household and the Gini coefficient. Members show their role.
+- **Crops and herds panel:** each species' story (first tending, cultivation and domestication, each linked to its cause chain) and how many peoples now keep or tend it.
+- Event titles for the first tending, cultivation, domestication and first farming village.
+- Checked on a farming world (planet 3 at 43,000 BP, 640 villages): all three layers, the village page and the panel render without errors. Tests: 40 pass (two new).

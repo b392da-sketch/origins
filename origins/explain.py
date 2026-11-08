@@ -117,6 +117,15 @@ def _event_title(w, e) -> str:
         return f"{bn} ({d.get('size')} people) crossed the sea to new land"
     if k == "outbreak":
         return f"Outbreak of illness: {d.get('deaths', 0)} deaths across {d.get('cells', 0)} areas"
+    if k == "first_tending":
+        return f"{bn} began tending wild {d.get('species')}: the first people anywhere to do so"
+    if k == "first_cultivation":
+        return f"{bn} began sowing and harvesting {d.get('species')}: the first cultivation anywhere"
+    if k == "first_domestication":
+        return f"{d.get('species', '').capitalize()} domesticated by {bn}: the first anywhere"
+    if k == "first_farming_village":
+        return (f"{bn} became the world's first farming village (living mainly from {d.get('species')}); "
+                f"the observer's clock changes to historical time")
     if k in ("flood", "wildfire", "earthquake", "eruption"):
         what = {"flood": "Flood", "wildfire": "Wildfire", "earthquake": "Earthquake",
                 "eruption": "Large volcanic eruption" if d.get("large") else "Volcanic eruption"}[k]
