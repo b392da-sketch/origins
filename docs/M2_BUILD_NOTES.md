@@ -84,3 +84,5 @@ Changes: the fingerprint is now taken from elevation rounded to a millimetre and
 - **Crops and herds panel:** each species' story (first tending, cultivation and domestication, each linked to its cause chain) and how many peoples now keep or tend it.
 - Event titles for the first tending, cultivation, domestication and first farming village.
 - Checked on a farming world (planet 3 at 43,000 BP, 640 villages): all three layers, the village page and the panel render without errors. Tests: 40 pass (two new).
+
+Rounding the fingerprint was not enough: in the rerun, 4 more histories (and one third-stage continuation in the main run) again failed with "planet fingerprint mismatch", so on some GitHub machines the planet differs by more than last-digit noise (to be measured). The gate workers now save the planet itself with each checkpoint and continue on that saved planet, so a history always runs on one planet from start to end whatever machine continues it; the log records how the planet computed on the continuing machine differs. The affected histories are rerun from the start.
