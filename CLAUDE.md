@@ -23,4 +23,4 @@ Ben owns the design. Read `docs/DESIGN_DRAFT_v0.5.md` (or newer) and the current
 ## Current milestone
 M0 "the first people survive": gate G0 passed and **closed with Ben's approval on 6 November 2026** (`docs/M0_GATE_REPORT.md`).
 M1 "spreading and drifting apart": specification **approved by Ben on 6 November 2026** (`docs/M1_SPECIFICATION_v1.md`, decisions in section 9); gate G1 passed on 60 histories and **closed with Ben's approval on 7 November 2026** (`docs/M1_GATE_REPORT.md`). Open items carried forward: island peoples do not diverge faster; outbreaks cause about 9% of deaths.
-M2 "farming is an option, not a destiny": specification **approved by Ben on 7 November 2026** (`docs/M2_SPECIFICATION_v1.md`); in build. Gates run on GitHub Actions (`.github/workflows/gate.yml`).
+M2 "farming is an option, not a destiny": specification **approved by Ben on 7 November 2026** (`docs/M2_SPECIFICATION_v1.md`); gate G2 run, report `docs/M2_GATE_REPORT.md` awaiting Ben (check 9 fails). Gates run on GitHub Actions (`.github/workflows/gate.yml`).
