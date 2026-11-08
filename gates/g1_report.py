@@ -72,21 +72,29 @@ def report(out: Path, years: int | None = None) -> str:
     # 2 spread and sea crossings. "Full" is measured by food capacity: much land (ice, desert, high
     # mountains) supports almost no foragers, so a share of cells would understate how full the land is.
     from origins.worldgen import generate
-    from gates.g1 import landmass
-    cap_share, cell_share = [], []
+    from gates.g1 import landmass, reachable
+    # The specification asks that occupied land grows "until the reachable land is full". Reachable: land of the
+    # starting land mass that can be walked to through land with food (bands do not walk across land with none:
+    # planet 1 has 17% of its food capacity beyond about 900 km of ice). Land reached by sea is counted too.
+    cap_share, cap_all, cell_share = [], [], []
     for r in survived:
         pl = generate(r["world_seed"])
         m = landmass(pl) == r["sea"]["start"]
-        cap_share.append(r["yearly"]["capacity_occupied"][-1] / pl.capacity[m].sum())
+        reach = reachable(pl, m)
+        cap_share.append(r["yearly"]["capacity_occupied"][-1] / pl.capacity[reach].sum())
+        cap_all.append(r["yearly"]["capacity_occupied"][-1] / pl.capacity[m].sum())
         cell_share.append(r["yearly"]["occupied_cells"][-1] / m.sum())
     crossed = [r for r in survived if r["events"].get("sea_crossing", 0) > 0]
     other = [r for r in survived if len(r["sea"]["occupied_areas"]) > 1]
     full = sum(c >= 0.8 for c in cap_share)
     ok2 = bool(survived) and full >= 0.9 * len(survived) and len(other) >= 0.5 * len(survived)
     checks.append(("2. Spread", ok2,
-                   f"at year {years:,}, occupied land holds {min(cap_share):.0%}–{max(cap_share):.0%} of the starting "
-                   f"land mass's food capacity (median {np.median(cap_share):.0%}; at least 80% in {full} of "
-                   f"{len(survived)} histories, pass mark 90%), on {min(cell_share):.0%}–{max(cell_share):.0%} of its "
+                   f"at year {years:,}, occupied land holds {min(cap_share):.0%}–{max(cap_share):.0%} of the food "
+                   f"capacity of the reachable land (median {np.median(cap_share):.0%}; at least 80% in {full} of "
+                   f"{len(survived)} histories, pass mark 90%); measured against the whole starting land mass, including "
+                   f"land beyond barren country that cannot be walked through: {min(cap_all):.0%}–{max(cap_all):.0%} "
+                   f"(median {np.median(cap_all):.0%}, at least 80% in {sum(c >= 0.8 for c in cap_all)}); "
+                   f"on {min(cell_share):.0%}–{max(cell_share):.0%} of its "
                    f"cells (the rest is mostly ice, desert and high mountains); {len(crossed)} of {len(survived)} "
                    f"histories made at least one sea crossing (median "
                    f"{np.median([r['events'].get('sea_crossing', 0) for r in survived]):.0f}), and {len(other)} have "

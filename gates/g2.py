@@ -147,6 +147,35 @@ def apply_overrides():
         setattr(params, k, v)
 
 
+def resume_planet(cp, ws):
+    """The planet a checkpointed history ran on. Different GitHub machines compute the same planet slightly
+    differently, so the planet is saved with each checkpoint and reused when continuing elsewhere; the log
+    reports how the planet computed on this machine differs from it."""
+    import pickle
+    pf = cp.with_suffix(".planet")
+    here = _planet(ws)
+    if not pf.exists():
+        return here
+    saved = pickle.loads(pf.read_bytes())
+    if saved.fingerprint != here.fingerprint:
+        diffs = []
+        for k in ("elevation", "land", "river", "biome", "capacity", "rain", "temp_mean", "region", "plate"):
+            a, b = np.asarray(getattr(saved, k)), np.asarray(getattr(here, k))
+            n = int((a != b).sum())
+            if n:
+                diffs.append(f"{k}: {n} cells, largest {float(np.abs(a.astype(float) - b.astype(float)).max()):.3g}")
+        print(f"planet {ws} computed differently on this machine ({'; '.join(diffs) or 'no array differs'}); "
+              f"continuing on the saved planet", flush=True)
+    return saved
+
+
+def save_planet(cp, planet):
+    import pickle
+    pf = cp.with_suffix(".planet")
+    if not pf.exists():
+        pf.write_bytes(pickle.dumps(planet, protocol=4))
+
+
 def worker(jobs, budget, ckpt: Path, storage: bool):
     from origins import engine, params, persist
     from origins.state import World
@@ -160,7 +189,7 @@ def worker(jobs, budget, ckpt: Path, storage: bool):
         cp, meta = ckpt / f"w{ws}_s{rs}{tag}.zip", ckpt / f"w{ws}_s{rs}{tag}.json"
         start = time.time()
         if cp.exists():
-            w = persist.from_bytes(cp.read_bytes(), _planet(ws))
+            w = persist.from_bytes(cp.read_bytes(), resume_planet(cp, ws))
             m = json.loads(meta.read_text())
             spent, pr = m["seconds"], m["probe"]
         else:
@@ -170,6 +199,7 @@ def worker(jobs, budget, ckpt: Path, storage: bool):
             engine.step(w, 4)
             probe(w, pr)
             if time.time() > t_end:
+                save_planet(cp, w.planet)
                 tmp = cp.with_suffix(".tmp")
                 tmp.write_bytes(persist.to_bytes(w, fast=True))
                 tmp.replace(cp)

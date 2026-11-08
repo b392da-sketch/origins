@@ -2,7 +2,8 @@
 
 Run with:  python run.py   then open http://127.0.0.1:8770
 
-The clock runs at 300 simulated years per real day (a season every 72 s).
+The clock runs at 300 simulated years per real day (a season every 72 s) until the first farming village,
+then at the historical rate of 20 years per real day (a season every 18 minutes).
 Following a band lets the observer slow the whole world down; stopping
 following returns to the normal rate. Fast-forward is separate.
 """
@@ -22,7 +23,7 @@ from . import engine, explain, persist
 from . import params as P
 from .names import etymology
 from .lang.proto import MEANINGS, NAME_FIRST, NAME_SECOND
-from .sim import customs, groups, language
+from .sim import customs, farming, groups, language, surplus
 from .state import CAUSES, World
 from .worldgen import BIOMES
 
@@ -30,7 +31,13 @@ ROOT = Path(__file__).resolve().parent.parent
 STATIC = ROOT / "observatory"
 SAVES = ROOT / "saves"
 AUTOSAVE = SAVES / "autosave.zip"
-NORMAL_RATE = 300 * P.TICKS_PER_YEAR / 86400.0       # seasons per real second
+NORMAL_RATE = 300 * P.TICKS_PER_YEAR / 86400.0       # seasons per real second (prehistoric clock)
+HISTORICAL_YEARS_PER_DAY = 20                         # after the first farming village (M2 specification, decision 2)
+HISTORICAL_RATE = HISTORICAL_YEARS_PER_DAY * P.TICKS_PER_YEAR / 86400.0
+
+
+def years_per_day(w) -> int:
+    return HISTORICAL_YEARS_PER_DAY if w is not None and getattr(w, "first_village", None) is not None else 300
 AUTOSAVE_SECONDS = 300
 
 lock = threading.RLock()
@@ -86,7 +93,8 @@ def clock_loop(stop: threading.Event):
                         state["mode"] = "paused"
                         state["fast_target"] = None
                     continue
-                rate = NORMAL_RATE if mode == "running" else (
+                normal = HISTORICAL_RATE if years_per_day(w) == HISTORICAL_YEARS_PER_DAY else NORMAL_RATE
+                rate = normal if mode == "running" else (
                     state["follow_rate"] / 60.0 if mode == "following" else 0.0)
                 state["carry"] += dt * rate
                 k = int(state["carry"])
@@ -145,7 +153,8 @@ def summary(w) -> dict:
         "known_cells": int(w.known.sum()), "mode": state["mode"], "follow": w.follow,
         "follow_rate": state["follow_rate"], "fast_target": state["fast_target"], "error": state["error"],
         "extinct": engine.extinct(w), "series": series, "invariant_failures": len(w.invariant_failures),
-        "intervened": w.intervened, "years_per_day_normal": 300, "threshold": P.INDIVIDUAL_THRESHOLD,
+        "intervened": w.intervened, "years_per_day_normal": years_per_day(w), "threshold": P.INDIVIDUAL_THRESHOLD,
+        "first_village": first_village(w), "farming": farming_counts(w),
         "food_ratio": w.season_stats.get("ratio", 1.0), "load_warning": getattr(w, "load_warning", ""),
     }
 
@@ -157,10 +166,72 @@ def known_since(w, t: int) -> list:
 def bands_view(w) -> list:
     sizes = w.band_sizes()
     g = w.planet.grid
-    return [{"id": b.id, "cell": b.cell, "lon": round(float(g.lon[b.cell]), 3), "lat": round(float(g.lat[b.cell]), 3),
-             "size": int(round(sizes[b.id])), "mode": b.mode, "name": w.band_name(b), "ratio": round(b.last_ratio, 3),
-             "lang": b.language, "hue": lang_hue(w, b.language), "custom": custom_key(w, b.id)}
-            for b in w.living_bands()]
+    bands = w.living_bands()
+    if not bands:
+        return []
+    ids = np.array([b.id for b in bands])
+    KP, VP, KA, VA = farming.best_all(w, ids, np.array([b.cell for b in bands]))
+    out = []
+    for n, b in enumerate(bands):
+        size = float(sizes[b.id])
+        fs = float(w.farm_share[b.id])
+        main = None
+        if fs > 0.02:
+            main = farming.NAMES[farming.SPECIES[int(KP[n]) if VP[n] >= VA[n] else int(KA[n])]]
+        surplus_pp = max(0.0, b.store - P.SURPLUS_RESERVE * size * surplus.ANNUAL) / max(size, 1.0)
+        out.append({"id": b.id, "cell": b.cell, "lon": round(float(g.lon[b.cell]), 3), "lat": round(float(g.lat[b.cell]), 3),
+                    "size": int(round(size)), "mode": b.mode, "name": w.band_name(b), "ratio": round(b.last_ratio, 3),
+                    "lang": b.language, "hue": lang_hue(w, b.language), "custom": custom_key(w, b.id),
+                    "farm": round(fs, 2), "village": bool(b.village), "crop": main,
+                    "fsince": _bp(b.farming_since) if b.farming_since >= 0 else
+                    (_bp(b.village_since) if b.village and b.village_since >= 0 else None),   # saves before farming_since
+                    "spec": round(float(w.spec[b.id]) / max(size, 1.0), 3), "surplus": round(surplus_pp / 0.95)})
+    return out
+
+
+def _bp(t: int) -> int:
+    return P.START_YEARS_BP - int(t) // P.TICKS_PER_YEAR
+
+
+def first_village(w):
+    e = getattr(w, "first_village", None)
+    if e is None:
+        return None
+    ev = w.events[e]
+    return {"event": e, "bp": _bp(ev["t"]), "title": explain.describe(w, {"event": e})["title"], "band": ev["band"]}
+
+
+def farming_counts(w) -> dict:
+    bands = w.living_bands()
+    sizes = w.band_sizes()
+    fs = w.farm_share
+    v = sum(1 for b in bands if fs[b.id] >= 0.5)
+    people = {"villages": 0.0, "mixed": 0.0, "foragers": 0.0}
+    for b in bands:
+        k = "villages" if fs[b.id] >= 0.5 else "mixed" if fs[b.id] > 0.02 else "foragers"
+        people[k] += float(sizes[b.id])
+    return {"villages": v, "people": {k: int(round(x)) for k, x in people.items()},
+            "specialists": int(sum(w.spec[b.id] for b in bands))}
+
+
+def farming_story(w) -> list:
+    """Each crop's and animal's story: firsts, and how many peoples now keep it domesticated."""
+    bands = w.living_bands()
+    ids = np.array([b.id for b in bands]) if bands else np.zeros(0, dtype=int)
+    out = []
+    for k, sp in enumerate(farming.SPECIES):
+        f = w.farm_firsts.get(sp, {})
+        firsts = []
+        for stage in ("tending", "cultivation", "domestication"):
+            if stage in f:
+                e = w.events[f[stage]]
+                firsts.append({"stage": stage, "event": f[stage], "bp": _bp(e["t"]),
+                               "by": w.band_name(w.bands[e["band"]]) if e["band"] in w.bands else ""})
+        sk = w.skill[ids, k] if len(ids) else np.zeros(0)
+        out.append({"species": farming.NAMES[sp], "kind": "crop" if k in farming.PLANTS else "animal",
+                    "firsts": firsts, "peoples_domesticated": int((sk >= 3).sum()),
+                    "peoples_tending": int(((sk > 0) & (sk < 3)).sum())})
+    return out
 
 
 def lang_hue(w, lid: int) -> int:
@@ -270,7 +341,8 @@ def person_brief(w, i) -> dict:
             "age": round((end - p.birth[i]) / P.TICKS_PER_YEAR, 1), "alive": alive,
             "condition": round(float(p.condition[i]), 2), "band": int(p.band[i]),
             "died": int(p.death[i]) >= 0, "folded": int(p.folded[i]) >= 0,
-            "cause": CAUSES[int(p.cause[i])] if p.death[i] >= 0 else ""}
+            "cause": CAUSES[int(p.cause[i])] if p.death[i] >= 0 else "",
+            "role": surplus.ROLES[int(p.role[i])] if alive else ""}
 
 
 def band_detail(w, bid: int) -> dict:
@@ -297,10 +369,49 @@ def band_detail(w, bid: int) -> dict:
         order = mem[np.argsort(w.people.birth[mem])]
         out["members"] = [person_brief(w, i) for i in order]
         out["size"] = len(mem)
+    out["farming"] = band_farming(w, b, out["size"])
     out["events"] = [{"id": e["id"], "title": explain.describe(w, {"event": e["id"]})["title"],
                       "bp": P.START_YEARS_BP - e["t"] // P.TICKS_PER_YEAR}
                      for e in w.events if e["band"] == bid or e["data"].get("new_band") == bid
                      or e["data"].get("into") == bid][-30:]
+    return out
+
+
+def band_farming(w, b, size) -> dict:
+    """Fields, herds, stores, specialists and households of a band (the village page)."""
+    sk = w.skill[b.id]
+    crops = [{"species": farming.NAMES[sp], "kind": "crop" if k in farming.PLANTS else "animal",
+              "stage": farming.stage_name(float(sk[k])), "skill": round(float(sk[k]), 2)}
+             for k, sp in enumerate(farming.SPECIES) if sk[k] > 0]
+    crops.sort(key=lambda c: -c["skill"])
+    need_day = max(size, 1) * 0.95
+    out = {"share": round(float(w.farm_share[b.id]), 2), "village": bool(b.village),
+           "village_since_bp": _bp(b.village_since) if b.village and b.village_since >= 0 else None,
+           "farming_since_bp": _bp(b.farming_since) if b.farming_since >= 0 else None,
+           "years_in_place": int(w.still_years[b.id]), "crops": crops,
+           "store_days": round(b.store / need_day), "standing_crop_days": round(float(w.crop_store[b.id]) / need_day),
+           "granary_days": P.GRANARY_DAYS if P.STORAGE else 0,
+           "surplus_per_person_days": round(max(0.0, b.store - P.SURPLUS_RESERVE * size * surplus.ANNUAL) / need_day),
+           "specialists": int(w.spec[b.id]), "households": [], "gini": None}
+    if b.mode != "group":
+        from .sim.bands import _households
+        mem = w.members(b.id)
+        p = w.people
+        roles = {}
+        for i in mem:
+            if p.role[i]:
+                roles.setdefault(surplus.ROLES[int(p.role[i])], []).append(person_brief(w, int(i)))
+        out["roles"] = roles
+        if len(mem) and w.farm_share[b.id] >= P.PROPERTY_SHARE and P.STORAGE:
+            units = _households(w, mem)
+            heads = [u[0] for u in units]
+            wealth = np.array([float(p.wealth[h]) for h in heads])
+            tot = wealth.sum()
+            hh = [{"head": person_brief(w, int(h)), "people": len(u), "share": round(float(x / tot), 3) if tot > 0 else 0.0}
+                  for h, u, x in zip(heads, units, wealth)]
+            hh.sort(key=lambda r: -r["share"])
+            out["households"] = hh
+            out["gini"] = round(surplus.gini(wealth), 3) if len(wealth) >= 2 else None
     return out
 
 
@@ -472,6 +583,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, language_tree(w))
                 if u.path == "/api/hazards":
                     return self._send(200, hazard_view(w, int(q.get("years", 60))))
+                if u.path == "/api/farming":
+                    return self._send(200, {"species": farming_story(w), "first_village": first_village(w)})
                 if u.path == "/api/saves":
                     return self._send(200, sorted(f.name for f in SAVES.glob("*.zip")))
             return self._send(404, {"error": "not found"})
