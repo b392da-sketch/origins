@@ -241,7 +241,7 @@ def polity_detail(w, pid: int) -> dict:
             "leader": person_brief(w, p.leader) if p.leader >= 0 else None, "leaders": leaders[-12:],
             "institutions": [{"name": PL.INSTITUTIONS[k], "held": bool(p.inst[k])} for k in range(len(PL.INSTITUTIONS))],
             "load": round(p.load, 2), "capacity": round(p.cap, 2),
-            "levels": max(depth.values()) if depth else 0,
+            "levels": PL.levels_of_rule(w, [b.id for b in mem], p.seat) if mem else 0,
             "members": [{"id": b.id, "name": w.band_name(b), "people": int(round(sizes[b.id])),
                          "level": depth.get(b.id, 0), "language": language.display(w, b.language),
                          "conquered": bool(w.conquered_at[b.id] >= 0)} for b in sorted(mem, key=lambda b: depth.get(b.id, 0))],

@@ -137,6 +137,24 @@ def _depths(w, mem_ids, seat):
     return depth
 
 
+def levels_of_rule(w, mem_ids, seat) -> int:
+    """Levels of rule above the village: the seat is one level if at least two settlements answer to it; each
+    settlement through which at least two others answer (a district head) adds a level below it. A chain of
+    daughter villages, each attached through its mother, is not a hierarchy and adds nothing."""
+    kids: dict[int, list] = {}
+    for i in mem_ids:
+        if i == seat:
+            continue
+        v = int(w.polity_via[i])
+        kids.setdefault(v if v >= 0 else seat, []).append(i)
+
+    def lv(node, guard=0) -> int:
+        ch = kids.get(node, [])
+        below = max((lv(c, guard + 1) for c in ch), default=0) if guard < 64 else 0
+        return below + (1 if len(ch) >= 2 else 0)
+    return lv(seat)
+
+
 def max_depth(p) -> int:
     """How many levels of rule a polity's institutions can support."""
     return 1 + p.inst[COLLECTORS] + 2 * p.inst[OFFICIALS]
@@ -381,7 +399,7 @@ def yearly(w):
                 else:
                     p.inst[k] = 0
                 break
-        dmax = max(depth.values()) if depth else 0
+        dmax = levels_of_rule(w, mem_ids, p.seat)
         p.tier = tier_of(p, dmax, n)
         people = int(sum(size_of.get(i, 0) for i in mem_ids))
         p.peak_people = max(p.peak_people, people)
