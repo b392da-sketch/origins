@@ -153,6 +153,27 @@ LAW_CALM = 0.3                     # law and judges cut the chance of secession 
 CONTESTED_SUCCESSION = [0.25, 0.2, 0.1]   # chance a succession is contested, by custom (son, sister's son, council)
 CONTEST_YEARS = 5                  # years a contested succession weakens a polity
 
+# --- Conflict (M3)
+CONFLICT = True                    # False: no raids or wars
+WAR_BASE = 0.03                    # yearly chance a side attacks its most tempting neighbour, at even strength
+WAR_CONSIDER = 0.25                # share of sides that weigh war each year (the chance of war is capped at this)
+WAR_SCARCITY = 3.0                 # ... multiplied by (1 + this x scarcity), scarcity 0-1 from food gathered / needed
+WAR_SCARCITY_MARGIN = 1.3          # food gathered / needed below which a side counts as pressed
+WAR_CULTURE = 1.0                  # ... and by (1 + this x cultural distance)
+WAR_GRIEVANCE = 0.5                # ... and by (1 + this x remembered killings / 10, at most 3)
+WAR_NEW_LEADER = 1.5               # a leader in the first three years is more likely to fight
+GRIEVANCE_MEMORY = 0.93            # share of a grievance remembered from one year to the next
+DEFENDER_ADVANTAGE = 1.5           # defenders fight on their own ground
+WARRIOR_STRENGTH = 0.5             # warriors kept by a leader add this share to a side's strength
+WAR_DECISIVENESS = 2.0             # how strongly the stronger side wins (1: in proportion to strength)
+WAR_LOSS = 0.3                     # share of the fighters on each side who die in a war, before strength
+RAID_TAKE = 0.3                    # share of the loser's stores a winner carries off
+CAPTIVE_SHARE = 0.05               # share of the loser's young women and children taken into the winner's people
+CONQUEST_CHANCE = 0.3              # chance a winning farming side takes the losing farming village
+CONQUEST_LOAD = 1.0                # a newly conquered settlement weighs this much more on its conqueror's load ...
+CONQUEST_MEMORY = 100              # ... fading over this many years
+DEFEAT_YEARS = 5                   # years a lost war weakens a polity
+
 
 def need(age, sex, pregnant, nursing):
     """Daily food units needed by one person (vectorised)."""

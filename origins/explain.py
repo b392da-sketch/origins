@@ -139,6 +139,15 @@ def _event_title(w, e) -> str:
         if k == "institution_lost":
             return f"{pn.capitalize()} could no longer keep {d.get('institution')}"
         return f"{pn.capitalize()}: the world's first {k[6:].replace('_', ' ')}"
+    if k == "war":
+        tb = w.bands.get(d.get("target"))
+        tn = w.band_name(tb) if tb else "a neighbour"
+        res = d.get("outcome", "")
+        dead = d.get("attacker_deaths", 0) + d.get("defender_deaths", 0)
+        return f"{bn} attacked {tn}: {res}" + (f", {dead} killed" if dead else "")
+    if k == "conquest":
+        pol = w.polities.get(d.get("polity"))
+        return f"{bn} conquered by {pol.name if pol else 'a polity'}" + (" (its whole polity)" if d.get("whole_polity") else "")
     if k == "first_tending":
         return f"{bn} began tending wild {d.get('species')}: the first people anywhere to do so"
     if k == "first_cultivation":

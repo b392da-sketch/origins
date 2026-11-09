@@ -84,3 +84,34 @@ One structural cost: several systems built arrays with one entry for every band 
 Smoke test (planet 4 at year 2,000, with 600 bands made to farm, over 150 years): 47 polities. By the end there were 8 simple chiefdoms, 4 complex chiefdoms and 2 states. Over the 150 years there were 141 joinings, 34 secessions, 17 polities ended and 35 institutions founded. All cause chains are complete, saves replay exactly, and there were no accounting failures.
 
 Gate G3 machinery: `gates/g3.py` and `gates/g3_report.py`, plus "noinst" jobs in the planner and job runner. The report re-checks M0–M2 by running G2's report on the G3 histories, and has checks 2, 3, 4, 5, 10, 11 and 12 so far. Tests: 45 pass (4 new in `tests/test_m3.py`).
+
+## Step 5: conflict (9 November 2026)
+
+`origins/sim/conflict.py`, run yearly after polities. It uses a new random stream, `conflict`, and a new cause of death, "killed in war". Both are appended at the end of their lists.
+
+- **Sides:** a polity, or a settlement on its own. Forager bands fight too (decision 1A). Members of one polity never fight each other.
+- **Reach:** two rings for villages and polities, one ring for foragers.
+- **Who weighs war:** each year a quarter of the sides weigh war. A side that does attacks its most tempting neighbour with chance (chance of war) ÷ 0.25. That gives the same chance of war, capped at 0.25 a year, for a quarter of the work.
+- **The chance of war:** 0.03 × (1 + 3 × scarcity) × (2 × strength share) × (1 + cultural distance) × (1 + 0.5 × grievance/10, capped at 3) × (1 − 0.15 per cell of distance, up to 2 cells) × 1.5 for a leader in the first three years. Grievance is the killings suffered from that side, decaying 7% a year.
+- **Strength:** men of fighting age (16–45) within reach of the target, weighted by distance. Warriors kept by the leader add 50%. Defenders count 1.5 times. The stronger side wins with chance s²/(s² + (1 − s)²).
+- **Deaths:** Poisson-drawn, about 0.3 × the fighters × the other side's strength share. They are mostly men of fighting age, recorded as "killed in war", and traced to the war event.
+- **If the attacker wins:**
+  - it takes 30% of the loser's stores (moved, not created);
+  - 5% of the loser's young women and children join the winner's settlement, keeping their own speech (decision 2A);
+  - a farming attacker takes the farming village with chance 0.3, and the whole polity if its seat fell. A conquered settlement weighs double on the conqueror's load, fading over a century.
+  - a defeated polity carries the stress of a lost war for five years, which raises secession.
+- **Logs:**
+  - war counts against sides weighed, by scarcity and by distance;
+  - a war log;
+  - per polity, the number of languages spoken and of conquered settlements.
+
+  An empire is a polity holding conquered settlements of another language.
+
+**Smoke test** (planet 4 at year 2,000, 600 bands made to farm, 150 years): 6,987 wars, 32,612 deaths in war. Deaths in war were 3.7% of all deaths in that time, about 5% of deaths at 15 and over: the low end of the plausibility guide (Bowles 2009 estimates 12–16% of adult deaths among foragers, estimates that are disputed). This is a starting value for G3 to check. With the targets weighed as arrays, conflict adds about 10% to the computing time.
+
+**Gate G3 checks 6–8 added:**
+- **6:** war rates by scarcity and by distance. These enter by rule, so the check is of the bookkeeping, as in G2 check 7.
+- **7:** war deaths since the first village as a share of deaths at 15 and over.
+- **8:** empire duration against mean overextension.
+
+Tests: 46 pass.

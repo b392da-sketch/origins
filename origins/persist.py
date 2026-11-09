@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 
 from .state import READABLE_SCHEMAS, SCHEMA, VERSION, Band, Bands, People, World, new_accumulators
-from .sim import farming, language, polity, surplus
+from .sim import conflict, farming, language, polity, surplus
 from .sim.groups import Groups
 from .worldgen import generate
 
@@ -60,7 +60,7 @@ def to_bytes(w: World, fast: bool = False) -> bytes:
         "env": environment(),
         "language": language.to_json(w), "custom_log": w.custom_log, "hazards": w.hazards,
         "farming": farming.to_json(w), "surplus": surplus.to_json(w), "polity": polity.to_json(w),
-        "timing": w.timing,
+        "conflict": conflict.to_json(w), "timing": w.timing,
     }
     arrays = {"stock": w.stock, "known": w.known, "discovered_by": w.discovered_by,
               "discovered_at": w.discovered_at, "food_modifier": w.food_modifier,
@@ -69,7 +69,7 @@ def to_bytes(w: World, fast: bool = False) -> bytes:
               "hazard_event": w.hazard_event, "immune": w.immune,
               "skill": w.skill, "farm_share": w.farm_share, "crop_store": w.crop_store,
               "still_years": w.still_years, "forage_rr": w.forage_rr, "spec": w.spec,
-              "polity_of": w.polity_of, "polity_via": w.polity_via}
+              "polity_of": w.polity_of, "polity_via": w.polity_via, "conquered_at": w.conquered_at}
     arrays.update({"p_" + k: v for k, v in w.people.arrays().items()})
     arrays.update({"g_" + k: v for k, v in w.groups.arrays().items()})
     arrays.update({"b_" + k: v for k, v in w.bands.arrays().items()})
@@ -114,7 +114,15 @@ def from_bytes(data: bytes, planet=None) -> World:
     w.yearly = meta["yearly"]
     acc = new_accumulators()
     for k, v in meta["accum"].items():
-        acc[k] = np.array(v) if isinstance(acc[k], np.ndarray) else list(v)
+        if isinstance(acc[k], np.ndarray):
+            arr = np.array(v)
+            if arr.shape[0] < acc[k].shape[0]:          # saves from before a cause of death was added
+                pad = np.zeros_like(acc[k])
+                pad[:arr.shape[0]] = arr
+                arr = pad
+            acc[k] = arr
+        else:
+            acc[k] = list(v)
     w.accum = acc
     w.season_stats = meta["season_stats"]
     w.events = meta["events"]
@@ -128,7 +136,7 @@ def from_bytes(data: bytes, planet=None) -> World:
     w.pending_restore = [(a, list(b), c) for a, b, c in meta.get("pending_restore", [])]
     for k in ("stock", "known", "discovered_by", "discovered_at", "food_modifier", "intervention_event",
               "cell_hunger", "cell_births", "customs", "neutral", "hazard_food", "hazard_event", "immune",
-              "skill", "farm_share", "crop_store", "still_years", "forage_rr", "spec", "polity_of", "polity_via"):
+              "skill", "farm_share", "crop_store", "still_years", "forage_rr", "spec", "polity_of", "polity_via", "conquered_at"):
         if k in arrays:                      # older saves of this schema may lack optional arrays
             setattr(w, k, arrays[k])
     from .sim import customs as _customs
@@ -149,6 +157,8 @@ def from_bytes(data: bytes, planet=None) -> World:
         surplus.from_json(w, meta["surplus"])
     if "polity" in meta:
         polity.from_json(w, meta["polity"])
+    if "conflict" in meta:
+        conflict.from_json(w, meta["conflict"])
     w.people.languages = w.languages
     w.people_changed()
     w._pool = None
@@ -191,7 +201,7 @@ def digest(w: World) -> str:
         h.update(k.encode())
         h.update(np.ascontiguousarray(v).tobytes())
     for arr in (w.stock, w.known, w.region_z, w.customs, w.neutral, w.hazard_food, w.immune, w.skill, w.farm_share,
-                w.crop_store, w.spec, w.polity_of, w.polity_via):
+                w.crop_store, w.spec, w.polity_of, w.polity_via, w.conquered_at):
         h.update(np.ascontiguousarray(arr).tobytes())
     for k, v in sorted(w.bands.arrays().items()):
         h.update(k.encode())
@@ -201,6 +211,6 @@ def digest(w: World) -> str:
              "rng": {k: g.bit_generator.state for k, g in w.rng.items()}, "n_events": len(w.events),
              "last_event": w.events[-1] if w.events else None,
              "language": language.to_json(w), "hazards": w.hazards, "farming": farming.to_json(w),
-             "polity": polity.to_json(w)}
+             "polity": polity.to_json(w), "conflict": conflict.to_json(w)}
     h.update(json.dumps(_jsonable(small), sort_keys=True).encode())
     return h.hexdigest()[:20]

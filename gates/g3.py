@@ -30,7 +30,7 @@ OUT = ROOT / "gates" / "results_g3"
 MAX_YEARS = 30_000
 POLITY_EVENTS = ("polity_founded", "polity_joined", "secession", "polity_ended", "seat_moved", "succession",
                  "institution_founded", "institution_lost", "first_simple_chiefdom", "first_complex_chiefdom",
-                 "first_state")
+                 "first_state", "war", "conquest")
 
 
 def after_first() -> int:
@@ -63,6 +63,18 @@ def finish(w, ws, rs, seconds, pr, institutions):
     rec["sec_stats"] = {str(k): v for k, v in w.sec_stats.items()}
     rec["polity_firsts"] = {k: w.events[e]["t"] // 4 for k, e in w.polity_firsts.items()}
     rec["polities_total"] = w.next_polity
+    # conflict
+    from origins.state import CAUSES
+    fv = pr.get("fv_deaths")
+    if fv:
+        bc = (w.accum["deaths_by_cause"] - np.array(fv["by_cause"] + [0] * (len(CAUSES) - len(fv["by_cause"])))).tolist()
+        ba = (w.accum["deaths"] - np.array(fv["by_age"])).tolist()
+        rec["deaths_since_village"] = {"by_cause": dict(zip(CAUSES, bc)), "by_age": ba}
+    rec["war_stats"] = {k: {str(b): v for b, v in d.items()} for k, d in w.war_stats.items()}
+    wl = w.war_log
+    if len(wl) > 8000:
+        wl = [wl[i] for i in sorted(rng.choice(len(wl), 8000, replace=False))]
+    rec["war_log"] = wl
     sample = [{"event": e["id"]} for e in w.events if e["kind"] in POLITY_EVENTS]
     if len(sample) > 400:
         sample = [sample[i] for i in sorted(rng.choice(len(sample), 400, replace=False))]
@@ -95,6 +107,9 @@ def worker(jobs, budget, ckpt: Path, institutions: bool):
         while not done(w):
             engine.step(w, 4)
             g2.probe(w, pr)
+            if w.first_village is not None and "fv_deaths" not in pr:
+                # deaths so far, to measure causes of death in the farming era (check 7)
+                pr["fv_deaths"] = {"by_cause": w.accum["deaths_by_cause"].tolist(), "by_age": w.accum["deaths"].tolist()}
             if time.time() > t_end:
                 g2.save_planet(cp, w.planet)
                 tmp = cp.with_suffix(".tmp")

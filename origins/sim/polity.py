@@ -49,6 +49,8 @@ class Polity:
     load: float = 0.0
     cap: float = 0.0
     contested_until: int = -1    # tick until which a contested succession weakens it
+    defeated_until: int = -1     # tick until which a lost war weakens it
+    led_since: int = -1          # when the present leader took over
     peak_people: int = 0
     founding_event: int = -1
 
@@ -58,7 +60,8 @@ def init(w):
     w.next_polity = 0
     w.polity_of = np.full(64, -1, dtype=np.int32)
     w.polity_via = np.full(64, -1, dtype=np.int32)
-    w.polity_log = []            # every 10 years: [year, polity, settlements, people, depth, load, capacity, institutions, tier, seat cell]
+    w.polity_log = []            # every 10 years: [year, polity, settlements, people, depth, load, capacity, institutions, tier, seat cell,
+                                 #  languages spoken, settlements once conquered]
     w.sec_stats = {}             # overload bin -> [member-years, secessions]
     w.polity_firsts = {}         # tier name -> event id of the first polity to reach it
 
@@ -94,7 +97,14 @@ def cultural_distance(w, a, b) -> float:
     from . import customs, language
     d = customs.distance(w, a.id, b.id)
     if a.language != b.language:
-        d = 0.5 * d + 0.5 * (1 - language.shared_roots(w.languages[a.language], w.languages[b.language]))
+        cache = getattr(w, "_roots_cache", None)
+        if cache is None or cache[0] != w.year:
+            cache = w._roots_cache = (w.year, {})
+        key = (min(a.language, b.language), max(a.language, b.language))
+        sr = cache[1].get(key)
+        if sr is None:
+            sr = cache[1][key] = language.shared_roots(w.languages[a.language], w.languages[b.language])
+        d = 0.5 * d + 0.5 * (1 - sr)
     else:
         d = 0.5 * d
     return d
@@ -162,6 +172,7 @@ def _new_polity(w, seat, causes, parent=-1, why="") -> Polity:
     pid = w.next_polity
     w.next_polity += 1
     p = Polity(pid, seat.id, w.t, _name(w, seat), parent=parent)
+    p.led_since = w.t
     p.leader = seat.leader if seat.mode == "individual" and seat.leader >= 0 and w.people.alive[seat.leader] \
         and int(w.people.band[seat.leader]) == seat.id else _successor(w, seat, -1, 2)[0]
     w.polities[pid] = p
@@ -286,6 +297,7 @@ def yearly(w):
         rule = int(w.customs[seat.id, customs.SUCCESSION])
         new, rivals = _successor(w, seat, old, rule)
         p.leader = new
+        p.led_since = w.t
         if died and new >= 0:
             contested = rivals > 0 and rng.random() < P.CONTESTED_SUCCESSION[rule]
             if contested:
@@ -332,6 +344,9 @@ def yearly(w):
             d = _cells_apart(w, seat.cell, b.cell)
             cd = cultural_distance(w, seat, b)
             u = np.sqrt(max(size_of.get(b.id, 0), 1) / 150.0) * (1 + d / P.LOAD_DISTANCE) * (1 + P.LOAD_CULTURE * cd)
+            ca = int(w.conquered_at[b.id]) if hasattr(w, "conquered_at") else -1
+            if ca >= 0 and w.t - ca < P.CONQUEST_MEMORY * P.TICKS_PER_YEAR:
+                u *= 1 + P.CONQUEST_LOAD * (1 - (w.t - ca) / (P.CONQUEST_MEMORY * P.TICKS_PER_YEAR))
             unit[b.id] = (u, d, cd)
             load += u
         p.load = load
@@ -375,8 +390,11 @@ def yearly(w):
                                                                     {"note": f"{p.name}: {n} settlements, "
                                                                              f"{dmax} levels of rule"}])
         if w.year % 10 == 0:
+            langs = len({b.language for b in mem})
+            conq = sum(1 for b in mem if hasattr(w, "conquered_at") and w.conquered_at[b.id] >= 0)
             w.polity_log.append([w.year, pid, n, people, dmax, round(load, 2), round(p.cap, 2),
-                                 int(sum(1 << k for k in range(len(INSTITUTIONS)) if p.inst[k])), p.tier, int(seat.cell)])
+                                 int(sum(1 << k for k in range(len(INSTITUTIONS)) if p.inst[k])), p.tier, int(seat.cell),
+                                 langs, conq])
         # secessions
         over = max(0.0, load / max(p.cap, 1e-9) - 1)
         stress = 0.0
@@ -387,6 +405,9 @@ def yearly(w):
         if p.contested_until > w.t:
             stress += 1.0
             notes.append("a contested succession")
+        if p.defeated_until > w.t:
+            stress += 1.0
+            notes.append("a lost war")
         law = 1 - P.LAW_CALM * p.inst[LAW]
         bin_ = min(int(over * 4), 12)
         st = w.sec_stats.setdefault(bin_, [0, 0])

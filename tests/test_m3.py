@@ -66,3 +66,19 @@ class Polities(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Conflict(unittest.TestCase):
+    def test_wars_happen_and_are_explained(self):
+        from origins.state import C
+        w = farming_world()
+        wars = [e for e in w.events if e["kind"] == "war"]
+        self.assertTrue(wars, "no war in 80 years among 200 farming villages and their neighbours")
+        for e in wars[:100]:
+            self.assertTrue(explain.resolvable(w, {"event": e["id"]}), e)
+        p = w.people
+        import numpy as np
+        dead = np.nonzero(p.cause[:p.n] == C["killed in war"])[0]
+        for i in dead[:50]:
+            ch = explain.chain(w, {"death": int(i)})
+            self.assertTrue(any(c.get("ref", {}).get("event") is not None for c in ch["causes"]), ch)
