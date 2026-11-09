@@ -223,7 +223,7 @@ Each milestone ends with a gate Ben approves. No new layer begins until the curr
 | M1 | Band fission and spread; cultural and language drift; climate variability and hazards | Behaviours 1–2; plausible responses to droughts and floods |
 | M2 | Domestication, farming, storage, settlement; surplus and specialists; switch from prehistoric to historical clock | Behaviours 3–4 |
 | M3 | Leadership, chiefdoms, early states; institutions; conflict and conquest; individual-to-group folding | Behaviours 5–6 |
-| M4 | Technology network: emergence, diffusion, loss; trade. With it (section 16): people changing the land; diseases from domestic animals; writing, and chronicles written by the people themselves; place names | Behaviour 7 |
+| M4 | Technology network: emergence, diffusion, loss; trade. With it (section 16): military technology, methods of warfare and logistics, reconnaissance and espionage, strategy; people changing the land; diseases from domestic animals; writing, and chronicles written by the people themselves; place names | Behaviour 7 |
 | M5 | Belief and religion layer; rituals with real costs; god mode. With it (section 16): myths and songs that drift from the events they remember | Behaviour 9 |
 | M6 | Long-run economy and the escape from the population ceiling. With it (section 16): inherited traits shaped by selection, if not added earlier | Behaviour 8 |
 | Throughout | Divergence across runs; causal traceability | Behaviour 10 and the standing requirement |
@@ -280,10 +280,17 @@ Ben agreed to these on 9 November 2026. Each is PROPOSED in detail and decided w
 5. **Myths and songs that drift.** Real logged events (floods, migrations, great leaders, wars) become oral tradition and change with each retelling, measurably drifting from the event over centuries, as the language drifts. They are material for M5's religion. *M5.*
 6. **Place names.** Rivers, mountains, regions and settlements are named in the local language and renamed by newcomers and conquerors. Older names survive beneath, as in real place-name layers. *M4.*
 
+**Warfare, military technology, intelligence and strategy** (agreed 9 November 2026)
+
+9. **Military technology** as nodes in the technology network, each needing materials, prior knowledge and enough people. Examples: bows; bronze and iron weapons and armour; horses, chariots and cavalry; walls and fortifications, and siege methods; ships and naval warfare; much later, gunpowder. Each changes the strength calculation of a war, spreads by contact and capture, and can be lost. *M4.*
+10. **Methods of warfare and logistics.** Raids, pitched battles, sieges, ambushes and guerrilla resistance; tribute, occupation, garrisons and devastation. Armies eat: a campaign draws on real stores, the season matters, and distance limits reach. *M4.*
+11. **Reconnaissance and espionage.** Polities hold estimates of their neighbours' strength, not the truth. The estimates are built from traders' reports, scouts and spies (specialists paid from surplus), and they can be wrong. Wars are begun or avoided on beliefs, and the cause chain says so ("its scouts reported half the defenders' real strength"). The display shows estimates as estimates. Kept to neighbours and contacts, for cost. *M4.*
+12. **Strategy.** Leaders weigh attacking, defending, allying, paying tribute or waiting, using their estimates and the costs. This is bounded rationality, with leaders' judgement good or poor: understandable rules, not a game-playing AI, so every decision answers "why?". *M4 onwards.*
+
 **Observer tools** (they change nothing in the simulation)
 
-7. **Branching.** From any save, change one thing (a drought, a leader surviving a battle) and run both futures side by side. This is the direct test of behaviour 10, and a natural use of god mode. *Any time after M3.*
-8. **History scrubber.** Rewind and replay any span on the map from the saves. *Any time after M3.*
+13. **Branching.** From any save, change one thing (a drought, a leader surviving a battle) and run both futures side by side. This is the direct test of behaviour 10, and a natural use of god mode. *Any time after M3.*
+14. **History scrubber.** Rewind and replay any span on the map from the saves. *Any time after M3.*
 
 **Considered and left out:** detailed inner lives and personalities for individuals. Inventing them would narrate more than the simulation computes, against the principle that every answer comes from recorded causes.
 
