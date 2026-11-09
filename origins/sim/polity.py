@@ -401,10 +401,15 @@ def yearly(w):
                 continue
             d = _cells_apart(w, seat.cell, b.cell)
             cd = cultural_distance(w, seat, b)
-            u = np.sqrt(max(size_of.get(b.id, 0), 1) / 150.0) * (1 + d / P.LOAD_DISTANCE) * (1 + P.LOAD_CULTURE * cd)
+            # what each institution does (M3 specification, section 4): a council lightens every member's load,
+            # tribute collectors halve the cost of distance, warriors kept by the leader halve the extra weight of
+            # recent conquests; capacity comes from all of them (see capacity())
+            dist = d / P.LOAD_DISTANCE * (0.5 if p.inst[COLLECTORS] else 1.0)
+            u = np.sqrt(max(size_of.get(b.id, 0), 1) / 150.0) * (1 + dist) * (1 + P.LOAD_CULTURE * cd)
+            u *= P.COUNCIL_LOAD if p.inst[COUNCIL] else 1.0
             ca = int(w.conquered_at[b.id]) if hasattr(w, "conquered_at") else -1
             if ca >= 0 and w.t - ca < P.CONQUEST_MEMORY * P.TICKS_PER_YEAR:
-                u *= 1 + P.CONQUEST_LOAD * (1 - (w.t - ca) / (P.CONQUEST_MEMORY * P.TICKS_PER_YEAR))
+                u *= 1 + P.CONQUEST_LOAD * (0.5 if p.inst[WARRIORS] else 1.0) * (1 - (w.t - ca) / (P.CONQUEST_MEMORY * P.TICKS_PER_YEAR))
             unit[b.id] = (u, d, cd)
             load += u
         p.load = load

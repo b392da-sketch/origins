@@ -146,6 +146,7 @@ TRIBUTE_SHARE = 0.3                # share of a member's surplus sent each year 
 SUB_LEADER_KEEP = 0.3              # share of passing tribute a sub-leader keeps
 POLITY_CAPACITY = 3.0              # load (about three nearby villages of 150) a leader can hold without institutions
 INSTITUTION_GAIN = [1.0, 2.0, 1.0, 1.0, 0.0]   # added capacity (as multiples of the base) for each institution
+COUNCIL_LOAD = 0.8                 # a council of village heads lightens each member's load to this share
 OFFICIALS_MULTIPLIER = 3.0         # officials over districts multiply what a polity can hold
 INSTITUTION_INVENT = 0.01          # yearly chance a pressed polity finds its next institution on its own
 INSTITUTION_COPY = 20.0            # ... multiplied by this where a polity within three rings already has it
