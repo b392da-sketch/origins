@@ -135,11 +135,37 @@ def sizes(w) -> np.ndarray:
     return out
 
 
+def _row_attr(w, band_ids, attr):
+    """An attribute of each row's band, read through the living-band index (all group rows belong to living
+    bands); falls back to looking bands up one by one if any does not."""
+    ids, pos = w.live_index()
+    k = pos[band_ids]
+    live = w.living_bands()
+    vals = np.array([getattr(b, attr) for b in live], dtype=float)
+    out = vals[np.maximum(k, 0)] if len(vals) else np.zeros(len(k))
+    for j in np.nonzero(k < 0)[0]:          # rows of bands that ended this season (dropped at the next compaction)
+        out[j] = getattr(w.bands[int(band_ids[j])], attr)
+    return out
+
+
+def _row_cells(w, band_ids):
+    return _row_attr(w, band_ids, "cell").astype(np.int64)
+
+
+def live_sizes(w, pos, n) -> np.ndarray:
+    out = np.zeros(n)
+    G = w.groups
+    rows = G.rows()
+    if len(rows):
+        np.add.at(out, pos[G.band[rows]], G.F[rows].sum(1) + G.M[rows].sum(1))
+    return out
+
+
 # ------------------------------------------------------------ food
-def needs_and_work(w):
+def needs_and_work(w, pos=None, n=None):
     """Per band: need of children (<5), need of others, foraging effort (all per season)."""
     G = w.groups
-    nb = w.next_band
+    nb = w.next_band if n is None else n
     nc, nr, ef = np.zeros(nb), np.zeros(nb), np.zeros(nb)
     rows = G.rows()
     if len(rows) == 0:
@@ -152,19 +178,19 @@ def needs_and_work(w):
     need_c = (F[:, child] @ NEED_F[child] + M[:, child] @ NEED_M[child]) * P.SEASON_DAYS
     need_r = (F[:, ~child] @ NEED_F[~child] + M[:, ~child] @ NEED_M[~child] + extra) * P.SEASON_DAYS
     work = (F @ WORK + M @ WORK - 0.3 * infants) * P.SEASON_DAYS * P.FORAGE_RATE
-    b = G.band[rows]
+    b = G.band[rows] if pos is None else pos[G.band[rows]]
     nc[b] += need_c
     nr[b] += need_r
     ef[b] += np.maximum(work, 0)
     return nc, nr, ef
 
 
-def update_condition(w, frac_child, frac_rest):
+def update_condition(w, frac_child, frac_rest, pos=None):
     G = w.groups
     rows = G.rows()
     if len(rows) == 0:
         return
-    b = G.band[rows]
+    b = G.band[rows] if pos is None else pos[G.band[rows]]
     for arr, frac in ((G.cond_child, frac_child[b]), (G.cond_rest, frac_rest[b])):
         c = arr[rows]
         arr[rows] = np.where(frac >= 1 - 1e-9, np.minimum(1.0, c + P.CONDITION_GAIN),
@@ -216,7 +242,7 @@ def deaths(w):
         np.add.at(hunger_rows, r_i, rem)
         w.counts["deaths"] += n
         acc["deaths"] += np.bincount(AGE_GROUP[a_i], weights=d, minlength=18)
-    row_cells = np.array([w.bands[int(b)].cell for b in G.band[rows]], dtype=np.int64)
+    row_cells = _row_cells(w, G.band[rows])
     np.add.at(w.cell_hunger, row_cells, hunger_rows)
     size = G.F[rows].sum(1) + G.M[rows].sum(1) + hunger_rows
     w.counts["group_hunger_deaths"] = w.counts.get("group_hunger_deaths", 0) + int(hunger_rows.sum())
@@ -252,7 +278,7 @@ def births(w):
         vill = w.farm_share[G.band[rows]] >= 0.5
         w.counts["births_village"] = w.counts.get("births_village", 0) + int(n_due[vill].sum())
         w.counts["births_forager"] = w.counts.get("births_forager", 0) + int(n_due[w.farm_share[G.band[rows]] < 0.1].sum())
-        np.add.at(w.cell_births, np.array([w.bands[int(b)].cell for b in G.band[rows]], dtype=np.int64), n_due)
+        np.add.at(w.cell_births, _row_cells(w, G.band[rows]), n_due)
         maternal = rng.binomial(n_due, P.MATERNAL_DEATH)
         for r, k in zip(rows, maternal):
             for _ in range(int(k)):
@@ -284,7 +310,7 @@ def births(w):
     fec = _fecundity(np.arange(15, 50) + 0.5)
     cond = np.clip((G.cond_rest[rows] - P.FERTILE_CONDITION[0]) / P.FERTILE_CONDITION[1], 0, 1)
     from .demography import margin_factor
-    cond = cond * margin_factor(np.array([w.bands[int(b)].margin for b in G.band[rows]]))
+    cond = cond * margin_factor(_row_attr(w, G.band[rows], "margin"))
     rate = PARTNERED_SHARE * P.CONCEPTION * cond * nurse * (1 - fp)
     expected = women * fec[None] * rate[:, None]
     conc = rng.poisson(expected)

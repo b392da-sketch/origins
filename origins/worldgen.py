@@ -70,6 +70,21 @@ class Planet:
         return self.grid.n
 
 
+DEBUG = None                 # set to a dict to keep intermediate fields (comparing machines)
+
+
+def _keep(**kw):
+    if DEBUG is not None:
+        DEBUG.update({k: np.array(v) for k, v in kw.items()})
+
+
+def _q(x, step):
+    """Round to a multiple of step. World generation rounds after every step whose last digits can differ
+    between processors (powers, exponentials, trigonometry, matrix products), so that every machine builds the
+    same planet; a difference survives only if a value falls within about 1e-15 of a rounding boundary."""
+    return np.round(np.asarray(x, dtype=float) / step) * step
+
+
 def _priority_flood(grid: Grid, elev: np.ndarray, land: np.ndarray):
     """Fill depressions; return filled elevation, drainage parent, pop order."""
     n = grid.n
@@ -125,10 +140,13 @@ def generate(seed: int, level: int = GRID_LEVEL, radius_km: float = PLANET_RADIU
     above = above / max(above.max(), 1e-9)
     plates = _plates(grid, seed, nz)
     # mountains rise where plates converge; ridged noise gives them shape
+    _keep(xyz=xyz, warp=warp, continents=continents, detail=detail, ridges=ridges, raw=raw, plate=plates["plate"],
+          conv=plates["convergence"], uplift=plates["uplift"])
     uplift = plates["uplift"]
     mountain = np.clip(uplift * (0.55 + 0.45 * ridges), 0, 1)
     elevation = np.where(land, 40 + 2000 * above ** 1.3 + 6500 * mountain ** 1.3 * np.clip(above * 6 + 0.35, 0, 1),
                          -4000 * np.clip((sea - raw) / max(sea - raw.min(), 1e-9), 0, 1) ** 0.6)
+    elevation = _q(elevation, 0.01)          # to the centimetre: powers differ in the last digits between machines
 
     # --- Coast, distance to ocean (in cells) by breadth-first search
     nb = grid.neighbours
@@ -150,12 +168,12 @@ def generate(seed: int, level: int = GRID_LEVEL, radius_km: float = PLANET_RADIU
     # --- Temperature
     alat = np.abs(grid.lat)
     t_sea = 27.0 - 45.0 * (alat / 90.0) ** 1.5
-    t_mean = t_sea - 6.5 * np.clip(elevation, 0, None) / 1000.0
+    t_mean = _q(t_sea - 6.5 * np.clip(elevation, 0, None) / 1000.0, 1e-6)
     continental = np.clip(dist / 8.0, 0, 1)
     amp = (1.5 + 22.0 * (alat / 90.0)) * (0.45 + 0.55 * continental)
     sign = np.where(grid.lat >= 0, 1.0, -1.0)
     offsets = np.array([0.0, 1.0, 0.0, -1.0])           # spring, summer, autumn, winter (north)
-    temp_season = t_mean[:, None] + amp[:, None] * sign[:, None] * offsets[None, :]
+    temp_season = _q(t_mean[:, None] + amp[:, None] * sign[:, None] * offsets[None, :], 1e-6)
 
     # --- Rainfall: latitude bands carried by prevailing winds, with rain shadows
     lat = grid.lat
@@ -166,18 +184,18 @@ def generate(seed: int, level: int = GRID_LEVEL, radius_km: float = PLANET_RADIU
     wind_from_east = (alat < 30) | (alat > 60)
     upwind_dir = np.where(wind_from_east[:, None], east, -east)
     nbv = np.where(nb[..., None] >= 0, xyz[np.clip(nb, 0, None)] - xyz[:, None, :], 0.0)
-    score = (nbv * upwind_dir[:, None, :]).sum(2)
+    score = _q((nbv * upwind_dir[:, None, :]).sum(2), 1e-9)
     score[nb < 0] = -np.inf
     upwind = nb[np.arange(n), np.argmax(score, axis=1)]
     moisture = np.where(ocean, 1.0, 0.0)
     for _ in range(40):
         up = moisture[upwind]
         climb = np.clip(elevation - elevation[upwind], 0, None)
-        carried = up * 0.96 * np.exp(-climb / 1500.0)
+        carried = _q(up * 0.96 * np.exp(-climb / 1500.0), 1e-9)
         moisture = np.where(ocean, 1.0, np.maximum(carried, 0.05))
     windward = np.clip((elevation - elevation[upwind]) / 1000.0, 0, 1)
     rain = base * (0.2 + 0.8 * moisture) * (1 + 0.5 * windward)
-    rain = np.where(land, rain, base)
+    rain = _q(np.where(land, rain, base), 1e-3)
 
     # --- Rivers and lakes
     filled, parent, order = _priority_flood(grid, elevation, land)
@@ -224,13 +242,13 @@ def generate(seed: int, level: int = GRID_LEVEL, radius_km: float = PLANET_RADIU
     capacity *= np.where(land & ~lake & lake_adj, 1.4, 1.0)
     capacity = np.where(land & ~lake, capacity, 0.0)
     growth = np.clip((temp_season + 2.0) / 16.0, 0.08, 1.25)
-    season_food = growth / growth.mean(axis=1, keepdims=True)
+    season_food = _q(growth / growth.mean(axis=1, keepdims=True), 1e-9)
 
     # --- Climate-variability regions (nearest of ~160 random sphere points)
     n_regions = 160
     pts = rng.normal(size=(n_regions, 3))
     pts /= np.linalg.norm(pts, axis=1, keepdims=True)
-    region = np.argmax(xyz @ pts.T, axis=1)
+    region = np.argmax(_q(xyz @ pts.T, 1e-9), axis=1)
 
     # --- Minerals and domesticable species (generated now, unused in M0)
     minerals = {}
@@ -287,7 +305,7 @@ def _plates(grid: Grid, seed: int, nz) -> dict:
     centres = rng.normal(size=(N_PLATES, 3))
     centres /= np.linalg.norm(centres, axis=1, keepdims=True)
     wobble = np.stack([Noise3(int(rng.integers(2**31))).fbm(xyz, octaves=3, freq=2.5) for _ in range(N_PLATES)], axis=1)
-    plate = np.argmax(xyz @ centres.T + 0.25 * wobble, axis=1)
+    plate = np.argmax(_q(xyz @ centres.T + 0.25 * wobble, 1e-9), axis=1)
     axes = rng.normal(size=(N_PLATES, 3))
     axes /= np.linalg.norm(axes, axis=1, keepdims=True)
     speed = rng.uniform(0.3, 1.0, size=N_PLATES)
@@ -305,6 +323,7 @@ def _plates(grid: Grid, seed: int, nz) -> dict:
         rel = ((vel - vel[mm]) * normal).sum(1)                     # >0: this cell moves toward the neighbour
         c = np.where(diff, rel, 0.0)
         conv = np.where(np.abs(c) > np.abs(conv), c, conv)
+    conv = _q(conv, 1e-9)
     # spread uplift a few cells into the overriding side
     up = np.clip(conv, 0, None)
     up = up / max(up.max(), 1e-9)

@@ -73,7 +73,7 @@ def probe(w, pr):
         pr["samples"][str(w.year)] = sample_state(w)
 
 
-def finish(w, ws, rs, seconds, pr, storage, status="completed"):
+def finish(w, ws, rs, seconds, pr, storage, status="completed", write=True):
     from origins import engine, explain
     from origins.sim import farming, observe
     pl = w.planet
@@ -124,9 +124,12 @@ def finish(w, ws, rs, seconds, pr, storage, status="completed"):
     ok = [explain.resolvable(w, r) for r in sample]
     rec["explain_checked"], rec["explain_resolvable"] = len(ok), int(sum(ok))
     rec["landmasses"] = int(lab.max()) + 1
+    if not write:
+        return rec
     OUT.mkdir(parents=True, exist_ok=True)
     tag = "" if storage else "_nostore"
     (OUT / f"run_w{ws}_s{rs}{tag}.json").write_text(json.dumps(rec))
+    return rec
 
 
 def done(w) -> bool:

@@ -1,0 +1,38 @@
+name: planets
+
+# Every kind of machine must build identical planets (Linux on Intel and AMD, Windows like Ben's computer,
+# macOS on Apple silicon, Linux on ARM).
+on:
+  push:
+    branches: [main]
+    paths: ["origins/worldgen.py", "origins/grid.py", "origins/noise.py", "tests/test_planet_identity.py", ".github/workflows/planets.yml"]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"          # weekly, to catch new machine types and NumPy versions
+
+jobs:
+  identity:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-22.04, ubuntu-24.04-arm, windows-latest, macos-latest]
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -r requirements.txt pytest
+      - run: python -c "import numpy, platform; print(platform.machine(), platform.processor(), numpy.__version__)"
+      - run: python -m pytest -q tests/test_planet_identity.py
+      - name: Save the planets for comparison
+        if: always()
+        run: python tests/dump_planet.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: planet1-${{ matrix.os }}-${{ matrix.python }}
+          path: planet1.npz
+          retention-days: 3

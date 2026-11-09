@@ -26,7 +26,7 @@ C = {name: i for i, name in enumerate(CAUSES)}
 
 STREAMS = ["climate", "deaths", "partners", "births", "movement", "fission", "names", "founding",
            "language", "customs", "hazards", "crossing",
-           "farming", "surplus"]   # new streams are appended, never inserted
+           "farming", "surplus", "polity"]   # new streams are appended, never inserted
 
 # ids, ticks and cells all fit in 32 bits; people are never removed, so their rows are kept compact
 FIELDS = {
@@ -293,11 +293,12 @@ class World:
         self.season_stats: dict = {}
         self.intervened = False
         self._live = None
-        from .sim import customs, farming, language, surplus
+        from .sim import customs, farming, language, polity, surplus
         language.init(self)
         customs.init(self)
         farming.init(self)
         surplus.init(self)
+        polity.init(self)
         self.people.languages = self.languages
         self.hazards: list = []                    # active hazards (sim/hazards.py)
         self.hazard_food = np.ones(n)              # hazard effect on wild food, recovering over years
@@ -345,10 +346,11 @@ class World:
         if parent >= 0:
             b.language = self.bands[parent].language
             b.farming_since = self.bands[parent].farming_since
-        from .sim import customs, farming, surplus
+        from .sim import customs, farming, polity, surplus
         customs.ensure(self, b.id, parent)
         farming.ensure(self, b.id, parent)
         surplus.ensure(self, b.id, parent)
+        polity.ensure(self, b.id, parent)
         self.bands[b.id] = b
         if self._pool is not None:
             self._pool[b.id] = b
@@ -373,6 +375,27 @@ class World:
 
     def bands_changed(self):
         self._living = None
+
+    def live_index(self):
+        """(ids, pos): the living bands' ids in living_bands() order, and each band id's position among them
+        (-1 if not living). Per-band work on these compact arrays costs in proportion to living bands, not to
+        every band that ever existed."""
+        lb = self.living_bands()
+        li = getattr(self, "_live_index", None)
+        if li is None or li[0] is not lb or len(li[2]) < self.next_band:
+            ids = np.fromiter((b.id for b in lb), dtype=np.int64, count=len(lb))
+            pos = np.full(self.next_band, -1, dtype=np.int64)
+            pos[ids] = np.arange(len(ids))
+            li = self._live_index = (lb, ids, pos)
+        return li[1], li[2]
+
+    def live_sizes(self) -> np.ndarray:
+        """People per living band (individuals plus group counts), aligned with live_index() ids."""
+        from .sim import groups
+        ids, pos = self.live_index()
+        idx = self.alive_idx()
+        out = np.bincount(pos[self.people.band[idx]], minlength=len(ids)).astype(float)
+        return out + groups.live_sizes(self, pos, len(ids))
 
     def band_sizes(self) -> np.ndarray:
         """People per band id, individuals plus group counts."""

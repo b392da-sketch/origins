@@ -312,6 +312,46 @@ def _first_village(w, b, k):
                               species=NAMES[SPECIES[k]], year=w.year)
 
 
+def season_food_live(w, ids, cells, effort):
+    """As season_food, on compact arrays (one entry per living band, aligned with ids)."""
+    forage_eff = effort.copy()
+    L = len(ids)
+    food = np.zeros(L)
+    share = w.farm_share[ids]
+    if not share.any():
+        return forage_eff, food
+    _, suit = land_tables(w)
+    farm_eff = effort * share
+    forage_eff = effort - farm_eff
+    vals = np.zeros(L)
+    caps = np.zeros(L)
+    animal_part = np.zeros(L)
+    on = share > 0
+    fid, fcell = ids[on], cells[on]
+    kp, vp, ka, va = best_all(w, fid, fcell)
+    vals[on] = np.maximum(vp, va)
+    animal_part[on] = va / np.maximum(vp + va, 1e-9)
+    caps[on] = P.FARM_CAPACITY * np.maximum(suit[fcell, kp], suit[fcell, ka]) * P.SEASON_DAYS
+    cell_eff = np.zeros(w.planet.n)
+    np.add.at(cell_eff, cells, farm_eff)
+    land_share = np.where(cell_eff[cells] > 0, farm_eff / np.maximum(cell_eff[cells], 1e-12), 0.0)
+    grown = np.minimum(farm_eff / P.FORAGE_RATE * P.FARM_RATE * vals, caps * land_share)
+    herd = grown * animal_part
+    crop = grown - herd
+    w.crop_store[ids] += crop
+    food = herd
+    if w.quarter == P.HARVEST_QUARTER:
+        food = food + w.crop_store[ids]
+        w.crop_store[ids] = 0.0
+    w.ledger["farmed"] = w.ledger.get("farmed", 0.0) + float(food.sum())
+    return forage_eff, food
+
+
+def record_forage_return_live(w, ids, days, forage_food):
+    rr = np.where(days > 0, forage_food / np.maximum(days, 1e-9) * P.FORAGE_RATE, w.forage_rr[ids])
+    w.forage_rr[ids] = 0.9 * w.forage_rr[ids] + 0.1 * rr
+
+
 def record_forage_return(w, ids, forage_eff, forage_food):
     """Remember food per worker-day from foraging (slowly), for next year's choice."""
     days = forage_eff[ids]

@@ -152,9 +152,99 @@ jobs:
           path: out/
           if-no-files-found: ignore
           retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: steps.need.outputs.go == '1'
+        with:
+          name: ckpt3-${{ matrix.name }}
+          path: /tmp/ckpt/
+          if-no-files-found: ignore
+          retention-days: 2
+
+  continue3:
+    needs: [plan, continue2]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    name: stage4-${{ matrix.name }}
+    steps:
+      - uses: actions/download-artifact@v4
+        id: ck
+        continue-on-error: true
+        with:
+          name: ckpt3-${{ matrix.name }}
+          path: /tmp/ckpt
+      - name: anything to continue?
+        id: need
+        run: if [ -n "$(ls -A /tmp/ckpt 2>/dev/null)" ]; then echo "go=1" >> "$GITHUB_OUTPUT"; else echo "finished in an earlier stage"; fi
+      - uses: actions/checkout@v4
+        if: steps.need.outputs.go == '1'
+      - uses: actions/setup-python@v5
+        if: steps.need.outputs.go == '1'
+        with:
+          python-version: "3.13"
+      - if: steps.need.outputs.go == '1'
+        run: pip install -r requirements.txt
+      - name: continue
+        if: steps.need.outputs.go == '1'
+        run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} ${{ matrix.ws }} ${{ matrix.rs }}
+      - uses: actions/upload-artifact@v4
+        if: steps.need.outputs.go == '1'
+        with:
+          name: stage4-${{ matrix.name }}
+          path: out/
+          if-no-files-found: ignore
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: steps.need.outputs.go == '1'
+        with:
+          name: ckpt4-${{ matrix.name }}
+          path: /tmp/ckpt/
+          if-no-files-found: ignore
+          retention-days: 2
+
+  continue4:
+    needs: [plan, continue3]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    name: stage5-${{ matrix.name }}
+    steps:
+      - uses: actions/download-artifact@v4
+        id: ck
+        continue-on-error: true
+        with:
+          name: ckpt4-${{ matrix.name }}
+          path: /tmp/ckpt
+      - name: anything to continue?
+        id: need
+        run: if [ -n "$(ls -A /tmp/ckpt 2>/dev/null)" ]; then echo "go=1" >> "$GITHUB_OUTPUT"; else echo "finished in an earlier stage"; fi
+      - uses: actions/checkout@v4
+        if: steps.need.outputs.go == '1'
+      - uses: actions/setup-python@v5
+        if: steps.need.outputs.go == '1'
+        with:
+          python-version: "3.13"
+      - if: steps.need.outputs.go == '1'
+        run: pip install -r requirements.txt
+      - name: continue
+        if: steps.need.outputs.go == '1'
+        run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} ${{ matrix.ws }} ${{ matrix.rs }}
+      - uses: actions/upload-artifact@v4
+        if: steps.need.outputs.go == '1'
+        with:
+          name: stage5-${{ matrix.name }}
+          path: out/
+          if-no-files-found: ignore
+          retention-days: 30
 
   report:
-    needs: [plan, run, continue, continue2]
+    needs: [plan, run, continue, continue2, continue3, continue4]
     if: always()
     runs-on: ubuntu-latest
     steps:

@@ -57,6 +57,7 @@ def move(w):
 
 
 def forage_and_eat(w):
+    """Per-band arrays here are compact: one entry per living band, in living_bands() order."""
     from . import groups
     p = w.people
     bands = w.living_bands()
@@ -64,26 +65,26 @@ def forage_and_eat(w):
     if not bands:
         w.season_stats = {"ratio": 1.0, "harvest": 0.0, "need": 0.0}
         return
+    ids, pos = w.live_index()
+    L = len(ids)
     age = w.ages(idx)
     nurse = nursing(w, idx)
     need = P.need(age, p.sex[idx], p.preg_due[idx] >= 0, nurse) * P.SEASON_DAYS
     work = P.work(age, nurse) * P.SEASON_DAYS * P.FORAGE_RATE
-    bid = p.band[idx]
-    nb_ = w.next_band
-    effort = np.bincount(bid, weights=work, minlength=nb_)
+    bpos = pos[p.band[idx]]
+    effort = np.bincount(bpos, weights=work, minlength=L)
     child = age < 5
-    need_child = np.bincount(bid, weights=np.where(child, need, 0.0), minlength=nb_)
-    need_rest = np.bincount(bid, weights=np.where(child, 0.0, need), minlength=nb_)
-    g_nc, g_nr, g_ef = groups.needs_and_work(w)
+    need_child = np.bincount(bpos, weights=np.where(child, need, 0.0), minlength=L)
+    need_rest = np.bincount(bpos, weights=np.where(child, 0.0, need), minlength=L)
+    g_nc, g_nr, g_ef = groups.needs_and_work(w, pos, L)
     effort, need_child, need_rest = effort + g_ef, need_child + g_nc, need_rest + g_nr
 
-    ids = np.array([b.id for b in bands])
-    cells = np.array([b.cell for b in bands])
+    cells = np.fromiter((b.cell for b in bands), dtype=np.int64, count=L)
     from . import farming, surplus
-    effort[ids] *= surplus.work_share(w, ids)            # specialists eat but do not produce food
-    effort, farm_food = farming.season_food(w, ids, cells, effort)
+    effort *= surplus.work_share(w, ids, w.live_sizes())   # specialists eat but do not produce food
+    effort, farm_food = farming.season_food_live(w, ids, cells, effort)
     cell_effort = np.zeros(w.planet.n)
-    np.add.at(cell_effort, cells, effort[ids])
+    np.add.at(cell_effort, cells, effort)
     used = np.nonzero(cell_effort)[0]
     a = w.stock[used]
     e = cell_effort[used]
@@ -91,14 +92,11 @@ def forage_and_eat(w):
     w.stock[used] = a - h
     cell_h = np.zeros(w.planet.n)
     cell_h[used] = h
-    band_h = np.zeros(nb_)
-    band_h[ids] = np.where(cell_effort[cells] > 0, cell_h[cells] * effort[ids] / np.maximum(cell_effort[cells], 1e-12), 0.0)
+    band_h = np.where(cell_effort[cells] > 0, cell_h[cells] * effort / np.maximum(cell_effort[cells], 1e-12), 0.0)
     w.ledger["harvest"] += float(h.sum())
 
-    store = np.zeros(nb_)
-    for b in bands:
-        store[b.id] = b.store
-    farming.record_forage_return(w, ids, effort, band_h)
+    store = np.fromiter((b.store for b in bands), dtype=float, count=L)
+    farming.record_forage_return_live(w, ids, effort, band_h)
     avail = store + band_h + farm_food
     give_c = np.minimum(avail, need_child)
     give_r = np.minimum(avail - give_c, need_rest)
@@ -107,9 +105,9 @@ def forage_and_eat(w):
     eaten = give_c + give_r
     left = avail - eaten
     total_need = need_child + need_rest
+    fs = w.farm_share[ids]
     if P.STORAGE:
         # farmers store grain (granaries, pits, pots): more room and slower spoilage, in proportion to farming
-        fs = w.farm_share[:nb_]
         grain = np.minimum(1.0, 2 * fs)          # a band farming half its work or more stores mostly grain
         cap = (P.STORE_DAYS + grain * P.GRANARY_DAYS) * total_need / P.SEASON_DAYS
         spoil = P.STORE_SPOIL * (1 - grain) + P.GRAIN_SPOIL * grain
@@ -121,21 +119,24 @@ def forage_and_eat(w):
     # food security: farmers must make what they hold last until the next harvest, so their margin is measured
     # against the needs of every season until then (foragers live season to season)
     horizon = ((P.HARVEST_QUARTER - w.quarter - 1) % P.TICKS_PER_YEAR) + 1
-    fsh = w.farm_share[:nb_]
-    seasons = 1 + fsh * (horizon - 1)
+    seasons = 1 + fs * (horizon - 1)
     margin = np.where(total_need > 0, avail / np.maximum(total_need * seasons, 1e-12), 1.6)
-    for b in bands:
-        b.margin = P.MARGIN_MEMORY * b.margin + (1 - P.MARGIN_MEMORY) * float(min(margin[b.id], 3.0))
-        b.store = float(kept[b.id])
-        b.last_ratio = float(eaten[b.id] / total_need[b.id]) if total_need[b.id] > 0 else 1.0
-    w.ledger["eaten"] += float(eaten[ids].sum())
-    w.ledger["spoiled"] += float(spoiled[ids].sum())
+    ratio_b = np.where(total_need > 0, eaten / np.where(total_need > 0, total_need, 1.0), 1.0)
+    mg = np.minimum(margin, 3.0).tolist()
+    kp = kept.tolist()
+    rb = ratio_b.tolist()
+    for k, b in enumerate(bands):
+        b.margin = P.MARGIN_MEMORY * b.margin + (1 - P.MARGIN_MEMORY) * mg[k]
+        b.store = kp[k]
+        b.last_ratio = rb[k]
+    w.ledger["eaten"] += float(eaten.sum())
+    w.ledger["spoiled"] += float(spoiled.sum())
 
-    groups.update_condition(w, frac_c, frac_r)
-    ratio = np.where(child, frac_c[bid], frac_r[bid])
+    groups.update_condition(w, frac_c, frac_r, pos)
+    ratio = np.where(child, frac_c[bpos], frac_r[bpos])
     c = p.condition[idx].astype(float)
     c = np.where(ratio >= 1 - 1e-9, np.minimum(1.0, c + P.CONDITION_GAIN),
                  np.maximum(0.0, c - P.CONDITION_LOSS * (1 - ratio)))
     p.condition[idx] = c
-    w.season_stats = {"ratio": float(eaten[ids].sum() / max(total_need[ids].sum(), 1e-9)),
-                      "harvest": float(h.sum()), "need": float(total_need[ids].sum())}
+    w.season_stats = {"ratio": float(eaten.sum() / max(total_need.sum(), 1e-9)),
+                      "harvest": float(h.sum()), "need": float(total_need.sum())}
