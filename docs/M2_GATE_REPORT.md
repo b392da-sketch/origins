@@ -95,3 +95,17 @@ So inequality rises over the first century or two, then settles. Within one hist
 
 - Borgerhoff Mulder, M., Bowles, S., Hertz, T., et al. (2009). Intergenerational wealth transmission and the dynamics of inequality in small-scale societies. *Science*, 326(5953), 682–688. https://doi.org/10.1126/science.1178336
 - Kohler, T. A., Smith, M. E., Bogaard, A., et al. (2017). Greater post-Neolithic wealth disparities in Eurasia than in North America and Mesoamerica. *Nature*, 551(7682), 619–622.
+
+## Decision (Ben, 9 November 2026)
+
+- **Check 9: option (a).** M2 closes with check 9 recorded as failed and carried forward. Inequality appears with farming and inherited property, rises over the first generations, then settles; it does not keep growing. Option (c), a mechanism that lets advantage compound (draft animals, scarce heritable land), is planned for a later milestone.
+- **G1 check 2:** the measure against reachable land, as the M1 specification words it, stands (Ben accepted Claude's recommendation). On it, G1 passes all 11 checks with the final M2 code.
+- **M2 is closed** (Ben's approval, given on Claude's recommendation to close).
+
+Carried forward to the next milestone:
+1. Check 9: inequality does not keep growing with time (to be addressed with option (c)).
+2. Make world generation's upwind choice robust, so that every machine builds the same planet. This changes every planet, so it comes first, before that milestone's gate runs.
+3. Speed of big worlds (planet-4 histories need up to 11 hours of computing).
+4. From M1: island peoples do not diverge faster; outbreaks cause about 8% of deaths over whole histories.
+5. Bands cannot cross barren land on foot (a possible design change; not proposed).
+6. Planet 3's drift with distance is weaker than other planets'.

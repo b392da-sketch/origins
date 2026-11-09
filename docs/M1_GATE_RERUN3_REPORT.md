@@ -26,3 +26,7 @@ On the specified measure, check 2 passes and all 11 checks pass. Values above 10
 **For Ben:** the change brings the measure into line with the approved wording. Whether that settles check 2 is your call.
 
 Not changed, and an open question for later milestones: bands cannot cross barren land (ice, desert) on foot at all, while real foragers did sometimes cross such country. Allowing rare crossings, like the one-cell sea crossings, would be a design change. It is not proposed here.
+
+## Decision (9 November 2026)
+
+Ben accepted the recommendation: check 2 is measured against the reachable land, as the specification words it. G1 passes all 11 checks with the final M2 code.
