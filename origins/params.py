@@ -156,6 +156,7 @@ SECESSION_STRESS = 0.02            # ... added per unit of stress (failed harves
 LAW_CALM = 0.3                     # law and judges cut the chance of secession by this share
 CONTESTED_SUCCESSION = [0.25, 0.2, 0.1]   # chance a succession is contested, by custom (son, sister's son, council)
 CONTEST_YEARS = 5                  # years a contested succession weakens a polity
+NOTABLE_SEATS = 200                # the seats of at most this many chiefdoms and states are kept person by person
 
 # --- Conflict (M3)
 CONFLICT = True                    # False: no raids or wars

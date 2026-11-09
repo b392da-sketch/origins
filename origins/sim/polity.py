@@ -497,6 +497,17 @@ def yearly(w):
         w.event("polity_joined", cell=b.cell, band=b.id, polity=pid, causes=[{"note": why}],
                 through=best.id)
 
+    # --- notables stay individual: the seats of chiefdoms and states are followed person by person (their
+    # leaders, heirs and households), even where the world has folded its people into groups
+    if P.NOTABLE_SEATS:
+        from . import groups
+        seats = sorted((p for p in w.polities.values() if p.alive and p.tier >= 1), key=lambda p: -p.load)
+        for p in seats[:P.NOTABLE_SEATS]:
+            seat = w.bands[p.seat]
+            if seat.alive and seat.mode == "group" and seat.group >= 0:
+                groups.unfold(w, seat)
+                p.leader, _ = _successor(w, seat, -1, 2)
+                p.led_since = w.t
     del w.polity_log[:-40000]
 
 

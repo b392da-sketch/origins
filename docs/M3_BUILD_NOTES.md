@@ -125,3 +125,8 @@ This is option (c) from the M2 gate (M3 decision 3: both mechanisms), added in `
 - **Unchanged:** a new household still takes a 30% dowry from its mother, and holdings are still divided among the children at death. Inequality therefore rises only where compounding outruns division.
 
 All four numbers are starting values; G3 check 9 tests them over thousands of years of farming.
+
+## Step 7: notables stay individual (9 November 2026)
+
+- **What changed:** when the world passes 20,000 individuals and distant bands fold into groups, the seats of chiefdoms and states are no longer folded. A seat that is already a group is unfolded each year, for up to 200 seats, the most loaded first. Their people, with leaders, heirs, households and genealogies, are then followed person by person. Unfolding is M0's existing `groups.unfold`, which recreates people from the group's counts with the same totals.
+- **How it differs from the specification:** the specification proposed drawing notables out of their groups one by one. Keeping whole seats individual is simpler and keeps every count exact. The trade-off is that sub-leaders outside the seat, and war leaders of folded groups, are not followed as people.
