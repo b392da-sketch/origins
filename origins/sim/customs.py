@@ -25,11 +25,14 @@ CUSTOMS = {
     "naming of children": ["after a grandparent", "after an animal", "after the season of birth",
                            "from a dream", "after a deed"],
     # M3: how a leader's place passes on (matters only where there is a leader to succeed)
-    "succession": ["to a son", "to a sister's son", "chosen by the council"],
+    "succession": ["to a son", "to a sister's son", "chosen by the council", "to a daughter"],
+    # M3: who speaks for a household (and so may lead, when a council chooses among household heads)
+    "household voice": ["the man", "the woman", "the elder of the two"],
 }
 NAMES = list(CUSTOMS)
 RESIDENCE = NAMES.index("marriage residence")
 SUCCESSION = NAMES.index("succession")
+HOUSEHOLD_VOICE = NAMES.index("household voice")
 RESIDENCE_WITH_HUSBAND = [0.85, 0.15, 0.5]       # chance she moves to his band, by variant
 N_NEUTRAL = 12
 

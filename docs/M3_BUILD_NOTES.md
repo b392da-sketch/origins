@@ -217,3 +217,16 @@ Until now, following a band that was a folded group unfolded it into individuals
 - **People brought out of a group** are marked "ancestry unrecorded", on the "why" chain and on their page, and nothing about their past is invented.
 
 Test: two copies of a world, one following a band, give identical digests after 10 years. Tests: 47 pass.
+
+## Leadership follows each people's customs (9 November 2026, Ben agreed)
+
+Until now, a council choosing the head of the richest household chose its man where there was one. That was an assumption built into the code, marked PROPOSED. It now follows custom:
+- **A new custom, "who speaks for a household":** the man, the woman, or the elder of the two. It drifts like the others.
+- **A fourth succession variant, "to a daughter":** succession through daughters is attested, for example among the Balobedu. Its chance of being contested is 25%, like "to a son".
+- **Unchanged:** "to a son" and "to a sister's son" still pass to men, as those customs say. That matches the common pattern in matrilineal societies, where authority passes through the mother's line but is often held by her brothers and sons. Fighters are still men of fighting age, as in most recorded warfare.
+
+Saves from before gain the new custom at variant 0. Tests: 47 pass.
+
+## Planned: comparison with Seshat (for the G3 report)
+
+Every rate in Origins is a starting value. For the M3 gate report, the patterns that can be compared with the Seshat Global History Databank (https://seshat-db.com/) will be: how polity population relates to levels of hierarchy, how long it takes from the first farming villages to the first states, and how often large polities fragment. The comparison will be of shape and order of magnitude, not a fit, since Origins' planets are not Earth.

@@ -157,7 +157,7 @@ SECESSION_BASE = 0.002             # yearly chance a member leaves when all is w
 SECESSION_OVERLOAD = 0.05          # ... added per unit of overload (load / capacity above 1)
 SECESSION_STRESS = 0.02            # ... added per unit of stress (failed harvest at the seat, contested succession, hunger)
 LAW_CALM = 0.3                     # law and judges cut the chance of secession by this share
-CONTESTED_SUCCESSION = [0.25, 0.2, 0.1]   # chance a succession is contested, by custom (son, sister's son, council)
+CONTESTED_SUCCESSION = [0.25, 0.2, 0.1, 0.25]   # chance a succession is contested, by custom (son, sister's son, council, daughter)
 CONTEST_YEARS = 5                  # years a contested succession weakens a polity
 NOTABLE_SEATS = 200                # the seats of at most this many chiefdoms and states are kept person by person
 

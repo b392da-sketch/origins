@@ -251,19 +251,34 @@ def _successor(w, seat, old, rule):
         if m >= 0:
             sisters = np.nonzero((p.mother[:p.n] == m) & (p.sex[:p.n] == 0))[0] if p.n < 3_000_000 else []
             cands = adult[np.isin(p.mother[adult], sisters) & (p.sex[adult] == 1)]
+    elif old >= 0 and rule == 3:
+        cands = adult[(p.mother[adult] == old) & (p.sex[adult] == 0)] if p.sex[old] == 0 else \
+            adult[(p.father[adult] == old) & (p.sex[adult] == 0)]
+    from . import customs
+    voice = int(w.customs[seat.id, customs.HOUSEHOLD_VOICE])
+
+    def speaker(i):
+        """Who speaks for person i's household, by the seat's custom: the man, the woman, or the elder."""
+        j = int(p.partner[i])
+        if j < 0 or not p.alive[j]:
+            return int(i)
+        man, woman = (i, j) if p.sex[i] == 1 else (j, i)
+        if voice == 0:
+            return int(man)
+        if voice == 1:
+            return int(woman)
+        return int(i if p.birth[i] <= p.birth[j] else j)
+
     if len(cands) == 0:
         heads = adult[p.wealth[adult] > 0]
         if len(heads):
             best = heads[np.argsort(-p.wealth[heads])]
             rich = float(p.wealth[best[0]])
             rivals = int((p.wealth[best[1:]] >= 0.7 * rich).sum())
-            new = int(best[0])
-            if p.sex[new] == 0 and p.partner[new] >= 0 and p.alive[p.partner[new]]:
-                new = int(p.partner[new])          # a household is led by its man where there is one (PROPOSED)
-            return new, rivals
-        men = adult[p.sex[adult] == 1]
-        pool = men if len(men) else adult
-        return int(pool[np.argmin(p.birth[pool])]), 0      # the eldest man in the prime of life
+            return speaker(int(best[0])), rivals      # the council chooses the richest household's speaker
+        pool = adult if voice == 2 else (adult[p.sex[adult] == (1 if voice == 0 else 0)] if
+                                         (p.sex[adult] == (1 if voice == 0 else 0)).any() else adult)
+        return int(pool[np.argmin(p.birth[pool])]), 0      # the eldest of those who speak for households
     order = cands[np.argsort(p.birth[cands])]
     return int(order[0]), len(order) - 1
 
