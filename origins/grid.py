@@ -59,8 +59,10 @@ class Grid:
         self.faces = f
         self.n = len(self.xyz)
         x, y, z = self.xyz.T
-        self.lat = np.degrees(np.arcsin(np.clip(z, -1, 1)))
-        self.lon = np.degrees(np.arctan2(y, x))
+        # rounded so that every machine gets the same values: several cells sit exactly on latitudes 27 and 30,
+        # where the last digit of arcsin (which differs between processors) would otherwise decide comparisons
+        self.lat = np.round(np.degrees(np.arcsin(np.clip(z, -1, 1))), 9)
+        self.lon = np.round(np.degrees(np.arctan2(y, x)), 9)
         self.cell_area_km2 = 4 * math.pi * radius_km ** 2 / self.n
         self._build_neighbours()
 
