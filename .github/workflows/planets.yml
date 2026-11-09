@@ -27,3 +27,12 @@ jobs:
       - run: pip install -r requirements.txt pytest
       - run: python -c "import numpy, platform; print(platform.machine(), platform.processor(), numpy.__version__)"
       - run: python -m pytest -q tests/test_planet_identity.py
+      - name: Save the planets for comparison
+        if: always()
+        run: python -c "import sys; sys.path.insert(0,'.'); import numpy as np; from origins.worldgen import generate; from tests.test_planet_identity import FIELDS; p=generate(1); np.savez('planet1.npz', **{k: getattr(p,k) for k in FIELDS})"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: planet1-${{ matrix.os }}-${{ matrix.python }}
+          path: planet1.npz
+          retention-days: 3
