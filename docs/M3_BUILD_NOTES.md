@@ -162,3 +162,14 @@ Checked on a test world (planet 4, 600 villages, 150 years): all views render wi
    - Officials over districts multiply the total by 3, and need tribute collectors and law first.
 
 Being tested locally (1,500 years with and without institutions) before G3.
+
+## Ben, 9 November 2026: open to the graphics card helping
+
+Ben's laptop: an i5-13420H (8 cores, 12 threads), 16 GB of memory, a 2 TB drive and an RTX 3050 with 6 GB. He is open to using the graphics card to speed up the simulation (the display needs none of it).
+
+**Proposed approach, to be brought to Ben as a design proposal when it is worth doing (likely after M4):**
+- **An optional array backend (CuPy) for the heavy array work:** deaths and births across many groups, foraging sums, conflict distances. The default stays NumPy on the processor.
+- **Two modes, because the graphics card's random numbers and rounding differ from the processor's:**
+  - A graphics-card run would be a "fast mode": statistically the same, but not digit-for-digit the same as a processor run.
+  - Exact replay and gate runs stay on the processor (GitHub's machines have no graphics cards).
+- **Why not now:** most of today's computing time is Python logic per band, which a graphics card does not speed up. It is worth adding once array work dominates, at hundreds of thousands of groups.
