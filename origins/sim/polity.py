@@ -76,9 +76,12 @@ def ensure(w, band_id: int, parent: int):
             old = getattr(w, k)
             a[:len(old)] = old
             setattr(w, k, a)
-    if parent >= 0 and w.polity_of[parent] >= 0:
-        w.polity_of[band_id] = w.polity_of[parent]        # a daughter settlement stays in its mother's polity
+    pid = int(w.polity_of[parent]) if parent >= 0 else -1
+    p = w.polities.get(pid) if pid >= 0 else None
+    if p is not None and p.alive and p.load < p.cap:
+        w.polity_of[band_id] = pid                        # a daughter settlement stays in its mother's polity ...
         w.polity_via[band_id] = parent                    # attached through her
+    # ... unless the polity already holds more than it can bear: then the new settlement goes its own way
     else:
         w.polity_of[band_id] = -1
         w.polity_via[band_id] = -1

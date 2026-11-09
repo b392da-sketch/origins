@@ -34,17 +34,21 @@ def _series_full(log):
     return s
 
 
-def collapses(rec, min_people=1000, min_settlements=5, window=100, drop=0.5):
-    """Collapses: a polity that held at least min_settlements and min_people lost at least `drop` of its people
-    within `window` years of its peak (or ended within that time). Returns [(year, peak people, seat cell)]."""
+def collapses(rec, min_settlements=10, held_years=50, window=100, drop=0.5):
+    """Collapses of established large polities: a polity that held at least min_settlements for at least held_years
+    lost at least `drop` of its people within `window` years of its peak (or ended within that time).
+    Returns [(year, peak people, seat cell)]."""
     out = []
     for pid, rows in _series(rec["polity_log"]).items():
         rows.sort()
+        big = [y for y, n, ppl, tier, cell in rows if n >= min_settlements]
+        if not big or max(big) - min(big) < held_years:
+            continue
         peak, peak_y, peak_cell = 0, None, -1
         for y, n, ppl, tier, cell in rows:
             if ppl > peak and n >= min_settlements:
                 peak, peak_y, peak_cell = ppl, y, cell
-        if peak < min_people or peak_y is None:
+        if peak_y is None:
             continue
         after = [(y, ppl) for y, n, ppl, tier, cell in rows if peak_y < y <= peak_y + window]
         last_y = rows[-1][0]
@@ -153,7 +157,7 @@ def report(out: Path) -> str:
     share = with_col / max(len(with_chief), 1)
     ok4 = with_chief and 0.2 <= share <= 0.9 and n_col > 0 and n_rec >= 0.5 * n_col
     checks.append(("4. Collapse in some histories, recovery after it", ok4,
-                   f"at least one collapse (a polity of 5+ settlements and 1,000+ people losing half its people "
+                   f"at least one collapse (a polity that held 10+ settlements for 50+ years losing half its people "
                    f"within a century) in {with_col} of {len(with_chief)} histories with chiefdoms; recovery (a polity "
                    f"of at least half that size seated within 4 cells within 1,000 years) after {n_rec} of {n_col} "
                    f"collapses (pass: collapses in 20–90% of histories; recovery after at least half)"))

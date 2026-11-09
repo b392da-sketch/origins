@@ -184,3 +184,26 @@ This is display only, in `observatory/index.html`; the simulation is untouched.
 - **Clicking** finds bands at their drawn positions.
 
 Cost: about 4–5 ms to draw 1,700 bands in a headless browser here, against the 16 ms a frame has at 60 frames a second. The map animates only while something is moving.
+
+## First trial gate (behaviour 5): results, 27 of 30 histories
+
+Run 42558662526, with the code before conflict, before levels of rule were counted through district heads, and before the institution changes above. Histories ran to 3,000 years after the first village.
+
+| Check | Result |
+|---|---|
+| 1 | M0 and M1 hold: 18 of 18 survived, no accounting failures, every cause chain complete. G2's "adoption dates" check fails because every one of these 18 histories farmed; it needs the full set. |
+| 2 | FAIL: chiefdoms in 18 of 18, and states in 18 of 18 within 225 years of the first village. Too fast. |
+| 3 | PASS: secession rises steadily with overload, from 0.4% a year to 15%. Rank correlation per history: median 0.99. |
+| 4 | Collapses in every history: as measured then, 2,516 of them, with recovery after nearly all. |
+| 5 | FAIL: the largest polity held 18–27 settlements with institutions and 10–14 without. |
+| 10 | PASS: 10,800 of 10,800 polity events traceable. |
+
+The local test with the new institution rules (planet 3, 1,500 years of farming) formed no state in 1,500 years. The largest polity reached 13 settlements, against about 8 without institutions. Secession rose from 1.2% a year without overload to 34% at heavy overload.
+
+**Further changes:**
+- **A daughter settlement leaves an overloaded polity:** it stays in its mother's polity only while that polity holds less than it can bear. Without institutions, polities had been kept large by their own daughters.
+- **The report's collapse measure** now counts only established large polities: those that held 10 or more settlements for at least 50 years and lost half their people within a century. On the first trial that still gives 550 collapses, in every history.
+
+**For Ben at G3:** the specification's mark, collapses in at most 90% of histories, may not fit a world where many polities rise and fall over thousands of years. In the archaeological record chiefdoms rise and fall repeatedly in most regions. This is to be raised with the G3 results, not changed now.
+
+A second trial, with all the M3 code, follows.
