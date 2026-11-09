@@ -230,3 +230,29 @@ Saves from before gain the new custom at variant 0. Tests: 47 pass.
 ## Planned: comparison with Seshat (for the G3 report)
 
 Every rate in Origins is a starting value. For the M3 gate report, the patterns that can be compared with the Seshat Global History Databank (https://seshat-db.com/) will be: how polity population relates to levels of hierarchy, how long it takes from the first farming villages to the first states, and how often large polities fragment. The comparison will be of shape and order of magnitude, not a fit, since Origins' planets are not Earth.
+
+## Second trial gate: results, 27 of 30 histories (night of 9 November 2026)
+
+Run 42585528434, with all the M3 code as of the early evening: conflict, levels of rule through district heads, institutions as rare discoveries, and daughters leaving overloaded polities. It did not yet have the change that watching changes nothing, or leadership by custom. Histories ran to 3,000 years after the first village.
+
+| Check | Result |
+|---|---|
+| 1 | PASS: M0–M2 hold. 19 of 19 survived, no accounting failures, life expectancy 26.7–28.0, every G2 check passes. |
+| 2 | FAIL: chiefdoms in 14 of 14 histories with farming, but **no state in any**. The first trial's states-everywhere has swung to states-nowhere. |
+| 3 | PASS: secession rises with overload, from 1.2% to 15% a year; rank correlation per history: median 1.00. |
+| 4 | PASS: collapses of established large polities in 12 of 14 histories, with recovery after 18 of 18. |
+| 5 | FAIL: **institutions make no difference**. The largest polity held 14–19 settlements with institutions and 14–19 without. |
+| 6 | PASS: war is 3.5 times as likely for hard-pressed sides, and falls with distance. This is by rule, so it checks the bookkeeping. |
+| 7 | PASS: deaths in war are 5.6–7.2% of deaths at 15 and over (median 6.7%), at the low end of the guide. |
+| 8 | PASS: 6,425 empires. Rank correlation of duration with overextension is −0.63, so overextended empires fall sooner. |
+| 10 | PASS: 10,800 of 10,800 polity events traceable. |
+
+**Why check 5 fails:**
+- **Institutions stay rare.** Polities rarely gather them: most held none; a few had up to four; none had officials, which is why there were no states.
+- **Size doesn't depend on capacity.** Large polities ran at 1–3 times their capacity whether or not they had institutions. They stayed at about 17 settlements because conquest kept adding villages as fast as overload drove them out.
+
+**Changes:**
+- **Annexing needs room:** a polity annexes a conquered village only while its load is below its capacity. Otherwise it plunders and leaves, as conquerors without the means to govern did.
+- **Institutions are found more readily:** a pressed polity finds its next institution with a 1% chance a year, up from 0.2%, and 20 times as fast where a neighbour has it.
+
+Being tested locally, 1,250 years with and without institutions, before the full G3 gate.
