@@ -63,18 +63,20 @@ def fission_and_merge(w):
     from . import groups
     p = w.people
     rng = w.rng["fission"]
-    sizes = np.rint(w.band_sizes()).astype(np.int64)
     live = w.living_bands()
+    ids, _pos = w.live_index()
+    sz = np.rint(w.live_sizes()).astype(np.int64).tolist()     # aligned with live
+    fsv = (w.farm_share[ids] >= 0.5).tolist()
     occupied: dict[int, float] = {}
-    for b in live:
-        occupied[b.cell] = occupied.get(b.cell, 0) + float(sizes[b.id])
+    for k, b in enumerate(live):
+        occupied[b.cell] = occupied.get(b.cell, 0) + float(sz[k])
     group_at = {}
-    for b in live:
-        key = (b.cell, bool(w.farm_share[b.id] >= 0.5))
+    for k, b in enumerate(live):
+        key = (b.cell, fsv[k])
         if b.mode == "group" and key not in group_at:
             group_at[key] = b
-    for b in live:
-        s = int(sizes[b.id])
+    for k, b in enumerate(live):
+        s = sz[k]
         limit = P.GROUP_FISSION_SIZE if b.mode == "group" else P.FISSION_SIZE
         if b.village:
             limit = max(limit, P.VILLAGE_FISSION_SIZE)
@@ -101,7 +103,7 @@ def fission_and_merge(w):
             continue          # a local population splitting within its own land would only be recombined at once
         if b.mode == "group":
             now = w.groups.total(b.group)          # current size: this group may already have taken people in this season
-            dst = group_at.get((target, bool(w.farm_share[b.id] >= 0.5)))
+            dst = group_at.get((target, fsv[k]))
             if dst is not None and dst.alive and dst.id != b.id:
                 # people moving into a neighbouring local population join it directly (the same result as
                 # splitting off a new group that then combines with it, without creating a band record)
@@ -122,7 +124,7 @@ def fission_and_merge(w):
             if res is None:
                 continue
             nb_, count = res
-            group_at[(target, bool(w.farm_share[b.id] >= 0.5))] = nb_
+            group_at[(target, fsv[k])] = nb_
         else:
             mem = w.members(b.id)
             units = _households(w, mem)
@@ -160,9 +162,10 @@ def fission_and_merge(w):
             continue
         w.event("fission", cell=target, band=b.id, causes=[{"note": why}],
                 new_band=nb_.id, moved=int(count), stayed=int(s - count))
-    sizes = np.rint(w.band_sizes()).astype(np.int64)
     nbr = w.planet.grid.neighbours
     live = w.living_bands()
+    ids, _pos = w.live_index()
+    sizes = dict(zip(ids.tolist(), np.rint(w.live_sizes()).astype(np.int64).tolist()))
     by_cell: dict[int, list] = {}
     for o in live:
         by_cell.setdefault(o.cell, []).append(o)
