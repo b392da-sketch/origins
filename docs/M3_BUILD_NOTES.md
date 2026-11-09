@@ -267,3 +267,17 @@ Planet 3, from its first farming village, 1,250 years, the same world with and w
 | Also: council, collectors and warriors do what the specification says | 13–15 | 6–9 | one, from year 774 (still standing at 1,250) |
 
 Institutions now roughly double what a polity can hold, short of the gate's mark of four times. What limits size is the steady loss of members even without overload (about 1.2% of members a year, after distance and cultural difference), against the rate at which villages join. Over 6,000 years of farming, institutions have far longer to gather and spread, so the full G3 gate is the real test. It is launched now; if check 5 still fails there, that goes to Ben with this analysis rather than more silent tuning.
+
+## G3 run 1: two histories lost at their checkpoints (10 November 2026)
+
+Two of 70 jobs failed: planet 1 seed 3 ("the runner has received a shutdown signal") and planet 4 seed 6 ("lost communication with the server"). Both failed at or just after their 4 h 30 min budget, when the checkpoint is written, so the save most likely exhausted the machine's memory.
+
+**Cause:** the event record. A local farming world (planet 3, year 24,000) held 1.43 million events, 791,000 of them wars, mostly forager raids. As JSON that is 524 MB, and as Python objects several times that. A checkpoint wrote all of it as one giant string.
+
+**Changes:**
+- **Saves stream events** to their own file, one per line, so no single huge string is ever built. Older saves still load.
+- **War events keep their reasons as four numbers**, and `explain.py` writes out the sentence.
+- **A raid driven off with nobody killed** leaves no event; it stays in the war log. Few raids qualify, so this saves little.
+- **The gate worker logs memory** every 500 years and at each checkpoint.
+
+The two histories are rerun with this code. The on-disk event store planned for M4 is the full answer.
