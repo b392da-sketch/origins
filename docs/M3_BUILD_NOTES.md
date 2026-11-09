@@ -173,3 +173,14 @@ Ben's laptop: an i5-13420H (8 cores, 12 threads), 16 GB of memory, a 2 TB drive 
   - A graphics-card run would be a "fast mode": statistically the same, but not digit-for-digit the same as a processor run.
   - Exact replay and gate runs stay on the processor (GitHub's machines have no graphics cards).
 - **Why not now:** most of today's computing time is Python logic per band, which a graphics card does not speed up. It is worth adding once array work dominates, at hundreds of thousands of groups.
+
+## Smooth movement on the map (9 November 2026, Ben's request)
+
+This is display only, in `observatory/index.html`; the simulation is untouched.
+- **Gliding:** a band that moves to a new cell glides there with easing: over 5 seconds normally, and 1.8 seconds while fast-forwarding, when many bands move at every update. A move across the map's edge goes the short way round.
+- **Spreading:** bands that share a cell are spread around its centre, each at a fixed offset, so a busy cell shows as a cluster.
+- **Fades:** new bands fade in, and ended bands fade out over 1.5 seconds.
+- **Splits:** a band that has just split off starts at its parent's position and glides out to its own cell. `/api/bands` now gives each band's parent.
+- **Clicking** finds bands at their drawn positions.
+
+Cost: about 4–5 ms to draw 1,700 bands in a headless browser here, against the 16 ms a frame has at 60 frames a second. The map animates only while something is moving.

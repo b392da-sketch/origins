@@ -229,6 +229,80 @@ function fitView(){
   view.k = 3 * devicePixelRatio;
   view.x = cw / 2 - sx * view.k; view.y = ch / 2 - sy * view.k;
 }
+// ---- smooth movement: the simulation moves bands one cell at a time; the map glides them between the two real
+// positions, spreads bands that share a cell around its centre, fades new and ended bands in and out, and starts a
+// band that has just split off at its parent's place. Purely display: nothing here changes the simulation.
+const ANIM = new Map();          // id -> {x0, y0, x1, y1, t0, dur, a0, a1}
+let DYING = [];                  // ended bands fading out: {b, x, y, t0}
+const FADE = 1500;
+function cellOffset(b, count){
+  if (count <= 1) return [0, 0];
+  const spacing = Math.sqrt(G.cell_km2) / 111;                 // one cell, in degrees of latitude
+  const k = (b.id * 2654435761) % 4096 / 4096;                  // fixed per band, so it does not jitter
+  const ang = b.id * 2.399963, rad = 0.32 * spacing * Math.sqrt(0.25 + 0.75 * k);
+  const c = Math.max(0.2, Math.cos(b.lat * Math.PI / 180));
+  return [Math.cos(ang) * rad / c, Math.sin(ang) * rad];
+}
+function animPos(id, now){
+  const a = ANIM.get(id);
+  if (!a) return null;
+  const f = Math.min(1, (now - a.t0) / a.dur), e = f < 0.5 ? 2 * f * f : 1 - (-2 * f + 2) ** 2 / 2;   // ease in and out
+  let x1 = a.x1;
+  if (Math.abs(x1 - a.x0) > W / 2) x1 += a.x0 > x1 ? W : -W;   // across the map's edge: the short way round
+  return [a.x0 + (x1 - a.x0) * e, a.y0 + (a.y1 - a.y0) * e, a.a0 + (a.a1 - a.a0) * Math.min(1, (now - a.t0) / FADE)];
+}
+function updateAnim(){
+  const now = performance.now();
+  const count = {};
+  for (const b of BANDS) count[b.cell] = (count[b.cell] || 0) + 1;
+  let moved = 0;
+  const seen = new Set();
+  for (const b of BANDS){
+    const [ox, oy] = cellOffset(b, count[b.cell]);
+    const [x1, y1] = proj(b.lon + ox, b.lat + oy);
+    const cur = animPos(b.id, now);
+    seen.add(b.id);
+    if (cur){
+      if (Math.abs(cur[0] - x1) > 0.01 || Math.abs(cur[1] - y1) > 0.01) moved++;
+      ANIM.set(b.id, {x0: cur[0], y0: cur[1], x1, y1, t0: now, dur: 0, a0: cur[2], a1: 1});
+    } else {
+      const par = b.parent >= 0 ? animPos(b.parent, now) : null;          // a split peels off from its parent
+      ANIM.set(b.id, {x0: par ? par[0] : x1, y0: par ? par[1] : y1, x1, y1, t0: now, dur: 0, a0: 0, a1: 1});
+    }
+  }
+  // fast-forwarding moves many bands at every update: glide quickly; otherwise drift slowly
+  const dur = moved > 0.2 * BANDS.length ? 1800 : 5000;
+  for (const a of ANIM.values()) a.dur = dur;
+  for (const [id, a] of ANIM){
+    if (!seen.has(id)){
+      const p = animPos(id, now);
+      if (p) DYING.push({id, x: p[0], y: p[1], t0: now, colour: a.colour || "#8a8f73", r: a.r || 3});
+      ANIM.delete(id);
+    }
+  }
+  animate();
+}
+let animating = false;
+function animate(){
+  if (animating) return;
+  animating = true;
+  const step = () => {
+    const now = performance.now();
+    DYING = DYING.filter(d => now - d.t0 < FADE);
+    let busy = DYING.length > 0;
+    for (const a of ANIM.values()) if (now - a.t0 < Math.max(a.dur, FADE)) { busy = true; break; }
+    draw();
+    if (busy) requestAnimationFrame(step); else animating = false;
+  };
+  requestAnimationFrame(step);
+}
+function bandXY(b, now){
+  const p = animPos(b.id, now);
+  if (p) return p;
+  const [x, y] = proj(b.lon, b.lat);
+  return [x, y, 1];
+}
+
 function draw(){
   if (!G) return;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -238,9 +312,18 @@ function draw(){
   for (const dx of [-W, 0, W]){
     ctx.drawImage(base, dx, 0); ctx.drawImage(fog, dx, 0);
   }
+  const now = performance.now();
+  for (const d of DYING){
+    ctx.globalAlpha = Math.max(0, 1 - (now - d.t0) / FADE);
+    for (const dx of [-W, 0, W]){ ctx.beginPath(); ctx.arc(d.x + dx, d.y, d.r * devicePixelRatio / view.k, 0, 2*Math.PI); ctx.fillStyle = d.colour; ctx.fill(); }
+  }
+  ctx.globalAlpha = 1;
   for (const b of BANDS){
-    const [x, y] = proj(b.lon, b.lat);
+    const [x, y, alpha] = bandXY(b, now);
     const r = (2.5 + Math.sqrt(b.size) * 0.45) * devicePixelRatio / view.k;
+    const a_ = ANIM.get(b.id);
+    if (a_){ a_.colour = bandColour(b); a_.r = 2.5 + Math.sqrt(b.size) * 0.45; }
+    ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
     for (const dx of [-W, 0, W]){
       ctx.beginPath(); ctx.arc(x + dx, y, r, 0, 2*Math.PI);
       ctx.fillStyle = bandColour(b);
@@ -252,6 +335,7 @@ function draw(){
       if (S && b.id === S.follow){ ctx.beginPath(); ctx.arc(x + dx, y, r * 1.9, 0, 2*Math.PI); ctx.lineWidth = 2 * devicePixelRatio / view.k; ctx.strokeStyle = "#ffffff"; ctx.stroke(); }
     }
   }
+  ctx.globalAlpha = 1;
   drawHazards();
   drawWars();
 }
@@ -303,9 +387,10 @@ function clickAt(e){
   const r = canvas.getBoundingClientRect();
   const mx = ((e.clientX - r.left) * devicePixelRatio - view.x) / view.k, my = ((e.clientY - r.top) * devicePixelRatio - view.y) / view.k;
   let best = null, bd = 1e9;
+  const now = performance.now();
   for (const b of BANDS){
     for (const dx of [-W, 0, W]){
-      const [x, y] = proj(b.lon, b.lat); const d = Math.hypot(x + dx - mx, y - my);
+      const [x, y] = bandXY(b, now); const d = Math.hypot(x + dx - mx, y - my);
       if (d < bd){ bd = d; best = b; }
     }
   }
@@ -477,6 +562,7 @@ async function refresh(force){
   S = await api("/api/state?since=" + lastKnownT);
   if (S.known.length){ reveal(S.known); lastKnownT = S.t; }
   BANDS = await api("/api/bands");
+  updateAnim();
   $("#clock").innerHTML = `${S.years_bp.toLocaleString()} BP<small>${S.season} (northern calendar) · planet ${S.world_seed}, history ${S.run_seed}</small>`;
   $("#s-pop").textContent = S.population.toLocaleString();
   $("#s-ind").textContent = S.individuals.toLocaleString();

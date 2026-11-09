@@ -179,7 +179,8 @@ def bands_view(w) -> list:
         if fs > 0.02:
             main = farming.NAMES[farming.SPECIES[int(KP[n]) if VP[n] >= VA[n] else int(KA[n])]]
         surplus_pp = max(0.0, b.store - P.SURPLUS_RESERVE * size * surplus.ANNUAL) / max(size, 1.0)
-        out.append({"id": b.id, "cell": b.cell, "lon": round(float(g.lon[b.cell]), 3), "lat": round(float(g.lat[b.cell]), 3),
+        out.append({"id": b.id, "cell": b.cell, "parent": b.parent,
+                    "lon": round(float(g.lon[b.cell]), 3), "lat": round(float(g.lat[b.cell]), 3),
                     "size": int(round(size)), "mode": b.mode, "name": w.band_name(b), "ratio": round(b.last_ratio, 3),
                     "lang": b.language, "hue": lang_hue(w, b.language), "custom": custom_key(w, b.id),
                     "farm": round(fs, 2), "village": bool(b.village), "crop": main,
