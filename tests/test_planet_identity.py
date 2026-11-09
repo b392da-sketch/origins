@@ -16,7 +16,7 @@ from origins.worldgen import generate  # noqa: E402
 
 FIELDS = ["elevation", "land", "lake", "downstream", "flow", "river", "coast", "temp_mean", "temp_season", "rain",
           "biome", "capacity", "season_food", "region", "plate", "volcanic", "seismic"]
-EXPECTED = {1: "678dafc917", 2: "84f93b3c2c", 3: "70749bf427", 4: "7407f2d325", 5: "f1ed677f05"}
+EXPECTED = {1: "7dba1eb5e3", 2: "c78ca970b5", 3: "5aae95b437", 4: "7407f2d325", 5: "2f2fbbef89"}
 
 
 def exact(p) -> str:

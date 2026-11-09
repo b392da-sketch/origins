@@ -32,7 +32,7 @@ def _subdivide(verts: list, faces: np.ndarray):
         i = cache.get(key)
         if i is None:
             p = verts[a] + verts[b]
-            p = p / math.sqrt(float(p @ p))
+            p = p / math.sqrt(float(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]))   # not p @ p: BLAS may fuse
             verts.append(p)
             i = len(verts) - 1
             cache[key] = i

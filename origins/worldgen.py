@@ -70,6 +70,14 @@ class Planet:
         return self.grid.n
 
 
+DEBUG = None                 # set to a dict to keep intermediate fields (comparing machines)
+
+
+def _keep(**kw):
+    if DEBUG is not None:
+        DEBUG.update({k: np.array(v) for k, v in kw.items()})
+
+
 def _q(x, step):
     """Round to a multiple of step. World generation rounds after every step whose last digits can differ
     between processors (powers, exponentials, trigonometry, matrix products), so that every machine builds the
@@ -132,6 +140,8 @@ def generate(seed: int, level: int = GRID_LEVEL, radius_km: float = PLANET_RADIU
     above = above / max(above.max(), 1e-9)
     plates = _plates(grid, seed, nz)
     # mountains rise where plates converge; ridged noise gives them shape
+    _keep(xyz=xyz, warp=warp, continents=continents, detail=detail, ridges=ridges, raw=raw, plate=plates["plate"],
+          conv=plates["convergence"], uplift=plates["uplift"])
     uplift = plates["uplift"]
     mountain = np.clip(uplift * (0.55 + 0.45 * ridges), 0, 1)
     elevation = np.where(land, 40 + 2000 * above ** 1.3 + 6500 * mountain ** 1.3 * np.clip(above * 6 + 0.35, 0, 1),
