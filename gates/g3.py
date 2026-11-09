@@ -104,16 +104,25 @@ def worker(jobs, budget, ckpt: Path, institutions: bool):
         else:
             w = World.new(ws, rs, _planet(ws))
             spent, pr = 0.0, g2.new_probe()
+        import resource
         while not done(w):
             engine.step(w, 4)
             g2.probe(w, pr)
+            if w.year % 500 == 0:
+                print(f"w{ws} s{rs}{tag}: year {w.year}, {w.population():,} people, {len(w.events):,} events, "
+                      f"peak memory {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.2f} GB", flush=True)
             if w.first_village is not None and "fv_deaths" not in pr:
                 # deaths so far, to measure causes of death in the farming era (check 7)
                 pr["fv_deaths"] = {"by_cause": w.accum["deaths_by_cause"].tolist(), "by_age": w.accum["deaths"].tolist()}
             if time.time() > t_end:
                 g2.save_planet(cp, w.planet)
                 tmp = cp.with_suffix(".tmp")
+                import gc
+                gc.collect()
+                t0 = time.time()
                 tmp.write_bytes(persist.to_bytes(w, fast=True))
+                print(f"checkpoint written in {time.time() - t0:.0f} s; peak memory "
+                      f"{resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.2f} GB", flush=True)
                 tmp.replace(cp)
                 meta.write_text(json.dumps({"seconds": spent + time.time() - start, "year": w.year, "probe": pr}))
                 print(f"w{ws} s{rs}{tag}: checkpoint at year {w.year}", flush=True)

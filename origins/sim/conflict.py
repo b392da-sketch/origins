@@ -282,20 +282,12 @@ def _fight(w, rng, s, mem, b, t, d, sc, cd, share, g, att, dfd, is_pol, pol, siz
     ts = side_of(w, t)
     an = w.band_name(w.bands[pol.seat]) if is_pol else w.band_name(b)
     tn = w.band_name(t)
-    reasons = []
-    if sc > 0:
-        reasons.append(f"hunger at home (scarcity {sc:.2f})")
-    reasons.append(f"strength {share:.0%} of the fighters on both sides")
-    if cd > 0.3:
-        reasons.append(f"a different people (cultural distance {cd:.2f})")
-    if g >= 1:
-        reasons.append(f"revenge for {g:.0f} remembered killings")
-    causes = [{"note": f"{an} attacked {tn}: " + "; ".join(reasons)}]
-    if is_pol:
-        causes.append({"event": pol.founding_event})
+    # the reasons are kept as numbers and written out by explain.py (a war is one of the commonest events)
+    causes = [{"event": pol.founding_event}] if is_pol else []
     win = rng.random() < share ** P.WAR_DECISIVENESS / (share ** P.WAR_DECISIVENESS + (1 - share) ** P.WAR_DECISIVENESS)
     eid = w.event("war", cell=t.cell, band=b.id, causes=causes, target=t.id, attacker_polity=s[1] if is_pol else -1,
-                  defender_polity=ts[1] if ts[0] == "p" else -1, won=bool(win))
+                  defender_polity=ts[1] if ts[0] == "p" else -1, won=bool(win),
+                  why=[round(sc, 2), round(share, 3), round(cd, 2), round(g, 1)])
     fa = att / max(1.0, 1 + P.WARRIOR_STRENGTH * (pol.inst[polity.WARRIORS] if is_pol else 0))
     loss_a = P.WAR_LOSS * fa * (1 - share) * (0.5 if win else 1.0)
     loss_d = P.WAR_LOSS * fighters.get(t.id, 0.0) * share * (1.5 if win else 0.7)
@@ -321,8 +313,11 @@ def _fight(w, rng, s, mem, b, t, d, sc, cd, share, g, att, dfd, is_pol, pol, siz
                 outcome = _conquer(w, b, t, s, ts, is_pol, pol, eid)
     w.war_log.append([w.year, b.id, t.id, round(sc, 3), round(d, 2), round(cd, 3), round(share, 3), outcome,
                       da, dd, int(is_pol)])
-    w.events[eid]["data"].update(outcome=OUTCOMES[outcome], attacker_deaths=da, defender_deaths=dd,
-                                 food_taken=round(took, 1), captives=caps)
+    if outcome == 0 and da == 0 and dd == 0 and eid == len(w.events) - 1:
+        w.events.pop()                    # a raid driven off with no one killed leaves no event (it is in the war log)
+    else:
+        w.events[eid]["data"].update(outcome=OUTCOMES[outcome], attacker_deaths=da, defender_deaths=dd,
+                                     food_taken=round(took, 1), captives=caps)
     if win and ts[0] == "p" and w.polities[ts[1]].alive:
         dp = w.polities[ts[1]]
         dp.defeated_until = max(dp.defeated_until, w.t + P.DEFEAT_YEARS * P.TICKS_PER_YEAR)

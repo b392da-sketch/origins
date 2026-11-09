@@ -19,6 +19,23 @@ def when(w, t: int) -> str:
     return f"{P.START_YEARS_BP - year:,} years before present, {season} (northern calendar)"
 
 
+def _war_reasons(w, e) -> str:
+    sc, share, cd, g = e["data"]["why"]
+    a = w.bands.get(e["band"])
+    t = w.bands.get(e["data"].get("target"))
+    reasons = []
+    if sc > 0:
+        reasons.append(f"hunger at home (scarcity {sc:.2f})")
+    reasons.append(f"strength {share:.0%} of the fighters on both sides")
+    if cd > 0.3:
+        reasons.append(f"a different people (cultural distance {cd:.2f})")
+    if g >= 1:
+        reasons.append(f"revenge for {g:.0f} remembered killings")
+    an = w.band_name(a) if a else "a band"
+    tn = w.band_name(t) if t else "a neighbour"
+    return f"{an} attacked {tn}: " + "; ".join(reasons)
+
+
 def describe(w, ref: dict) -> dict:
     p = w.people
     if "note" in ref:
@@ -26,7 +43,10 @@ def describe(w, ref: dict) -> dict:
     if "event" in ref:
         e = w.events[int(ref["event"])]
         title = _event_title(w, e)
-        return {"title": title, "t": e["t"], "when": when(w, e["t"]), "cell": e["cell"], "causes": e["causes"],
+        causes = e["causes"]
+        if e["kind"] == "war" and "why" in e["data"]:
+            causes = [{"note": _war_reasons(w, e)}] + causes
+        return {"title": title, "t": e["t"], "when": when(w, e["t"]), "cell": e["cell"], "causes": causes,
                 "ref": ref}
     if "death" in ref:
         i = int(ref["death"])

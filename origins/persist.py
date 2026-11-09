@@ -54,7 +54,7 @@ def to_bytes(w: World, fast: bool = False) -> bytes:
         "invariant_failures": w.invariant_failures,
         "rng": {k: g.bit_generator.state for k, g in w.rng.items()},
         "region_z": w.region_z, "region_factor": w.region_factor, "region_bad_event": w.region_bad_event,
-        "yearly": w.yearly, "accum": w.accum, "season_stats": w.season_stats, "events": w.events,
+        "yearly": w.yearly, "accum": w.accum, "season_stats": w.season_stats,
         "bands": [dataclasses.asdict(b) for b in w.bands.live.values()], "band_strings": w.bands.strings,
         "reveal_pending": sorted(w.reveal_pending), "pending_restore": w.pending_restore,
         "env": environment(),
@@ -76,6 +76,16 @@ def to_bytes(w: World, fast: bool = False) -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED, compresslevel=1 if fast else None) as z:
         z.writestr("meta.json", json.dumps(_jsonable(meta), separators=(",", ":")))
+        # events are written one per line, streamed, so a history of millions of events never becomes one huge string
+        with z.open("events.jsonl", "w", force_zip64=True) as f:
+            chunk = []
+            for e in w.events:
+                chunk.append(json.dumps(_jsonable(e), separators=(",", ":")))
+                if len(chunk) >= 5000:
+                    f.write(("\n".join(chunk) + "\n").encode())
+                    chunk = []
+            if chunk:
+                f.write(("\n".join(chunk) + "\n").encode())
         a = io.BytesIO()
         (np.savez if fast else np.savez_compressed)(a, **arrays)
         z.writestr("arrays.npz", a.getvalue())
@@ -86,6 +96,9 @@ def from_bytes(data: bytes, planet=None) -> World:
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         meta = json.loads(z.read("meta.json"))
         arrays = dict(np.load(io.BytesIO(z.read("arrays.npz"))))
+        if "events.jsonl" in z.namelist():
+            with z.open("events.jsonl") as f:
+                meta["events"] = [json.loads(line) for line in io.TextIOWrapper(f, encoding="utf-8") if line.strip()]
     if meta.get("schema") not in READABLE_SCHEMAS:
         raise ValueError(f"unsupported save schema {meta.get('schema')} (this version reads {READABLE_SCHEMAS})")
     planet = planet if planet is not None and planet.seed == meta["world_seed"] else generate(meta["world_seed"])
