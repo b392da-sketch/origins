@@ -27,17 +27,28 @@ def _series(log):
     return s
 
 
-def collapses(rec, min_people=1000, min_settlements=5, window=100, drop=0.5):
-    """Collapses: a polity that held at least min_settlements and min_people lost at least `drop` of its people
-    within `window` years of its peak (or ended within that time). Returns [(year, peak people, seat cell)]."""
+def _series_full(log):
+    s = {}
+    for r in log:
+        s.setdefault(r[1], []).append(r)
+    return s
+
+
+def collapses(rec, min_settlements=10, held_years=50, window=100, drop=0.5):
+    """Collapses of established large polities: a polity that held at least min_settlements for at least held_years
+    lost at least `drop` of its people within `window` years of its peak (or ended within that time).
+    Returns [(year, peak people, seat cell)]."""
     out = []
     for pid, rows in _series(rec["polity_log"]).items():
         rows.sort()
+        big = [y for y, n, ppl, tier, cell in rows if n >= min_settlements]
+        if not big or max(big) - min(big) < held_years:
+            continue
         peak, peak_y, peak_cell = 0, None, -1
         for y, n, ppl, tier, cell in rows:
             if ppl > peak and n >= min_settlements:
                 peak, peak_y, peak_cell = ppl, y, cell
-        if peak < min_people or peak_y is None:
+        if peak_y is None:
             continue
         after = [(y, ppl) for y, n, ppl, tier, cell in rows if peak_y < y <= peak_y + window]
         last_y = rows[-1][0]
@@ -146,7 +157,7 @@ def report(out: Path) -> str:
     share = with_col / max(len(with_chief), 1)
     ok4 = with_chief and 0.2 <= share <= 0.9 and n_col > 0 and n_rec >= 0.5 * n_col
     checks.append(("4. Collapse in some histories, recovery after it", ok4,
-                   f"at least one collapse (a polity of 5+ settlements and 1,000+ people losing half its people "
+                   f"at least one collapse (a polity that held 10+ settlements for 50+ years losing half its people "
                    f"within a century) in {with_col} of {len(with_chief)} histories with chiefdoms; recovery (a polity "
                    f"of at least half that size seated within 4 cells within 1,000 years) after {n_rec} of {n_col} "
                    f"collapses (pass: collapses in 20–90% of histories; recovery after at least half)"))
@@ -164,6 +175,68 @@ def report(out: Path) -> str:
                    f"({_range_txt(big)}), {np.median(kbig) if kbig else 0:.0f} without ({_range_txt(kbig)}, "
                    f"{len(kfarm)} histories with farming); states without institutions: {kstates} "
                    f"(pass: median under a quarter, no states)"))
+
+    # 6 conflict rises with scarcity and proximity
+    def rates(key):
+        pooled = {}
+        for x in allr:
+            for b, (n, k) in x.get("war_stats", {}).get(key, {}).items():
+                a = pooled.setdefault(int(b), [0, 0])
+                a[0] += n
+                a[1] += k
+        return {b: v[1] / v[0] for b, v in sorted(pooled.items()) if v[0] >= 100}
+    rs, rd = rates("scarcity"), rates("distance")
+    have6 = any(x.get("war_stats") for x in allr)
+    up_s = bool(rs) and 0 in rs and len(rs) >= 2 and float(np.mean([v for k, v in rs.items() if k >= 1])) > 1.5 * rs[0]
+    vals_d = [rd[k] for k in sorted(rd)]
+    down_d = len(vals_d) >= 2 and all(a_ > b_ for a_, b_ in zip(vals_d, vals_d[1:]))
+    ok6 = have6 and up_s and down_d
+    checks.append(("6. Conflict rises with scarcity and proximity", ok6 if have6 else None,
+                   "chance of war per side and neighbour weighed, by scarcity (quarters): "
+                   + ", ".join(f"{b / 4:.2f}+: {v:.3f}" for b, v in rs.items())
+                   + "; by distance (cells): " + ", ".join(f"{b}: {v:.3f}" for b, v in rd.items())
+                   + " (pass: pressed sides at least 1.5 times as warlike as unpressed ones; war falling with "
+                     "each cell of distance). Note: both enter the chance of war by rule, so this checks the bookkeeping; "
+                     f"check 8 and the collapse checks test what follows from war"))
+
+    # 7 conflict has costs
+    shares = []
+    for x in allr:
+        ds = x.get("deaths_since_village")
+        if not ds:
+            continue
+        war = ds["by_cause"].get("killed in war", 0)
+        adult = sum(ds["by_age"][4:])            # deaths at 15 and over (age groups 0, 1-4, 5-9, 10-14 excluded)
+        if adult > 0:
+            shares.append(war / adult)
+    losers = [r_ for x in allr for r_ in x.get("war_log", []) if r_[7] > 0]
+    ok7 = bool(shares) and 0.02 <= min(shares) and max(shares) <= 0.30 and 0.05 <= float(np.median(shares)) <= 0.25
+    checks.append(("7. Conflict has costs", ok7 if shares else None,
+                   f"deaths in war after the first farming village, as a share of deaths at 15 and over: "
+                   f"{_range_txt([round(s, 3) for s in shares])} (median {np.median(shares) if shares else 0:.3f}); "
+                   f"{len(losers):,} sampled wars the attacker won, each taking stores, captives or settlements "
+                   f"(pass: 2–30%, median 5–25%; plausibility guide 12–16% of adult deaths among foragers, Bowles 2009)"))
+
+    # 8 conquest builds empires that are hard to hold
+    life, ext = [], []
+    n_emp = 0
+    for x in runs:
+        for pid, rows_ in _series_full(x["polity_log"]).items():
+            if not any(rw[10] >= 2 and rw[11] >= 1 for rw in rows_ if len(rw) > 11):
+                continue
+            n_emp += 1
+            ys = [rw[0] for rw in rows_]
+            span = max(ys) - min(ys)
+            if max(ys) >= x["completed_years"] - 20:
+                continue                    # still standing at the end: duration unknown
+            life.append(span)
+            ext.append(float(np.mean([rw[5] / max(rw[6], 1e-9) for rw in rows_])))
+    rho_e = _spearman(np.array(ext), np.array(life, float)) if len(life) >= 5 else float("nan")
+    ok8 = n_emp > 0 and len(life) >= 5 and rho_e < -0.1
+    checks.append(("8. Conquest builds empires that are hard to hold", ok8 if n_emp else None,
+                   f"{n_emp} empires (polities holding conquered settlements of another language) across the "
+                   f"histories; for the {len(life)} that ended, rank correlation of duration with mean overextension "
+                   f"(load ÷ capacity): {rho_e:.2f} (pass: clearly negative)"))
 
     # 10 traceable
     chk = sum(r["polity_explain_checked"] for r in allr)

@@ -49,6 +49,8 @@ class Polity:
     load: float = 0.0
     cap: float = 0.0
     contested_until: int = -1    # tick until which a contested succession weakens it
+    defeated_until: int = -1     # tick until which a lost war weakens it
+    led_since: int = -1          # when the present leader took over
     peak_people: int = 0
     founding_event: int = -1
 
@@ -58,7 +60,8 @@ def init(w):
     w.next_polity = 0
     w.polity_of = np.full(64, -1, dtype=np.int32)
     w.polity_via = np.full(64, -1, dtype=np.int32)
-    w.polity_log = []            # every 10 years: [year, polity, settlements, people, depth, load, capacity, institutions, tier, seat cell]
+    w.polity_log = []            # every 10 years: [year, polity, settlements, people, depth, load, capacity, institutions, tier, seat cell,
+                                 #  languages spoken, settlements once conquered]
     w.sec_stats = {}             # overload bin -> [member-years, secessions]
     w.polity_firsts = {}         # tier name -> event id of the first polity to reach it
 
@@ -73,9 +76,12 @@ def ensure(w, band_id: int, parent: int):
             old = getattr(w, k)
             a[:len(old)] = old
             setattr(w, k, a)
-    if parent >= 0 and w.polity_of[parent] >= 0:
-        w.polity_of[band_id] = w.polity_of[parent]        # a daughter settlement stays in its mother's polity
+    pid = int(w.polity_of[parent]) if parent >= 0 else -1
+    p = w.polities.get(pid) if pid >= 0 else None
+    if p is not None and p.alive and p.load < p.cap:
+        w.polity_of[band_id] = pid                        # a daughter settlement stays in its mother's polity ...
         w.polity_via[band_id] = parent                    # attached through her
+    # ... unless the polity already holds more than it can bear: then the new settlement goes its own way
     else:
         w.polity_of[band_id] = -1
         w.polity_via[band_id] = -1
@@ -94,7 +100,14 @@ def cultural_distance(w, a, b) -> float:
     from . import customs, language
     d = customs.distance(w, a.id, b.id)
     if a.language != b.language:
-        d = 0.5 * d + 0.5 * (1 - language.shared_roots(w.languages[a.language], w.languages[b.language]))
+        cache = getattr(w, "_roots_cache", None)
+        if cache is None or cache[0] != w.year:
+            cache = w._roots_cache = (w.year, {})
+        key = (min(a.language, b.language), max(a.language, b.language))
+        sr = cache[1].get(key)
+        if sr is None:
+            sr = cache[1][key] = language.shared_roots(w.languages[a.language], w.languages[b.language])
+        d = 0.5 * d + 0.5 * (1 - sr)
     else:
         d = 0.5 * d
     return d
@@ -127,6 +140,38 @@ def _depths(w, mem_ids, seat):
     return depth
 
 
+def levels_of_rule(w, mem_ids, seat) -> int:
+    """Levels of rule above the village: the seat is one level if at least two settlements answer to it; each
+    settlement through which at least two others answer (a district head) adds a level below it. A chain of
+    daughter villages, each attached through its mother, is not a hierarchy and adds nothing."""
+    kids: dict[int, list] = {}
+    for i in mem_ids:
+        if i == seat:
+            continue
+        v = int(w.polity_via[i])
+        kids.setdefault(v if v >= 0 else seat, []).append(i)
+
+    def lv(node, guard=0) -> int:
+        ch = kids.get(node, [])
+        below = max((lv(c, guard + 1) for c in ch), default=0) if guard < 64 else 0
+        return below + (1 if len(ch) >= 2 else 0)
+    return lv(seat)
+
+
+def _neighbour_has(w, p, k, cache):
+    """A polity seated within reach (three rings) that has institution k, to learn it from; or None."""
+    from .language import ring2
+    nb = w.planet.grid.neighbours
+    seat_cell = w.bands[p.seat].cell
+    near = set(int(c) for c in ring2(w)[seat_cell])
+    near |= {int(x) for c in list(near) for x in nb[c] if x >= 0}
+    for c in near:
+        for q in cache["seats"].get(c, ()):
+            if q.id != p.id and q.alive and q.inst[k]:
+                return q.id
+    return None
+
+
 def max_depth(p) -> int:
     """How many levels of rule a polity's institutions can support."""
     return 1 + p.inst[COLLECTORS] + 2 * p.inst[OFFICIALS]
@@ -137,7 +182,8 @@ def staff_needed(p, n_members) -> float:
 
 
 def capacity(p) -> float:
-    return P.POLITY_CAPACITY * (1 + sum(P.INSTITUTION_GAIN[k] for k in range(len(INSTITUTIONS)) if p.inst[k]))
+    c = P.POLITY_CAPACITY * (1 + sum(P.INSTITUTION_GAIN[k] for k in range(len(INSTITUTIONS)) if p.inst[k] and k != OFFICIALS))
+    return c * (P.OFFICIALS_MULTIPLIER if p.inst[OFFICIALS] else 1.0)
 
 
 def tier_of(p, depth, n_settlements) -> int:
@@ -162,6 +208,7 @@ def _new_polity(w, seat, causes, parent=-1, why="") -> Polity:
     pid = w.next_polity
     w.next_polity += 1
     p = Polity(pid, seat.id, w.t, _name(w, seat), parent=parent)
+    p.led_since = w.t
     p.leader = seat.leader if seat.mode == "individual" and seat.leader >= 0 and w.people.alive[seat.leader] \
         and int(w.people.band[seat.leader]) == seat.id else _successor(w, seat, -1, 2)[0]
     w.polities[pid] = p
@@ -190,7 +237,10 @@ def _successor(w, seat, old, rule):
     mem = w.members(seat.id)
     if not len(mem):
         return -1, 0
-    adult = mem[w.ages(mem) >= 18]
+    ages = w.ages(mem)
+    adult = mem[(ages >= 20) & (ages < 60)]          # an heir in the prime of life where there is one
+    if not len(adult):
+        adult = mem[ages >= 18]
     if not len(adult):
         return -1, 0
     cands = np.zeros(0, dtype=np.int64)
@@ -213,7 +263,7 @@ def _successor(w, seat, old, rule):
             return new, rivals
         men = adult[p.sex[adult] == 1]
         pool = men if len(men) else adult
-        return int(pool[np.argmin(p.birth[pool])]), 0
+        return int(pool[np.argmin(p.birth[pool])]), 0      # the eldest man in the prime of life
     order = cands[np.argsort(p.birth[cands])]
     return int(order[0]), len(order) - 1
 
@@ -286,6 +336,7 @@ def yearly(w):
         rule = int(w.customs[seat.id, customs.SUCCESSION])
         new, rivals = _successor(w, seat, old, rule)
         p.leader = new
+        p.led_since = w.t
         if died and new >= 0:
             contested = rivals > 0 and rng.random() < P.CONTESTED_SUCCESSION[rule]
             if contested:
@@ -319,6 +370,10 @@ def yearly(w):
             seat.store += give
 
     # --- load, capacity, institutions, tier; secessions
+    r2_cache = {"seats": {}}
+    for q in w.polities.values():
+        if q.alive:
+            r2_cache["seats"].setdefault(w.bands[q.seat].cell, []).append(q)
     for pid, mem in by_polity.items():
         p = w.polities[pid]
         seat = w.bands[p.seat]
@@ -332,6 +387,9 @@ def yearly(w):
             d = _cells_apart(w, seat.cell, b.cell)
             cd = cultural_distance(w, seat, b)
             u = np.sqrt(max(size_of.get(b.id, 0), 1) / 150.0) * (1 + d / P.LOAD_DISTANCE) * (1 + P.LOAD_CULTURE * cd)
+            ca = int(w.conquered_at[b.id]) if hasattr(w, "conquered_at") else -1
+            if ca >= 0 and w.t - ca < P.CONQUEST_MEMORY * P.TICKS_PER_YEAR:
+                u *= 1 + P.CONQUEST_LOAD * (1 - (w.t - ca) / (P.CONQUEST_MEMORY * P.TICKS_PER_YEAR))
             unit[b.id] = (u, d, cd)
             load += u
         p.load = load
@@ -348,22 +406,28 @@ def yearly(w):
                                      f"{staff_needed(p, n) + 0:.0f}"}])
             p.cap = capacity(p)
         elif P.INSTITUTIONS and load > P.INSTITUTION_PRESSURE * p.cap:
+            # an institution is a new way of doing things: under pressure, a polity finds one only now and then,
+            # much sooner where a neighbouring polity already has it to copy
             order = [COUNCIL, COLLECTORS, LAW, WARRIORS, OFFICIALS]
             for k in order:
-                if p.inst[k] or (k == OFFICIALS and not p.inst[COLLECTORS]):
+                if p.inst[k] or (k == OFFICIALS and not (p.inst[COLLECTORS] and p.inst[LAW])):
                     continue
+                example = _neighbour_has(w, p, k, r2_cache)
+                if rng.random() >= P.INSTITUTION_INVENT * (P.INSTITUTION_COPY if example is not None else 1.0):
+                    break
                 p.inst[k] = 1
                 if staff >= staff_needed(p, n):
                     w.event("institution_founded", cell=seat.cell, band=seat.id, polity=pid,
                             institution=INSTITUTIONS[k],
-                            causes=[{"event": p.founding_event},
+                            causes=[{"event": p.founding_event}] + ([{"note": f"copied from {w.polities[example].name}"}, {"event": w.polities[example].founding_event}]
+                                                                     if example is not None else []) + [
                                     {"note": f"{p.name} held {n} settlements: load {load:.1f} against capacity "
                                              f"{p.cap:.1f}; {staff:.0f} specialists at the seat could staff it"}])
                     p.cap = capacity(p)
                 else:
                     p.inst[k] = 0
                 break
-        dmax = max(depth.values()) if depth else 0
+        dmax = levels_of_rule(w, mem_ids, p.seat)
         p.tier = tier_of(p, dmax, n)
         people = int(sum(size_of.get(i, 0) for i in mem_ids))
         p.peak_people = max(p.peak_people, people)
@@ -375,8 +439,11 @@ def yearly(w):
                                                                     {"note": f"{p.name}: {n} settlements, "
                                                                              f"{dmax} levels of rule"}])
         if w.year % 10 == 0:
+            langs = len({b.language for b in mem})
+            conq = sum(1 for b in mem if hasattr(w, "conquered_at") and w.conquered_at[b.id] >= 0)
             w.polity_log.append([w.year, pid, n, people, dmax, round(load, 2), round(p.cap, 2),
-                                 int(sum(1 << k for k in range(len(INSTITUTIONS)) if p.inst[k])), p.tier, int(seat.cell)])
+                                 int(sum(1 << k for k in range(len(INSTITUTIONS)) if p.inst[k])), p.tier, int(seat.cell),
+                                 langs, conq])
         # secessions
         over = max(0.0, load / max(p.cap, 1e-9) - 1)
         stress = 0.0
@@ -387,6 +454,9 @@ def yearly(w):
         if p.contested_until > w.t:
             stress += 1.0
             notes.append("a contested succession")
+        if p.defeated_until > w.t:
+            stress += 1.0
+            notes.append("a lost war")
         law = 1 - P.LAW_CALM * p.inst[LAW]
         bin_ = min(int(over * 4), 12)
         st = w.sec_stats.setdefault(bin_, [0, 0])
@@ -476,6 +546,17 @@ def yearly(w):
         w.event("polity_joined", cell=b.cell, band=b.id, polity=pid, causes=[{"note": why}],
                 through=best.id)
 
+    # --- notables stay individual: the seats of chiefdoms and states are followed person by person (their
+    # leaders, heirs and households), even where the world has folded its people into groups
+    if P.NOTABLE_SEATS:
+        from . import groups
+        seats = sorted((p for p in w.polities.values() if p.alive and p.tier >= 1), key=lambda p: -p.load)
+        for p in seats[:P.NOTABLE_SEATS]:
+            seat = w.bands[p.seat]
+            if seat.alive and seat.mode == "group" and seat.group >= 0:
+                groups.unfold(w, seat)
+                p.leader, _ = _successor(w, seat, -1, 2)
+                p.led_since = w.t
     del w.polity_log[:-40000]
 
 

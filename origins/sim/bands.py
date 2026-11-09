@@ -240,7 +240,9 @@ def fold_distant(w):
     xyz = w.planet.grid.xyz
     focus = w.bands[w.follow].cell if w.follow >= 0 and w.bands[w.follow].alive else w.planet.start_cell
     sizes = np.bincount(w.people.band[w.alive_idx()], minlength=w.next_band)
-    cands = [b for b in w.living_bands() if b.mode == "individual" and b.id != w.follow]
+    # the seats of chiefdoms and states keep their people individual (M3: notables stay individual)
+    seats = {p.seat for p in getattr(w, "polities", {}).values() if p.alive and p.tier >= 1}
+    cands = [b for b in w.living_bands() if b.mode == "individual" and b.id != w.follow and b.id not in seats]
     cands.sort(key=lambda b: (float(xyz[b.cell] @ xyz[focus]), b.id))   # farthest first
     target = P.FOLD_TARGET * P.INDIVIDUAL_THRESHOLD
     folded = 0

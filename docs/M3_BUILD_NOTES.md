@@ -84,3 +84,126 @@ One structural cost: several systems built arrays with one entry for every band 
 Smoke test (planet 4 at year 2,000, with 600 bands made to farm, over 150 years): 47 polities. By the end there were 8 simple chiefdoms, 4 complex chiefdoms and 2 states. Over the 150 years there were 141 joinings, 34 secessions, 17 polities ended and 35 institutions founded. All cause chains are complete, saves replay exactly, and there were no accounting failures.
 
 Gate G3 machinery: `gates/g3.py` and `gates/g3_report.py`, plus "noinst" jobs in the planner and job runner. The report re-checks M0–M2 by running G2's report on the G3 histories, and has checks 2, 3, 4, 5, 10, 11 and 12 so far. Tests: 45 pass (4 new in `tests/test_m3.py`).
+
+## Step 5: conflict (9 November 2026)
+
+`origins/sim/conflict.py`, run yearly after polities. It uses a new random stream, `conflict`, and a new cause of death, "killed in war". Both are appended at the end of their lists.
+
+- **Sides:** a polity, or a settlement on its own. Forager bands fight too (decision 1A). Members of one polity never fight each other.
+- **Reach:** two rings for villages and polities, one ring for foragers.
+- **Who weighs war:** each year a quarter of the sides weigh war. A side that does attacks its most tempting neighbour with chance (chance of war) ÷ 0.25. That gives the same chance of war, capped at 0.25 a year, for a quarter of the work.
+- **The chance of war:** 0.03 × (1 + 3 × scarcity) × (2 × strength share) × (1 + cultural distance) × (1 + 0.5 × grievance/10, capped at 3) × (1 − 0.15 per cell of distance, up to 2 cells) × 1.5 for a leader in the first three years. Grievance is the killings suffered from that side, decaying 7% a year.
+- **Strength:** men of fighting age (16–45) within reach of the target, weighted by distance. Warriors kept by the leader add 50%. Defenders count 1.5 times. The stronger side wins with chance s²/(s² + (1 − s)²).
+- **Deaths:** Poisson-drawn, about 0.3 × the fighters × the other side's strength share. They are mostly men of fighting age, recorded as "killed in war", and traced to the war event.
+- **If the attacker wins:**
+  - it takes 30% of the loser's stores (moved, not created);
+  - 5% of the loser's young women and children join the winner's settlement, keeping their own speech (decision 2A);
+  - a farming attacker takes the farming village with chance 0.3, and the whole polity if its seat fell. A conquered settlement weighs double on the conqueror's load, fading over a century.
+  - a defeated polity carries the stress of a lost war for five years, which raises secession.
+- **Logs:**
+  - war counts against sides weighed, by scarcity and by distance;
+  - a war log;
+  - per polity, the number of languages spoken and of conquered settlements.
+
+  An empire is a polity holding conquered settlements of another language.
+
+**Smoke test** (planet 4 at year 2,000, 600 bands made to farm, 150 years): 6,987 wars, 32,612 deaths in war. Deaths in war were 3.7% of all deaths in that time, about 5% of deaths at 15 and over: the low end of the plausibility guide (Bowles 2009 estimates 12–16% of adult deaths among foragers, estimates that are disputed). This is a starting value for G3 to check. With the targets weighed as arrays, conflict adds about 10% to the computing time.
+
+**Gate G3 checks 6–8 added:**
+- **6:** war rates by scarcity and by distance. These enter by rule, so the check is of the bookkeeping, as in G2 check 7.
+- **7:** war deaths since the first village as a share of deaths at 15 and over.
+- **8:** empire duration against mean overextension.
+
+Tests: 46 pass.
+
+## Step 6: inequality that compounds (9 November 2026)
+
+This is option (c) from the M2 gate (M3 decision 3: both mechanisms), added in `surplus.yearly` to each household's yearly change in holdings.
+
+- **Scarce land:** a village's land is scarce from half of what its farmland can feed, and full at what it can feed. In a scarce village, a household's holdings drift up by 0.03 × scarcity × (its holdings ÷ the village mean − 1) a year, capped between −1 and 3. The drift is zero-sum: land changes hands, so what some gain others lose. Households with more land weather bad years and take over the land of those that fail.
+- **Breeding herds:** holdings drift up by 0.02 × the share of farming in animals, and their luck spreads twice as widely, so herds breed in good years and die in bad ones.
+- **Unchanged:** a new household still takes a 30% dowry from its mother, and holdings are still divided among the children at death. Inequality therefore rises only where compounding outruns division.
+
+All four numbers are starting values; G3 check 9 tests them over thousands of years of farming.
+
+## Step 7: notables stay individual (9 November 2026)
+
+- **What changed:** when the world passes 20,000 individuals and distant bands fold into groups, the seats of chiefdoms and states are no longer folded. A seat that is already a group is unfolded each year, for up to 200 seats, the most loaded first. Their people, with leaders, heirs, households and genealogies, are then followed person by person. Unfolding is M0's existing `groups.unfold`, which recreates people from the group's counts with the same totals.
+- **How it differs from the specification:** the specification proposed drawing notables out of their groups one by one. Keeping whole seats individual is simpler and keeps every count exact. The trade-off is that sub-leaders outside the seat, and war leaders of folded groups, are not followed as people.
+
+## Step 8: observatory for M3 (9 November 2026)
+
+- **New map layers:**
+  - **Polities:** settlements coloured by polity; seats ringed white, more thickly for higher tiers.
+  - **Wars:** wars of the last 30 years drawn from attacker to target, fading with age and thicker with more killed. Conquests are red, successful raids orange, repelled attacks grey.
+- **Polity page:**
+  - tier and levels of rule; founding, linked to its cause chain; seat and leader;
+  - load against capacity; institutions held and not held;
+  - settlements by level, with their languages and whether they were conquered;
+  - leaders over time, with contested successions marked;
+  - a chronicle of its events (successions, secessions, institutions, wars, conquests), each linked to its "why" chain.
+- **Elsewhere:** a band's page links to its polity. A Polities panel lists the largest chiefdoms and states, and the header counts chiefdoms and states.
+- **Successors:** heirs are now chosen from people aged 20–59 where there are any, rather than the eldest man. With that, the test world's leaders served a median of 10 years. They died of old age (40%), in war (32%), of accident or illness (19%), or in outbreaks (7%), at a median age of 50.
+
+Checked on a test world (planet 4, 600 villages, 150 years): all views render without errors. Tests: 46 pass.
+
+## Tuning after the first trial results (9 November 2026, in progress)
+
+**What the first finished trial histories and a local test showed** (planet 3, with farming started early):
+- States formed within decades of the first chiefdom.
+- Institutions made too little difference: the largest polity held 11–20 settlements with institutions and 6–14 without.
+
+**Changes, all within the approved design:**
+1. **Levels of rule** count only settlements with two or more others answering to them (district heads), not chains of daughter villages.
+2. **Institutions are rare discoveries:** under pressure, a polity finds its next one with a 0.2% chance a year. It is 20 times as likely where a polity within three rings already has it to copy (secondary state formation). A copied institution's cause chain names the polity it was copied from.
+3. **Institutions matter more:**
+   - Without institutions a polity holds about three villages' load.
+   - A council, tribute collectors, law and warriors add 1, 2, 1 and 1 times that base.
+   - Officials over districts multiply the total by 3, and need tribute collectors and law first.
+
+Being tested locally (1,500 years with and without institutions) before G3.
+
+## Ben, 9 November 2026: open to the graphics card helping
+
+Ben's laptop: an i5-13420H (8 cores, 12 threads), 16 GB of memory, a 2 TB drive and an RTX 3050 with 6 GB. He is open to using the graphics card to speed up the simulation (the display needs none of it).
+
+**Proposed approach, to be brought to Ben as a design proposal when it is worth doing (likely after M4):**
+- **An optional array backend (CuPy) for the heavy array work:** deaths and births across many groups, foraging sums, conflict distances. The default stays NumPy on the processor.
+- **Two modes, because the graphics card's random numbers and rounding differ from the processor's:**
+  - A graphics-card run would be a "fast mode": statistically the same, but not digit-for-digit the same as a processor run.
+  - Exact replay and gate runs stay on the processor (GitHub's machines have no graphics cards).
+- **Why not now:** most of today's computing time is Python logic per band, which a graphics card does not speed up. It is worth adding once array work dominates, at hundreds of thousands of groups.
+
+## Smooth movement on the map (9 November 2026, Ben's request)
+
+This is display only, in `observatory/index.html`; the simulation is untouched.
+- **Gliding:** a band that moves to a new cell glides there with easing: over 5 seconds normally, and 1.8 seconds while fast-forwarding, when many bands move at every update. A move across the map's edge goes the short way round.
+- **Spreading:** bands that share a cell are spread around its centre, each at a fixed offset, so a busy cell shows as a cluster.
+- **Fades:** new bands fade in, and ended bands fade out over 1.5 seconds.
+- **Splits:** a band that has just split off starts at its parent's position and glides out to its own cell. `/api/bands` now gives each band's parent.
+- **Clicking** finds bands at their drawn positions.
+
+Cost: about 4–5 ms to draw 1,700 bands in a headless browser here, against the 16 ms a frame has at 60 frames a second. The map animates only while something is moving.
+
+## First trial gate (behaviour 5): results, 27 of 30 histories
+
+Run 42558662526, with the code before conflict, before levels of rule were counted through district heads, and before the institution changes above. Histories ran to 3,000 years after the first village.
+
+| Check | Result |
+|---|---|
+| 1 | M0 and M1 hold: 18 of 18 survived, no accounting failures, every cause chain complete. G2's "adoption dates" check fails because every one of these 18 histories farmed; it needs the full set. |
+| 2 | FAIL: chiefdoms in 18 of 18, and states in 18 of 18 within 225 years of the first village. Too fast. |
+| 3 | PASS: secession rises steadily with overload, from 0.4% a year to 15%. Rank correlation per history: median 0.99. |
+| 4 | Collapses in every history: as measured then, 2,516 of them, with recovery after nearly all. |
+| 5 | FAIL: the largest polity held 18–27 settlements with institutions and 10–14 without. |
+| 10 | PASS: 10,800 of 10,800 polity events traceable. |
+
+The local test with the new institution rules (planet 3, 1,500 years of farming) formed no state in 1,500 years. The largest polity reached 13 settlements, against about 8 without institutions. Secession rose from 1.2% a year without overload to 34% at heavy overload.
+
+**Further changes:**
+- **A daughter settlement leaves an overloaded polity:** it stays in its mother's polity only while that polity holds less than it can bear. Without institutions, polities had been kept large by their own daughters.
+- **The report's collapse measure** now counts only established large polities: those that held 10 or more settlements for at least 50 years and lost half their people within a century. On the first trial that still gives 550 collapses, in every history.
+
+**For Ben at G3:** the specification's mark, collapses in at most 90% of histories, may not fit a world where many polities rise and fall over thousands of years. In the archaeological record chiefdoms rise and fall repeatedly in most regions. This is to be raised with the G3 results, not changed now.
+
+A second trial, with all the M3 code, follows.
