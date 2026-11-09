@@ -223,7 +223,7 @@ Each milestone ends with a gate Ben approves. No new layer begins until the curr
 | M1 | Band fission and spread; cultural and language drift; climate variability and hazards | Behaviours 1–2; plausible responses to droughts and floods |
 | M2 | Domestication, farming, storage, settlement; surplus and specialists; switch from prehistoric to historical clock | Behaviours 3–4 |
 | M3 | Leadership, chiefdoms, early states; institutions; conflict and conquest; individual-to-group folding | Behaviours 5–6 |
-| M4 | Technology network: emergence, diffusion, loss; trade. With it (section 16): military technology, methods of warfare and logistics, reconnaissance and espionage, strategy; people changing the land; diseases from domestic animals; writing, and chronicles written by the people themselves; place names | Behaviour 7 |
+| M4 | Technology network: emergence, diffusion, loss; trade. With it (section 16): military technology, methods of warfare and logistics, reconnaissance and espionage, strategy; crime, norms and enforcement; people changing the land; diseases from domestic animals; writing, and chronicles written by the people themselves; place names | Behaviour 7 |
 | M5 | Belief and religion layer; rituals with real costs; god mode. With it (section 16): myths and songs that drift from the events they remember | Behaviour 9 |
 | M6 | Long-run economy and the escape from the population ceiling. With it (section 16): inherited traits shaped by selection, if not added earlier | Behaviour 8 |
 | Throughout | Divergence across runs; causal traceability | Behaviour 10 and the standing requirement |
@@ -287,10 +287,20 @@ Ben agreed to these on 9 November 2026. Each is PROPOSED in detail and decided w
 11. **Reconnaissance and espionage.** Polities hold estimates of their neighbours' strength, not the truth. The estimates are built from traders' reports, scouts and spies (specialists paid from surplus), and they can be wrong. Wars are begun or avoided on beliefs, and the cause chain says so ("its scouts reported half the defenders' real strength"). The display shows estimates as estimates. Kept to neighbours and contacts, for cost. *M4.*
 12. **Strategy.** Leaders weigh attacking, defending, allying, paying tribute or waiting, using their estimates and the costs. This is bounded rationality, with leaders' judgement good or poor: understandable rules, not a game-playing AI, so every decision answers "why?". *M4 onwards.*
 
+**Crime, norms and their enforcement** (agreed 9 November 2026)
+
+15. **Norms belong to each culture.** What counts as wrongdoing is set by each people's own norms: marriage rules, sharing, whether raiding outsiders is theft or honour. Norms drift like customs. The simulation records violations against those norms, not one fixed morality, and the observer sees both the people's judgement and what actually happened.
+    - **Wrongdoing:** theft from stores and fields; violence within a community and the feuds that follow; cheating on obligations (not sharing, evading tribute); corruption (officials skimming tribute); banditry and piracy where rule is weak; later, smuggling and fraud.
+    - **Responses:** gossip, loss of standing, shaming, exile and feud before formal law; compensation, punishment and courts with law and judges; later watchmen, prisons and religious sanction. Each costs something real and has effects: feuds can grow into secession, corruption lowers capacity, and banditry grows as states fail.
+    - **Causes:** crime rises with hunger, inequality, weak enforcement and the chance of escaping, all already computed, so every rise answers "why?".
+    - **Limit:** sexual violence and the abuse of children are represented only as counts at the level of a society, never as individual cases or narrated detail, while still traceable and still affecting outcomes. Cruelty in punishment is treated the same way.
+
+    *Some in M3 (law and judges); mostly M4 (banditry, piracy, corruption, enforcement) and M5 (religious sanction); fraud and smuggling with M6's markets.*
+
 **Observer tools** (they change nothing in the simulation)
 
-13. **Branching.** From any save, change one thing (a drought, a leader surviving a battle) and run both futures side by side. This is the direct test of behaviour 10, and a natural use of god mode. *Any time after M3.*
-14. **History scrubber.** Rewind and replay any span on the map from the saves. *Any time after M3.*
+16. **Branching.** From any save, change one thing (a drought, a leader surviving a battle) and run both futures side by side. This is the direct test of behaviour 10, and a natural use of god mode. *Any time after M3.*
+17. **History scrubber.** Rewind and replay any span on the map from the saves. *Any time after M3.*
 
 **Considered and left out:** detailed inner lives and personalities for individuals. Inventing them would narrate more than the simulation computes, against the principle that every answer comes from recorded causes.
 
