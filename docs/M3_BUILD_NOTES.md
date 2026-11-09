@@ -146,3 +146,19 @@ All four numbers are starting values; G3 check 9 tests them over thousands of ye
 - **Successors:** heirs are now chosen from people aged 20–59 where there are any, rather than the eldest man. With that, the test world's leaders served a median of 10 years. They died of old age (40%), in war (32%), of accident or illness (19%), or in outbreaks (7%), at a median age of 50.
 
 Checked on a test world (planet 4, 600 villages, 150 years): all views render without errors. Tests: 46 pass.
+
+## Tuning after the first trial results (9 November 2026, in progress)
+
+**What the first finished trial histories and a local test showed** (planet 3, with farming started early):
+- States formed within decades of the first chiefdom.
+- Institutions made too little difference: the largest polity held 11–20 settlements with institutions and 6–14 without.
+
+**Changes, all within the approved design:**
+1. **Levels of rule** count only settlements with two or more others answering to them (district heads), not chains of daughter villages.
+2. **Institutions are rare discoveries:** under pressure, a polity finds its next one with a 0.2% chance a year. It is 20 times as likely where a polity within three rings already has it to copy (secondary state formation). A copied institution's cause chain names the polity it was copied from.
+3. **Institutions matter more:**
+   - Without institutions a polity holds about three villages' load.
+   - A council, tribute collectors, law and warriors add 1, 2, 1 and 1 times that base.
+   - Officials over districts multiply the total by 3, and need tribute collectors and law first.
+
+Being tested locally (1,500 years with and without institutions) before G3.

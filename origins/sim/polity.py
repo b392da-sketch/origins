@@ -155,6 +155,20 @@ def levels_of_rule(w, mem_ids, seat) -> int:
     return lv(seat)
 
 
+def _neighbour_has(w, p, k, cache):
+    """A polity seated within reach (three rings) that has institution k, to learn it from; or None."""
+    from .language import ring2
+    nb = w.planet.grid.neighbours
+    seat_cell = w.bands[p.seat].cell
+    near = set(int(c) for c in ring2(w)[seat_cell])
+    near |= {int(x) for c in list(near) for x in nb[c] if x >= 0}
+    for c in near:
+        for q in cache["seats"].get(c, ()):
+            if q.id != p.id and q.alive and q.inst[k]:
+                return q.id
+    return None
+
+
 def max_depth(p) -> int:
     """How many levels of rule a polity's institutions can support."""
     return 1 + p.inst[COLLECTORS] + 2 * p.inst[OFFICIALS]
@@ -165,7 +179,8 @@ def staff_needed(p, n_members) -> float:
 
 
 def capacity(p) -> float:
-    return P.POLITY_CAPACITY * (1 + sum(P.INSTITUTION_GAIN[k] for k in range(len(INSTITUTIONS)) if p.inst[k]))
+    c = P.POLITY_CAPACITY * (1 + sum(P.INSTITUTION_GAIN[k] for k in range(len(INSTITUTIONS)) if p.inst[k] and k != OFFICIALS))
+    return c * (P.OFFICIALS_MULTIPLIER if p.inst[OFFICIALS] else 1.0)
 
 
 def tier_of(p, depth, n_settlements) -> int:
@@ -352,6 +367,10 @@ def yearly(w):
             seat.store += give
 
     # --- load, capacity, institutions, tier; secessions
+    r2_cache = {"seats": {}}
+    for q in w.polities.values():
+        if q.alive:
+            r2_cache["seats"].setdefault(w.bands[q.seat].cell, []).append(q)
     for pid, mem in by_polity.items():
         p = w.polities[pid]
         seat = w.bands[p.seat]
@@ -384,15 +403,21 @@ def yearly(w):
                                      f"{staff_needed(p, n) + 0:.0f}"}])
             p.cap = capacity(p)
         elif P.INSTITUTIONS and load > P.INSTITUTION_PRESSURE * p.cap:
+            # an institution is a new way of doing things: under pressure, a polity finds one only now and then,
+            # much sooner where a neighbouring polity already has it to copy
             order = [COUNCIL, COLLECTORS, LAW, WARRIORS, OFFICIALS]
             for k in order:
-                if p.inst[k] or (k == OFFICIALS and not p.inst[COLLECTORS]):
+                if p.inst[k] or (k == OFFICIALS and not (p.inst[COLLECTORS] and p.inst[LAW])):
                     continue
+                example = _neighbour_has(w, p, k, r2_cache)
+                if rng.random() >= P.INSTITUTION_INVENT * (P.INSTITUTION_COPY if example is not None else 1.0):
+                    break
                 p.inst[k] = 1
                 if staff >= staff_needed(p, n):
                     w.event("institution_founded", cell=seat.cell, band=seat.id, polity=pid,
                             institution=INSTITUTIONS[k],
-                            causes=[{"event": p.founding_event},
+                            causes=[{"event": p.founding_event}] + ([{"note": f"copied from {w.polities[example].name}"}, {"event": w.polities[example].founding_event}]
+                                                                     if example is not None else []) + [
                                     {"note": f"{p.name} held {n} settlements: load {load:.1f} against capacity "
                                              f"{p.cap:.1f}; {staff:.0f} specialists at the seat could staff it"}])
                     p.cap = capacity(p)
