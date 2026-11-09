@@ -82,3 +82,16 @@ class Conflict(unittest.TestCase):
         for i in dead[:50]:
             ch = explain.chain(w, {"death": int(i)})
             self.assertTrue(any(c.get("ref", {}).get("event") is not None for c in ch["causes"]), ch)
+
+
+class WatchingChangesNothing(unittest.TestCase):
+    def test_following_a_band_does_not_change_history(self):
+        """Ben, 9 November 2026: what the observer follows must not change what happens."""
+        w = farming_world()
+        a = persist.from_bytes(persist.to_bytes(w), w.planet)
+        b = persist.from_bytes(persist.to_bytes(w), w.planet)
+        b.follow = b.living_bands()[-1].id
+        engine.step(a, 4 * 10)
+        engine.step(b, 4 * 10)
+        b.follow = a.follow
+        self.assertEqual(persist.digest(a), persist.digest(b))

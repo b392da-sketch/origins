@@ -1,0 +1,2 @@
+{"gate": "g3", "label": "g3-run1", "planets": "1-5", "seeds": "1-10", "noinst_seeds": "1-4", "after_first": 6000,
+ "note": "Gate G3, first full run: 50 histories plus 20 without institutions, to 6,000 years after the first farming village (or 30,000 years)."}

@@ -251,19 +251,34 @@ def _successor(w, seat, old, rule):
         if m >= 0:
             sisters = np.nonzero((p.mother[:p.n] == m) & (p.sex[:p.n] == 0))[0] if p.n < 3_000_000 else []
             cands = adult[np.isin(p.mother[adult], sisters) & (p.sex[adult] == 1)]
+    elif old >= 0 and rule == 3:
+        cands = adult[(p.mother[adult] == old) & (p.sex[adult] == 0)] if p.sex[old] == 0 else \
+            adult[(p.father[adult] == old) & (p.sex[adult] == 0)]
+    from . import customs
+    voice = int(w.customs[seat.id, customs.HOUSEHOLD_VOICE])
+
+    def speaker(i):
+        """Who speaks for person i's household, by the seat's custom: the man, the woman, or the elder."""
+        j = int(p.partner[i])
+        if j < 0 or not p.alive[j]:
+            return int(i)
+        man, woman = (i, j) if p.sex[i] == 1 else (j, i)
+        if voice == 0:
+            return int(man)
+        if voice == 1:
+            return int(woman)
+        return int(i if p.birth[i] <= p.birth[j] else j)
+
     if len(cands) == 0:
         heads = adult[p.wealth[adult] > 0]
         if len(heads):
             best = heads[np.argsort(-p.wealth[heads])]
             rich = float(p.wealth[best[0]])
             rivals = int((p.wealth[best[1:]] >= 0.7 * rich).sum())
-            new = int(best[0])
-            if p.sex[new] == 0 and p.partner[new] >= 0 and p.alive[p.partner[new]]:
-                new = int(p.partner[new])          # a household is led by its man where there is one (PROPOSED)
-            return new, rivals
-        men = adult[p.sex[adult] == 1]
-        pool = men if len(men) else adult
-        return int(pool[np.argmin(p.birth[pool])]), 0      # the eldest man in the prime of life
+            return speaker(int(best[0])), rivals      # the council chooses the richest household's speaker
+        pool = adult if voice == 2 else (adult[p.sex[adult] == (1 if voice == 0 else 0)] if
+                                         (p.sex[adult] == (1 if voice == 0 else 0)).any() else adult)
+        return int(pool[np.argmin(p.birth[pool])]), 0      # the eldest of those who speak for households
     order = cands[np.argsort(p.birth[cands])]
     return int(order[0]), len(order) - 1
 
@@ -386,10 +401,15 @@ def yearly(w):
                 continue
             d = _cells_apart(w, seat.cell, b.cell)
             cd = cultural_distance(w, seat, b)
-            u = np.sqrt(max(size_of.get(b.id, 0), 1) / 150.0) * (1 + d / P.LOAD_DISTANCE) * (1 + P.LOAD_CULTURE * cd)
+            # what each institution does (M3 specification, section 4): a council lightens every member's load,
+            # tribute collectors halve the cost of distance, warriors kept by the leader halve the extra weight of
+            # recent conquests; capacity comes from all of them (see capacity())
+            dist = d / P.LOAD_DISTANCE * (0.5 if p.inst[COLLECTORS] else 1.0)
+            u = np.sqrt(max(size_of.get(b.id, 0), 1) / 150.0) * (1 + dist) * (1 + P.LOAD_CULTURE * cd)
+            u *= P.COUNCIL_LOAD if p.inst[COUNCIL] else 1.0
             ca = int(w.conquered_at[b.id]) if hasattr(w, "conquered_at") else -1
             if ca >= 0 and w.t - ca < P.CONQUEST_MEMORY * P.TICKS_PER_YEAR:
-                u *= 1 + P.CONQUEST_LOAD * (1 - (w.t - ca) / (P.CONQUEST_MEMORY * P.TICKS_PER_YEAR))
+                u *= 1 + P.CONQUEST_LOAD * (0.5 if p.inst[WARRIORS] else 1.0) * (1 - (w.t - ca) / (P.CONQUEST_MEMORY * P.TICKS_PER_YEAR))
             unit[b.id] = (u, d, cd)
             load += u
         p.load = load
@@ -554,7 +574,11 @@ def yearly(w):
         for p in seats[:P.NOTABLE_SEATS]:
             seat = w.bands[p.seat]
             if seat.alive and seat.mode == "group" and seat.group >= 0:
-                groups.unfold(w, seat)
+                ids = groups.unfold(w, seat)
+                w.event("unfold", cell=seat.cell, band=seat.id, polity=p.id, people=int(len(ids)),
+                        causes=[{"event": p.founding_event},
+                                {"note": f"{w.band_name(seat)} is the seat of {p.name} ({TIERS[p.tier]}): its people are "
+                                         f"followed one by one from now; their earlier lives were not recorded"}])
                 p.leader, _ = _successor(w, seat, -1, 2)
                 p.led_since = w.t
     del w.polity_log[:-40000]

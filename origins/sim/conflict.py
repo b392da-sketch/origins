@@ -313,7 +313,9 @@ def _fight(w, rng, s, mem, b, t, d, sc, cd, share, g, att, dfd, is_pol, pol, siz
         b.store += took
         caps = _captives(w, t, b, P.CAPTIVE_SHARE, rng)
         # conquest: a polity or village of farmers may take a farming village (and with its seat, a polity)
-        if (is_pol or w.farm_share[b.id] >= 0.5) and w.farm_share[t.id] >= 0.5:
+        # (a conqueror without the capacity to rule more only plunders: annexing needs room under its capacity)
+        room = (not is_pol) or pol.load < P.CONQUEST_ROOM * pol.cap
+        if room and (is_pol or w.farm_share[b.id] >= 0.5) and w.farm_share[t.id] >= 0.5:
             want = P.CONQUEST_CHANCE * (1.5 if is_pol and pol.inst[polity.WARRIORS] else 1.0)
             if rng.random() < want:
                 outcome = _conquer(w, b, t, s, ts, is_pol, pol, eid)

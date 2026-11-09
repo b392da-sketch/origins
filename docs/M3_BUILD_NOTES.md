@@ -207,3 +207,63 @@ The local test with the new institution rules (planet 3, 1,500 years of farming)
 **For Ben at G3:** the specification's mark, collapses in at most 90% of histories, may not fit a world where many polities rise and fall over thousands of years. In the archaeological record chiefdoms rise and fall repeatedly in most regions. This is to be raised with the G3 results, not changed now.
 
 A second trial, with all the M3 code, follows.
+
+## Watching changes nothing (9 November 2026, Ben's decision, option b)
+
+Until now, following a band that was a folded group unfolded it into individuals: it drew random numbers and switched the band to individual rules. The band nearest the one being followed was also never folded, so a history someone watched could turn out differently from one nobody watched. Now:
+- **Following** only chooses what the observatory shows and how fast time runs. A folded group is shown as a group.
+- **Which bands fold** depends only on the world: those farthest from the seats of chiefdoms and states fold first, or, before any exist, those farthest from the people's first home. The merge rule no longer depends on the followed band.
+- **Unfolding** happens only when the simulation itself calls for it (a band becoming a chiefdom's or state's seat). It is now an event with that cause.
+- **People brought out of a group** are marked "ancestry unrecorded", on the "why" chain and on their page, and nothing about their past is invented.
+
+Test: two copies of a world, one following a band, give identical digests after 10 years. Tests: 47 pass.
+
+## Leadership follows each people's customs (9 November 2026, Ben agreed)
+
+Until now, a council choosing the head of the richest household chose its man where there was one. That was an assumption built into the code, marked PROPOSED. It now follows custom:
+- **A new custom, "who speaks for a household":** the man, the woman, or the elder of the two. It drifts like the others.
+- **A fourth succession variant, "to a daughter":** succession through daughters is attested, for example among the Balobedu. Its chance of being contested is 25%, like "to a son".
+- **Unchanged:** "to a son" and "to a sister's son" still pass to men, as those customs say. That matches the common pattern in matrilineal societies, where authority passes through the mother's line but is often held by her brothers and sons. Fighters are still men of fighting age, as in most recorded warfare.
+
+Saves from before gain the new custom at variant 0. Tests: 47 pass.
+
+## Planned: comparison with Seshat (for the G3 report)
+
+Every rate in Origins is a starting value. For the M3 gate report, the patterns that can be compared with the Seshat Global History Databank (https://seshat-db.com/) will be: how polity population relates to levels of hierarchy, how long it takes from the first farming villages to the first states, and how often large polities fragment. The comparison will be of shape and order of magnitude, not a fit, since Origins' planets are not Earth.
+
+## Second trial gate: results, 27 of 30 histories (night of 9 November 2026)
+
+Run 42585528434, with all the M3 code as of the early evening: conflict, levels of rule through district heads, institutions as rare discoveries, and daughters leaving overloaded polities. It did not yet have the change that watching changes nothing, or leadership by custom. Histories ran to 3,000 years after the first village.
+
+| Check | Result |
+|---|---|
+| 1 | PASS: M0–M2 hold. 19 of 19 survived, no accounting failures, life expectancy 26.7–28.0, every G2 check passes. |
+| 2 | FAIL: chiefdoms in 14 of 14 histories with farming, but **no state in any**. The first trial's states-everywhere has swung to states-nowhere. |
+| 3 | PASS: secession rises with overload, from 1.2% to 15% a year; rank correlation per history: median 1.00. |
+| 4 | PASS: collapses of established large polities in 12 of 14 histories, with recovery after 18 of 18. |
+| 5 | FAIL: **institutions make no difference**. The largest polity held 14–19 settlements with institutions and 14–19 without. |
+| 6 | PASS: war is 3.5 times as likely for hard-pressed sides, and falls with distance. This is by rule, so it checks the bookkeeping. |
+| 7 | PASS: deaths in war are 5.6–7.2% of deaths at 15 and over (median 6.7%), at the low end of the guide. |
+| 8 | PASS: 6,425 empires. Rank correlation of duration with overextension is −0.63, so overextended empires fall sooner. |
+| 10 | PASS: 10,800 of 10,800 polity events traceable. |
+
+**Why check 5 fails:**
+- **Institutions stay rare.** Polities rarely gather them: most held none; a few had up to four; none had officials, which is why there were no states.
+- **Size doesn't depend on capacity.** Large polities ran at 1–3 times their capacity whether or not they had institutions. They stayed at about 17 settlements because conquest kept adding villages as fast as overload drove them out.
+
+**Changes:**
+- **Annexing needs room:** a polity annexes a conquered village only while its load is below its capacity. Otherwise it plunders and leaves, as conquerors without the means to govern did.
+- **Institutions are found more readily:** a pressed polity finds its next institution with a 1% chance a year, up from 0.2%, and 20 times as fast where a neighbour has it.
+
+Being tested locally, 1,250 years with and without institutions, before the full G3 gate.
+
+## Local tests of the last changes (night of 9–10 November 2026)
+
+Planet 3, from its first farming village, 1,250 years, the same world with and without institutions:
+
+| Version | Largest polity, with institutions | Largest polity, without | States |
+|---|---|---|---|
+| Annexing needs room; institutions found at 1% a year | 10–13 | 5–9 | one, at year 479 (it did not last) |
+| Also: council, collectors and warriors do what the specification says | 13–15 | 6–9 | one, from year 774 (still standing at 1,250) |
+
+Institutions now roughly double what a polity can hold, short of the gate's mark of four times. What limits size is the steady loss of members even without overload (about 1.2% of members a year, after distance and cultural difference), against the rate at which villages join. Over 6,000 years of farming, institutions have far longer to gather and spread, so the full G3 gate is the real test. It is launched now; if check 5 still fails there, that goes to Ben with this analysis rather than more silent tuning.

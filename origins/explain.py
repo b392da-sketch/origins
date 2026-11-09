@@ -59,7 +59,10 @@ def describe(w, ref: dict) -> dict:
         i = int(ref["birth"])
         m, f = int(p.mother[i]), int(p.father[i])
         if m < 0:
-            how = "a founder of the world" if p.unfolded[i] < 0 else "recreated from a group when the observer followed it"
+            how = ("a founder of the world" if p.unfolded[i] < 0 else
+                   f"ancestry unrecorded: brought out of a folded group in "
+                   f"{P.START_YEARS_BP - int(p.unfolded[i]) // P.TICKS_PER_YEAR:,} BP, with age and sex from the group's "
+                   f"counts; parents and earlier life were not followed")
             return {"title": f"{p.name(i)}: {how}", "t": int(p.birth[i]), "causes": [], "ref": ref, "person": i}
         parents = p.name(m) + (f" and {p.name(f)}" if f >= 0 else "")
         causes = [{"note": f"conceived about {P.PREGNANCY_TICKS} seasons earlier"}]
@@ -102,7 +105,7 @@ def _event_title(w, e) -> str:
     if k == "fold":
         return f"{d.get('folded'):,} people in distant bands are now followed as groups"
     if k == "unfold":
-        return f"{bn} is followed closely again: {d.get('people')} named individuals"
+        return f"{bn} is followed person by person: {d.get('people')} people brought out of a folded group (ancestry unrecorded)"
     if k == "separation":
         return "A partnership ended"
     if k == "intervention":
