@@ -256,3 +256,14 @@ Run 42585528434, with all the M3 code as of the early evening: conflict, levels 
 - **Institutions are found more readily:** a pressed polity finds its next institution with a 1% chance a year, up from 0.2%, and 20 times as fast where a neighbour has it.
 
 Being tested locally, 1,250 years with and without institutions, before the full G3 gate.
+
+## Local tests of the last changes (night of 9–10 November 2026)
+
+Planet 3, from its first farming village, 1,250 years, the same world with and without institutions:
+
+| Version | Largest polity, with institutions | Largest polity, without | States |
+|---|---|---|---|
+| Annexing needs room; institutions found at 1% a year | 10–13 | 5–9 | one, at year 479 (it did not last) |
+| Also: council, collectors and warriors do what the specification says | 13–15 | 6–9 | one, from year 774 (still standing at 1,250) |
+
+Institutions now roughly double what a polity can hold, short of the gate's mark of four times. What limits size is the steady loss of members even without overload (about 1.2% of members a year, after distance and cultural difference), against the rate at which villages join. Over 6,000 years of farming, institutions have far longer to gather and spread, so the full G3 gate is the real test. It is launched now; if check 5 still fails there, that goes to Ben with this analysis rather than more silent tuning.
