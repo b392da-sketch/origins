@@ -417,7 +417,7 @@ async function showBand(id){
   const d = await api("/api/band?id=" + id);
   const followBtn = d.followed
     ? `<button onclick="act({action:'unfollow'})">Stop following</button>`
-    : `<button class="primary" onclick="act({action:'follow', band:${d.id}})">Follow${d.mode === "group" ? " (bring to life as individuals)" : ""}</button>`;
+    : `<button class="primary" onclick="act({action:'follow', band:${d.id}})">Follow${d.mode === "group" ? " (shown as a group)" : ""}</button>`;
   let body = "";
   if (d.mode === "group"){
     const rows = [];

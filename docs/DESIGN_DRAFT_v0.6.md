@@ -223,7 +223,7 @@ Each milestone ends with a gate Ben approves. No new layer begins until the curr
 | M1 | Band fission and spread; cultural and language drift; climate variability and hazards | Behaviours 1–2; plausible responses to droughts and floods |
 | M2 | Domestication, farming, storage, settlement; surplus and specialists; switch from prehistoric to historical clock | Behaviours 3–4 |
 | M3 | Leadership, chiefdoms, early states; institutions; conflict and conquest; individual-to-group folding | Behaviours 5–6 |
-| M4 | Technology network: emergence, diffusion, loss; trade. With it (section 16): military technology, methods of warfare and logistics, reconnaissance and espionage, strategy; crime, norms and enforcement; people changing the land; diseases from domestic animals; writing, and chronicles written by the people themselves; place names | Behaviour 7 |
+| M4 | Technology network: emergence, diffusion, loss; trade. With it (section 16): military technology, methods of warfare and logistics, reconnaissance and espionage, strategy; crime, norms and enforcement; lineages, personal ties and reputation; people changing the land; diseases from domestic animals; writing, and chronicles written by the people themselves; place names | Behaviour 7 |
 | M5 | Belief and religion layer; rituals with real costs; god mode. With it (section 16): myths and songs that drift from the events they remember | Behaviour 9 |
 | M6 | Long-run economy and the escape from the population ceiling. With it (section 16): inherited traits shaped by selection, if not added earlier | Behaviour 8 |
 | Throughout | Divergence across runs; causal traceability | Behaviour 10 and the standing requirement |
@@ -297,10 +297,31 @@ Ben agreed to these on 9 November 2026. Each is PROPOSED in detail and decided w
 
     *Some in M3 (law and judges); mostly M4 (banditry, piracy, corruption, enforcement) and M5 (religious sanction); fraud and smuggling with M6's markets.*
 
+**Notable people, families and personal ties** (Ben, 9 November 2026: reviewed from a proposal Ben drafted with ChatGPT; Claude's recommendations accepted)
+
+Origins already separates how closely a person is simulated from their social standing. Detail depends on distance from the centres of rule and on office, not on class, and that stays.
+
+16. **Lineages and families** as compact records: founder, the society's descent rule (from its customs: through the father, the mother or both), reputation, debts, lands, and standing alliances and rivalries. Membership is worked out from parentage and the descent rule, not stored pair by pair, and lineages can rise, split, migrate and die out. *M4.*
+17. **Personal ties between notable people**, in two kinds only:
+    - **Obligation:** favours, gifts and protection owed; patronage and reciprocity.
+    - **Enmity:** grievance from person to person.
+
+    Ties are created and changed only by events that already happen (marriage, gifts of food, shared war, contested succession, betrayal of an alliance), between people who actually meet. Each person keeps a short list, and old ties fade. *M4, with religious patronage in M5.*
+18. **Reputation, and notables emerging from below.** How widely someone is known, earned in war, ritual, building or feasting, separate from wealth and office. A person can be brought out of a folded group by such an event; their ancestry is then marked as unrecorded and never invented. *M4.*
+19. **Personal ties must not dominate history.** A knock-out experiment in the M4 gate runs histories with personal ties switched off. Ties should change individual histories without changing the overall pattern of results.
+
+Deferred or rejected, with reasons:
+- **Five kinds of relationship** (affection, trust, respect, resentment, fear): simplified to two, because there is no evidence to tune five against.
+- **Personality traits:** deferred. Modern personality models do not transfer well across cultures (the Big Five did not replicate among the Tsimane: Gurven et al. 2013; Henrich, Heine & Norenzayan 2010). At most one or two dispositions, such as boldness, inherited and shaped by experience, and only if a gate shows they matter (M6 at the earliest).
+- **A separate social-encounter engine:** rejected. Existing events provide the meetings.
+- **An upper- and lower-class split:** rejected. It is unnecessary, because detail is already independent of class.
+
+**Watching changes nothing** (Ben, 9 November 2026, option b; built). Following a band only chooses what the observatory shows and how fast time passes. A folded group is shown as a group, and which bands are followed person by person depends only on the world: those farthest from the seats of chiefdoms and states fold first. People brought out of groups by the simulation (for example, a new seat) are marked "ancestry unrecorded".
+
 **Observer tools** (they change nothing in the simulation)
 
-16. **Branching.** From any save, change one thing (a drought, a leader surviving a battle) and run both futures side by side. This is the direct test of behaviour 10, and a natural use of god mode. *Any time after M3.*
-17. **History scrubber.** Rewind and replay any span on the map from the saves. *Any time after M3.*
+20. **Branching.** From any save, change one thing (a drought, a leader surviving a battle) and run both futures side by side. This is the direct test of behaviour 10, and a natural use of god mode. *Any time after M3.*
+21. **History scrubber.** Rewind and replay any span on the map from the saves. *Any time after M3.*
 
 **Considered and left out:** detailed inner lives and personalities for individuals. Inventing them would narrate more than the simulation computes, against the principle that every answer comes from recorded causes.
 

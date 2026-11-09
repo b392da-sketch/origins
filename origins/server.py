@@ -528,6 +528,9 @@ def person_detail(w, i: int) -> dict:
         out["life"].append({"ref": f"birth:{i}", "title": explain.describe(w, {"birth": i})["title"]})
     if p.death[i] >= 0:
         out["life"].append({"ref": f"death:{i}", "title": explain.describe(w, {"death": i})["title"]})
+    if p.unfolded[i] >= 0:
+        out["life"].append({"ref": "", "title": f"Ancestry unrecorded: brought out of a folded group in "
+                                                f"{P.START_YEARS_BP - int(p.unfolded[i]) // P.TICKS_PER_YEAR:,} BP"})
     if p.folded[i] >= 0:
         out["life"].append({"ref": "", "title": f"Followed as part of a group from "
                                                 f"{P.START_YEARS_BP - int(p.folded[i]) // P.TICKS_PER_YEAR:,} BP"})
@@ -582,10 +585,8 @@ def control(body: dict) -> dict:
             b = w.bands[bid]
             if not b.alive:
                 raise ValueError("that band no longer exists")
-            if b.mode == "group":
-                ids = groups.unfold(w, b)
-                w.event("unfold", cell=b.cell, band=b.id,
-                        causes=[{"note": "the observer chose to follow this band"}], people=int(len(ids)))
+            # following only chooses what the observatory shows and how fast time passes: it never changes the
+            # simulation (Ben, 9 November 2026). A folded group is shown as a group.
             w.follow = bid
             if "rate" in body:
                 state["follow_rate"] = float(body["rate"])

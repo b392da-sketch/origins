@@ -180,8 +180,6 @@ def fission_and_merge(w):
             continue
         near = {b.cell} | {int(x) for x in nbr[b.cell] if x >= 0}
         others = [o for c in near for o in by_cell.get(c, ()) if o.alive and o.id != b.id and sizes[o.id] > 0]
-        # never fold the followed band through a merge
-        others = [o for o in others if (o.mode == b.mode) or w.follow not in (o.id, b.id)]
         if not others:
             continue
         o = max(others, key=lambda o: (float(sizes[o.id]), -o.id))
@@ -238,12 +236,17 @@ def fold_distant(w):
     if n_ind <= P.INDIVIDUAL_THRESHOLD:
         return
     xyz = w.planet.grid.xyz
-    focus = w.bands[w.follow].cell if w.follow >= 0 and w.bands[w.follow].alive else w.planet.start_cell
+    # Who is followed person by person depends only on the world, never on what the observer is watching:
+    # bands farthest from the centres of rule (the seats of chiefdoms and states) fold first; before there are
+    # any, those farthest from the people's first home.
     sizes = np.bincount(w.people.band[w.alive_idx()], minlength=w.next_band)
-    # the seats of chiefdoms and states keep their people individual (M3: notables stay individual)
     seats = {p.seat for p in getattr(w, "polities", {}).values() if p.alive and p.tier >= 1}
-    cands = [b for b in w.living_bands() if b.mode == "individual" and b.id != w.follow and b.id not in seats]
-    cands.sort(key=lambda b: (float(xyz[b.cell] @ xyz[focus]), b.id))   # farthest first
+    focus_cells = sorted({w.bands[s].cell for s in seats}) or [int(w.planet.start_cell)]
+    fx = xyz[np.array(focus_cells)]
+    focus = focus_cells[0]
+    cands = [b for b in w.living_bands() if b.mode == "individual" and b.id not in seats]
+    near = {b.id: float((fx @ xyz[b.cell]).max()) for b in cands}
+    cands.sort(key=lambda b: (near[b.id], b.id))   # farthest from every centre first
     target = P.FOLD_TARGET * P.INDIVIDUAL_THRESHOLD
     folded = 0
     for b in cands:

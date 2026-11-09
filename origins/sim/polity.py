@@ -554,7 +554,11 @@ def yearly(w):
         for p in seats[:P.NOTABLE_SEATS]:
             seat = w.bands[p.seat]
             if seat.alive and seat.mode == "group" and seat.group >= 0:
-                groups.unfold(w, seat)
+                ids = groups.unfold(w, seat)
+                w.event("unfold", cell=seat.cell, band=seat.id, polity=p.id, people=int(len(ids)),
+                        causes=[{"event": p.founding_event},
+                                {"note": f"{w.band_name(seat)} is the seat of {p.name} ({TIERS[p.tier]}): its people are "
+                                         f"followed one by one from now; their earlier lives were not recorded"}])
                 p.leader, _ = _successor(w, seat, -1, 2)
                 p.led_since = w.t
     del w.polity_log[:-40000]

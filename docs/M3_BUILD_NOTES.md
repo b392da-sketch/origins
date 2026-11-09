@@ -207,3 +207,13 @@ The local test with the new institution rules (planet 3, 1,500 years of farming)
 **For Ben at G3:** the specification's mark, collapses in at most 90% of histories, may not fit a world where many polities rise and fall over thousands of years. In the archaeological record chiefdoms rise and fall repeatedly in most regions. This is to be raised with the G3 results, not changed now.
 
 A second trial, with all the M3 code, follows.
+
+## Watching changes nothing (9 November 2026, Ben's decision, option b)
+
+Until now, following a band that was a folded group unfolded it into individuals: it drew random numbers and switched the band to individual rules. The band nearest the one being followed was also never folded, so a history someone watched could turn out differently from one nobody watched. Now:
+- **Following** only chooses what the observatory shows and how fast time runs. A folded group is shown as a group.
+- **Which bands fold** depends only on the world: those farthest from the seats of chiefdoms and states fold first, or, before any exist, those farthest from the people's first home. The merge rule no longer depends on the followed band.
+- **Unfolding** happens only when the simulation itself calls for it (a band becoming a chiefdom's or state's seat). It is now an event with that cause.
+- **People brought out of a group** are marked "ancestry unrecorded", on the "why" chain and on their page, and nothing about their past is invented.
+
+Test: two copies of a world, one following a band, give identical digests after 10 years. Tests: 47 pass.
