@@ -115,3 +115,13 @@ Gate G3 machinery: `gates/g3.py` and `gates/g3_report.py`, plus "noinst" jobs in
 - **8:** empire duration against mean overextension.
 
 Tests: 46 pass.
+
+## Step 6: inequality that compounds (9 November 2026)
+
+This is option (c) from the M2 gate (M3 decision 3: both mechanisms), added in `surplus.yearly` to each household's yearly change in holdings.
+
+- **Scarce land:** a village's land is scarce from half of what its farmland can feed, and full at what it can feed. In a scarce village, a household's holdings drift up by 0.03 × scarcity × (its holdings ÷ the village mean − 1) a year, capped between −1 and 3. The drift is zero-sum: land changes hands, so what some gain others lose. Households with more land weather bad years and take over the land of those that fail.
+- **Breeding herds:** holdings drift up by 0.02 × the share of farming in animals, and their luck spreads twice as widely, so herds breed in good years and die in bad ones.
+- **Unchanged:** a new household still takes a 30% dowry from its mother, and holdings are still divided among the children at death. Inequality therefore rises only where compounding outruns division.
+
+All four numbers are starting values; G3 check 9 tests them over thousands of years of farming.

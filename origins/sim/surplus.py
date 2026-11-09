@@ -98,7 +98,17 @@ def yearly(w):
                 else:
                     hw[k] = avg
         sigma = P.WEALTH_LUCK * min(1.0, per_person / P.SURPLUS_FOR_FULL_LUCK)
-        hw *= np.exp(rng.normal(-0.5 * sigma ** 2, sigma, size=len(hw)))
+        # M3 (option c from the M2 gate): advantage compounds where good land is scarce and where herds breed.
+        # Scarce land: in a crowded village, households with more land weather bad years and take over the land of
+        # those that fail, so a household's holdings grow with its size relative to the village mean.
+        # Herds: animals are wealth that breeds in good years and dies in bad ones.
+        crowd, animals = _land_and_herds(w, b, n)
+        rel = hw / max(float(hw.mean()), 1e-12) - 1
+        land = P.LAND_ADVANTAGE * crowd * np.clip(rel, -1, 3)
+        land -= float((hw * land).sum() / max(hw.sum(), 1e-12))     # land changes hands: what some gain, others lose
+        drift = land + P.HERD_GROWTH * animals
+        s2 = sigma * (1 + P.HERD_RISK * animals)
+        hw *= np.exp(drift + rng.normal(-0.5 * s2 ** 2, s2, size=len(hw)))
         p.wealth[heads] = hw
         # specialists: the richest household's head leads; others are drawn from adults
         adults = mem[w.ages(mem) >= 18]
@@ -115,6 +125,18 @@ def yearly(w):
             w.gini_log.append([w.year, b.id, round(gini(hw), 4), round(per_person, 1), len(heads), int(age)])
     del w.gini_log[:-20000]
     del w.spec_log[:-20000]
+
+
+def _land_and_herds(w, b, n):
+    """How crowded a village's farmland is (0: room to spare, 1: full or beyond) and the share of its farming
+    in animals."""
+    from . import farming
+    kp, vp, ka, va = farming.best(w, b)
+    _, suit = farming.land_tables(w)
+    cap = P.FARM_CAPACITY * max(float(suit[b.cell, kp]), float(suit[b.cell, ka]))
+    crowd = float(np.clip((n / max(cap, 1.0) - P.LAND_SCARCE) / (1 - P.LAND_SCARCE), 0, 1))
+    animals = float(va / max(vp + va, 1e-9))
+    return crowd, animals
 
 
 def inherit(w, dead_ids):
