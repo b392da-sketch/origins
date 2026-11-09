@@ -49,3 +49,38 @@ One structural cost: several systems built arrays with one entry for every band 
 **Result:** planet 4 at year 6,000 runs at 1.35 s per simulated year, down from 1.64 (about 18% faster), with the same results. That is well short of the target of half. The rest of the cost is the per-group, per-season random draws for deaths and births, and the Python loops over thousands of groups. Halving it would mean changing how those are drawn: for example, yearly rather than seasonal demography for folded groups. That changes the random draws, though not what they mean, and it is a design choice for Ben (Design Draft section 3 lists coarser steps for wandering bands as PROPOSED).
 
 **What makes the long M3 histories possible regardless:** the gate workflow now has five stages in a row instead of three (each up to 4 h 30 min of computing on a fresh machine, carried by checkpoints that include the planet), so a history can use up to about 22 hours of computing. Public repositories have no Actions minute limit.
+
+## Steps 3 and 4: leaders, polities, institutions and break-up (9 November 2026)
+
+`origins/sim/polity.py`, run yearly after the harvest, following surplus. Everything in it is data plus a system, as the rules require.
+
+- **Data:**
+  - `Polity` records: seat, leader, institutions, tier, load and capacity.
+  - Per band: `polity_of` (which polity) and `polity_via` (the settlement it is attached through).
+  - A new random stream, `polity`, appended at the end of the list.
+- **Joining:** an autonomous village, each year with a small chance, considers villages within two rings. It accepts the one whose leader has the greatest standing above its own (surplus in person-years plus specialists), discounted by cultural difference (customs, and shared word roots where the languages differ). Accepting an autonomous village founds a new polity seated there. A daughter settlement stays in its mother's polity, attached through her.
+- **Levels of rule:** each member is attached through the seat or through another member. The depth of that tree is the number of levels of rule. The tier is measured from it, never assigned:
+  - simple chiefdom: three or more settlements, one level;
+  - complex chiefdom: two levels;
+  - state: three or more levels, with officials.
+
+  How deep a polity can grow depends on its institutions: one level without tribute collectors, two with them, and up to four with officials.
+- **Tribute:** each member sends 30% of its surplus toward the seat, and a sub-leader keeps 30% of what passes through it. The food moves between stores; none is created or lost.
+- **Load and capacity:**
+  - **Load** is summed over members: √(size/150) × (1 + distance/4 cells) × (1 + 2 × cultural difference).
+  - **Capacity** is 3 × (1 + the gains of the institutions held).
+  - **Institutions** are added in order (council, tribute collectors, law, warriors, officials) when load passes 80% of capacity and the seat has enough specialists to staff one. They are lost when it no longer has. With institutions switched off (the knock-out), none is ever added.
+- **Secession:** each member's yearly chance is (0.002 + 0.05 × overload + 0.02 × stress) × (1 + distance/4) × (1 + cultural difference), and law cuts it by 30%. Stress comes from a poor harvest at the seat, a contested succession, or hunger at home. A seceding member takes the settlements attached through it; two or more found a new polity.
+- **Succession:** a leader holds the place until death. It then passes by the seat's new custom, "succession" (to a son, to a sister's son, or chosen by the council), which drifts like the other customs. With rival claimants it is contested with chance 25%, 20% or 10% by custom, weakening the polity for five years.
+- **Events, each with a cause chain:**
+  - polity founded, joined, secession, polity ended, seat moved, succession;
+  - institution founded and lost;
+  - the world's first simple chiefdom, complex chiefdom and state.
+- **Logs for the gate:**
+  - every 10 years, each polity's settlements, people, depth, load, capacity, institutions, tier and seat;
+  - secession counts by overload.
+- **Saves:** schema unchanged in form. Saves from before the custom was added gain it, at variant 0.
+
+Smoke test (planet 4 at year 2,000, with 600 bands made to farm, over 150 years): 47 polities. By the end there were 8 simple chiefdoms, 4 complex chiefdoms and 2 states. Over the 150 years there were 141 joinings, 34 secessions, 17 polities ended and 35 institutions founded. All cause chains are complete, saves replay exactly, and there were no accounting failures.
+
+Gate G3 machinery: `gates/g3.py` and `gates/g3_report.py`, plus "noinst" jobs in the planner and job runner. The report re-checks M0–M2 by running G2's report on the G3 histories, and has checks 2, 3, 4, 5, 10, 11 and 12 so far. Tests: 45 pass (4 new in `tests/test_m3.py`).

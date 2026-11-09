@@ -1,0 +1,132 @@
+"""Gate G3 — 'scale needs institutions; conflict has causes and costs'. See docs/M3_SPECIFICATION_v1.md section 8.
+
+Each history runs until AFTER_FIRST years after its first farming village (6,000 for G3; a request can set
+"after_first" for a shorter trial), or to 30,000 years. Knock-out histories ("--no-institutions") run with
+institutions switched off.
+
+  python -m gates.g3 run --jobs 1:1,2:1 [--no-institutions]
+  python -m gates.g3 report
+
+Results go to gates/results_g3/. The records include everything G2 records (so M0-M2 can be re-checked), plus
+polity logs.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+import numpy as np
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from gates import g2  # noqa: E402
+from gates.g0 import _planet  # noqa: E402
+
+OUT = ROOT / "gates" / "results_g3"
+MAX_YEARS = 30_000
+POLITY_EVENTS = ("polity_founded", "polity_joined", "secession", "polity_ended", "seat_moved", "succession",
+                 "institution_founded", "institution_lost", "first_simple_chiefdom", "first_complex_chiefdom",
+                 "first_state")
+
+
+def after_first() -> int:
+    return int(os.environ.get("ORIGINS_AFTER_FIRST", "6000"))
+
+
+def done(w) -> bool:
+    from origins import engine
+    if engine.extinct(w) or len(w.yearly) >= MAX_YEARS:
+        return True
+    fv = w.first_village
+    return fv is not None and w.year >= w.events[fv]["data"]["year"] + after_first()
+
+
+def finish(w, ws, rs, seconds, pr, institutions):
+    from origins import explain, params
+    rec = g2.finish(w, ws, rs, seconds, pr, params.STORAGE, write=False)
+    rec["institutions"] = institutions
+    rec["after_first"] = after_first()
+    pl = w.polity_log
+    rng = np.random.default_rng([ws, rs, 11])
+    # keep whole polity histories: sample polities, not rows
+    pids = sorted({r[1] for r in pl})
+    if len(pids) > 1500:
+        keep = set(int(x) for x in rng.choice(pids, 1500, replace=False))
+        big = {r[1] for r in pl if r[2] >= 5}                  # always keep polities that ever held 5+ settlements
+        keep |= big
+        pl = [r for r in pl if r[1] in keep]
+    rec["polity_log"] = pl
+    rec["sec_stats"] = {str(k): v for k, v in w.sec_stats.items()}
+    rec["polity_firsts"] = {k: w.events[e]["t"] // 4 for k, e in w.polity_firsts.items()}
+    rec["polities_total"] = w.next_polity
+    sample = [{"event": e["id"]} for e in w.events if e["kind"] in POLITY_EVENTS]
+    if len(sample) > 400:
+        sample = [sample[i] for i in sorted(rng.choice(len(sample), 400, replace=False))]
+    ok = [explain.resolvable(w, r) for r in sample]
+    rec["polity_explain_checked"], rec["polity_explain_resolvable"] = len(ok), int(sum(ok))
+    OUT.mkdir(parents=True, exist_ok=True)
+    tag = "" if institutions else "_noinst"
+    (OUT / f"run_w{ws}_s{rs}{tag}.json").write_text(json.dumps(rec))
+
+
+def worker(jobs, budget, ckpt: Path, institutions: bool):
+    from origins import engine, params, persist
+    from origins.state import World
+    g2.apply_overrides()
+    params.INSTITUTIONS = institutions
+    tag = "" if institutions else "_noinst"
+    t_end = time.time() + budget
+    for ws, rs in jobs:
+        if (OUT / f"run_w{ws}_s{rs}{tag}.json").exists():
+            continue
+        cp, meta = ckpt / f"w{ws}_s{rs}{tag}.zip", ckpt / f"w{ws}_s{rs}{tag}.json"
+        start = time.time()
+        if cp.exists():
+            w = persist.from_bytes(cp.read_bytes(), g2.resume_planet(cp, ws))
+            m = json.loads(meta.read_text())
+            spent, pr = m["seconds"], m["probe"]
+        else:
+            w = World.new(ws, rs, _planet(ws))
+            spent, pr = 0.0, g2.new_probe()
+        while not done(w):
+            engine.step(w, 4)
+            g2.probe(w, pr)
+            if time.time() > t_end:
+                g2.save_planet(cp, w.planet)
+                tmp = cp.with_suffix(".tmp")
+                tmp.write_bytes(persist.to_bytes(w, fast=True))
+                tmp.replace(cp)
+                meta.write_text(json.dumps({"seconds": spent + time.time() - start, "year": w.year, "probe": pr}))
+                print(f"w{ws} s{rs}{tag}: checkpoint at year {w.year}", flush=True)
+                return
+        finish(w, ws, rs, spent + time.time() - start, pr, institutions)
+        print(f"w{ws} s{rs}{tag}: completed at year {w.year} in {spent + time.time() - start:.0f} s", flush=True)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("what", choices=["run", "report"])
+    ap.add_argument("--jobs", default="")
+    ap.add_argument("--years", type=int, default=MAX_YEARS)        # accepted for the workflow; the gate sets its own end
+    ap.add_argument("--budget", type=float, default=20000)
+    ap.add_argument("--ckpt", default=str(ROOT / "gates" / "ckpt_g3"))
+    ap.add_argument("--workers", type=int, default=1)
+    ap.add_argument("--no-institutions", action="store_true")
+    a = ap.parse_args()
+    OUT.mkdir(parents=True, exist_ok=True)
+    if a.what == "report":
+        from gates.g3_report import report
+        print(report(OUT))
+        return
+    ck = Path(a.ckpt)
+    ck.mkdir(parents=True, exist_ok=True)
+    jobs = [tuple(int(x) for x in j.split(":")) for j in a.jobs.split(",")]
+    worker(jobs, a.budget, ck, not a.no_institutions)
+
+
+if __name__ == "__main__":
+    main()

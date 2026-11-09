@@ -134,6 +134,26 @@ FORAGER_OUTBREAK = 0.3             # outbreak start rate multiplier for foragers
 VILLAGE_OUTBREAK = 2.0             # ... for villages (crowded, settled, near animals)
 
 
+# --- Polities and institutions (M3)
+POLITIES = True                    # False: villages never come under one another's leaders
+INSTITUTIONS = True                # gate G3 knock-out: False means polities can never build institutions
+ALLIANCE_RATE = 0.05               # yearly chance an autonomous village considers a leader of greater standing nearby
+TRIBUTE_SHARE = 0.3                # share of a member's surplus sent each year towards the seat
+SUB_LEADER_KEEP = 0.3              # share of passing tribute a sub-leader keeps
+POLITY_CAPACITY = 3.0              # load (about three nearby villages of 150) a leader can hold without institutions
+INSTITUTION_GAIN = [0.7, 1.0, 0.6, 0.6, 2.0]   # added capacity (as multiples of the base) for each institution
+INSTITUTION_STAFF = [0.5, 1.0, 0.7, 1.5, 1.5]  # specialists each institution needs, per square root of settlements
+INSTITUTION_PRESSURE = 0.8         # a polity looks for an institution when load passes this share of capacity
+LOAD_DISTANCE = 4.0                # cells at which distance doubles a settlement's load
+LOAD_CULTURE = 2.0                 # how much cultural difference adds to a settlement's load (at full difference)
+SECESSION_BASE = 0.002             # yearly chance a member leaves when all is well
+SECESSION_OVERLOAD = 0.05          # ... added per unit of overload (load / capacity above 1)
+SECESSION_STRESS = 0.02            # ... added per unit of stress (failed harvest at the seat, contested succession, hunger)
+LAW_CALM = 0.3                     # law and judges cut the chance of secession by this share
+CONTESTED_SUCCESSION = [0.25, 0.2, 0.1]   # chance a succession is contested, by custom (son, sister's son, council)
+CONTEST_YEARS = 5                  # years a contested succession weakens a polity
+
+
 def need(age, sex, pregnant, nursing):
     """Daily food units needed by one person (vectorised)."""
     import numpy as np

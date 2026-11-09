@@ -117,6 +117,28 @@ def _event_title(w, e) -> str:
         return f"{bn} ({d.get('size')} people) crossed the sea to new land"
     if k == "outbreak":
         return f"Outbreak of illness: {d.get('deaths', 0)} deaths across {d.get('cells', 0)} areas"
+    if k in ("polity_founded", "polity_joined", "secession", "polity_ended", "seat_moved", "succession",
+             "institution_founded", "institution_lost") or k.startswith("first_") and k.endswith(("chiefdom", "state")):
+        pol = w.polities.get(d.get("polity")) if hasattr(w, "polities") else None
+        pn = pol.name if pol else "a polity"
+        if k == "polity_founded":
+            return f"{pn.capitalize()} founded at {bn}" + (" (breaking away)" if d.get("why") == "secession" else "")
+        if k == "polity_joined":
+            return f"{bn} joined {pn}"
+        if k == "secession":
+            return f"{bn} broke away from {pn}" + (f", taking {d.get('took') - 1} other settlements" if d.get("took", 1) > 1 else "")
+        if k == "polity_ended":
+            return f"{pn.capitalize()} came apart: {d.get('why')}"
+        if k == "seat_moved":
+            return f"The seat of {pn} moved to {bn}"
+        if k == "succession":
+            who = w.people.name(e["person"]) if e.get("person", -1) >= 0 else "a new leader"
+            return f"{who} succeeded as leader of {pn}" + (" (contested)" if d.get("contested") else "")
+        if k == "institution_founded":
+            return f"{pn.capitalize()} established {d.get('institution')}"
+        if k == "institution_lost":
+            return f"{pn.capitalize()} could no longer keep {d.get('institution')}"
+        return f"{pn.capitalize()}: the world's first {k[6:].replace('_', ' ')}"
     if k == "first_tending":
         return f"{bn} began tending wild {d.get('species')}: the first people anywhere to do so"
     if k == "first_cultivation":
