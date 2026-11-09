@@ -67,6 +67,7 @@ input[type=range]{width:140px}
     <div class="stat">Bands<b id="s-bands">—</b></div>
     <div class="stat">Known land<b id="s-known">—</b></div>
     <div class="stat">Farming villages<b id="s-vil">—</b></div>
+    <div class="stat">Chiefdoms · states<b id="s-pol">—</b></div>
     <div class="controls">
       <button id="b-play" class="primary">▶ Run</button>
       <button data-fast="10">+10 yrs</button>
@@ -82,7 +83,8 @@ input[type=range]{width:140px}
       <button data-layer="land" class="on">Land</button><button data-layer="language">Languages</button>
       <button data-layer="customs">Customs</button><button data-layer="hazards">Hazards</button>
       <button data-layer="farming">Farming</button><button data-layer="spread">Spread of farming</button>
-      <button data-layer="surplus">Surplus</button></div>
+      <button data-layer="surplus">Surplus</button>
+      <button data-layer="polities">Polities</button><button data-layer="wars">Wars</button></div>
     <div id="legend"></div>
   </div>
   <aside>
@@ -99,6 +101,10 @@ input[type=range]{width:140px}
     <section>
       <h2>Peoples and languages</h2>
       <div id="langs" class="muted" style="font:12.5px system-ui">—</div>
+    </section>
+    <section>
+      <h2>Polities</h2>
+      <div id="pols" class="muted" style="font:12.5px system-ui">—</div>
     </section>
     <section>
       <h2>Crops and herds</h2>
@@ -132,6 +138,7 @@ const BIOME_COLOUR = {ocean:"#14283b", ice:"#e9eef2", tundra:"#9fa89a", boreal_f
 const $ = s => document.querySelector(s);
 const api = (p, body) => fetch(p, body ? {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)} : {})
   .then(r => r.json().then(j => { if (!r.ok) throw new Error(j.error || r.statusText); return j; }));
+let POLS = [], WARS = [];
 let G = null, S = null, BANDS = [], HAZ = [], LAYER = "land", known = new Set(), lastKnownT = 0;
 const HAZ_COLOUR = {flood:"#4f9ad6", wildfire:"#ff8a3d", eruption:"#ff3b30", earthquake:"#c58cff", outbreak:"#9be564", sea_crossing:"#ffffff"};
 const hsl = (h, l) => `hsl(${h},70%,${l}%)`;
@@ -152,6 +159,8 @@ function bandColour(b){
     return "#3b4247";
   }
   if (LAYER === "spread") return b.fsince != null ? spreadColour(b.fsince) : "#3b4247";
+  if (LAYER === "polities") return b.pol >= 0 ? hsl((b.pol * 137.508) % 360, 65) : "#3b4247";
+  if (LAYER === "wars") return "#3b4247";
   if (LAYER === "surplus"){
     if (b.spec > 0) return `hsl(${Math.round(45 - 40 * Math.min(1, b.spec / .15))},85%,58%)`;
     return b.surplus > 0 ? "#8a8f73" : "#3b4247";
@@ -239,10 +248,26 @@ function draw(){
       ctx.lineWidth = 1.5 * devicePixelRatio / view.k; ctx.strokeStyle = "#101418"; ctx.stroke();
       if (LAYER === "farming" && b.village){ ctx.lineWidth = 1.5 * devicePixelRatio / view.k; ctx.strokeStyle = "#ffffff"; ctx.stroke(); }
       if (LAYER !== "land" && b.mode === "group"){ ctx.lineWidth = 2.5 * devicePixelRatio / view.k; ctx.strokeStyle = "#0b0e10"; ctx.stroke(); }
+      if (LAYER === "polities" && b.seat){ ctx.beginPath(); ctx.arc(x + dx, y, r * (1.5 + 0.35 * b.tier), 0, 2*Math.PI); ctx.lineWidth = (1 + b.tier) * devicePixelRatio / view.k; ctx.strokeStyle = "#ffffff"; ctx.stroke(); }
       if (S && b.id === S.follow){ ctx.beginPath(); ctx.arc(x + dx, y, r * 1.9, 0, 2*Math.PI); ctx.lineWidth = 2 * devicePixelRatio / view.k; ctx.strokeStyle = "#ffffff"; ctx.stroke(); }
     }
   }
   drawHazards();
+  drawWars();
+}
+function drawWars(){
+  if (LAYER !== "wars") return;
+  for (const v of WARS){
+    const [x1, y1] = proj(v.from[0], v.from[1]), [x2, y2] = proj(v.to[0], v.to[1]);
+    const a = Math.max(0.15, 1 - v.age / 30);
+    const col = v.outcome === "repelled" ? `rgba(150,170,190,${a})` : v.outcome === "raided" ? `rgba(240,160,60,${a})` : `rgba(240,70,60,${a})`;
+    for (const dx of [-W, 0, W]){
+      if (Math.abs(x2 - x1) > W / 2) continue;
+      ctx.beginPath(); ctx.moveTo(x1 + dx, y1); ctx.lineTo(x2 + dx, y2);
+      ctx.lineWidth = (1 + Math.min(4, Math.sqrt(v.deaths) / 2)) * devicePixelRatio / view.k; ctx.strokeStyle = col; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x2 + dx, y2, 3 * devicePixelRatio / view.k, 0, 2*Math.PI); ctx.fillStyle = col; ctx.fill();
+    }
+  }
 }
 function drawHazards(){
   if (LAYER !== "hazards") return;
@@ -329,7 +354,8 @@ async function showBand(id){
     <dt>Land</dt><dd>${esc(d.biome.replace("_"," "))} · ${d.season}</dd>
     <dt>Food last season</dt><dd>${Math.round(d.ratio * 100)}% of needs</dd>
     <dt>Last move</dt><dd>${esc(d.last_move || "—")}</dd>
-    <dt>Language</dt><dd><a style="cursor:pointer;color:var(--accent2)" onclick="showLanguage(${d.language.id})">${esc(d.language.name)}</a></dd></div>
+    <dt>Language</dt><dd><a style="cursor:pointer;color:var(--accent2)" onclick="showLanguage(${d.language.id})">${esc(d.language.name)}</a></dd>
+    ${d.polity ? `<dt>Polity</dt><dd><a style="cursor:pointer;color:var(--accent2)" onclick="showPolity(${d.polity.id})">${esc(d.polity.name)}</a>${d.polity.seat ? " (its seat)" : ""}</dd>` : ""}</div>
     <details style="margin:6px 0;font:12.5px system-ui"><summary>Customs</summary><div class="kv">${d.customs.map(c => `<dt>${esc(c.custom)}</dt><dd>${esc(c.practice)}</dd>`).join("")}</div>
     ${d.custom_changes.length ? `<ul class="list">${d.custom_changes.map(c => `<li>${esc(c.custom)}: ${esc(c.from)} → ${esc(c.to)} <small>${esc(c.how)}, ${bp(c.bp)}</small></li>`).join("")}</ul>` : ""}</details>
     ${farmingBlock(d.farming)}
@@ -350,6 +376,28 @@ function farmingBlock(f){
     <dt>Stores</dt><dd>${f.store_days} days of food${f.granary_days ? ` (granaries hold up to ${f.granary_days})` : " (no storage)"}; standing crop ${f.standing_crop_days} days</dd>
     <dt>Surplus</dt><dd>${f.surplus_per_person_days} days per person beyond the reserve</dd>
     <dt>Specialists</dt><dd>${f.specialists}</dd>${roles}</div>${hh}</details>`;
+}
+async function showPolity(id){
+  const d = await api("/api/polity?id=" + id);
+  const inst = d.institutions.map(i => `${i.held ? "●" : "○"} ${esc(i.name)}`).join("<br>");
+  const mem = d.members.map(m => `<li onclick="showBand(${m.id})">${"· ".repeat(m.level)}${esc(m.name)} <small>${m.people} people · ${esc(m.language)}${m.conquered ? " · conquered" : ""}</small></li>`).join("");
+  const lead = d.leaders.map(l => `<li onclick="showPerson(${l.id})">${esc(l.name)} <small>from ${bp(l.bp)}${l.contested ? " · contested" : ""}</small></li>`).join("");
+  $("#sel").innerHTML = `<b>${esc(d.name)}</b>
+    <div class="kv"><dt>Tier</dt><dd>${esc(d.tier)} · ${d.levels} level${d.levels === 1 ? "" : "s"} of rule above the village</dd>
+    <dt>Founded</dt><dd><a style="cursor:pointer;color:var(--accent2)" onclick="why('event:${d.founding_event}')">${bp(d.founded_bp)}</a>${d.ended_bp != null ? ` · ended ${bp(d.ended_bp)}` : ""}</dd>
+    <dt>Seat</dt><dd><a style="cursor:pointer;color:var(--accent2)" onclick="showBand(${d.seat.id})">${esc(d.seat.name)}</a></dd>
+    <dt>Leader</dt><dd>${d.leader ? `<a style="cursor:pointer;color:var(--accent2)" onclick="showPerson(${d.leader.id})">${esc(d.leader.name)}</a>` : "—"}</dd>
+    <dt>Load</dt><dd>${d.load} against a capacity of ${d.capacity}${d.load > d.capacity ? " (overloaded)" : ""}</dd>
+    <dt>Institutions</dt><dd>${inst}</dd></div>
+    <details style="margin:6px 0;font:12.5px system-ui"><summary>Settlements (${d.members.length})</summary><ul class="list">${mem}</ul></details>
+    <details style="margin:6px 0;font:12.5px system-ui"><summary>Leaders</summary><ul class="list">${lead || '<li class="muted">—</li>'}</ul></details>
+    <h2 style="margin-top:10px">Chronicle</h2><ul class="list">${d.events.map(e => `<li onclick="why('event:${e.id}')">${esc(e.title)} <small>${bp(e.bp)}</small></li>`).join("") || '<li class="muted">—</li>'}</ul>`;
+}
+async function refreshPolities(){
+  POLS = await api("/api/polities");
+  const big = POLS.filter(p => p.tier_n >= 1).slice(0, 12);
+  $("#pols").classList.remove("muted");
+  $("#pols").innerHTML = big.length ? `<ul class="list">${big.map(p => `<li onclick="showPolity(${p.id})"><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${hsl((p.id * 137.508) % 360, 65)}"></i> <b>${esc(p.name)}</b> <small>${esc(p.tier)} · ${p.settlements} settlements · ${p.people.toLocaleString()} people${p.leader ? " · led by " + esc(p.leader) : ""}</small></li>`).join("")}</ul>` : "No chiefdom yet.";
 }
 async function refreshCrops(){
   const d = await api("/api/farming");
@@ -437,6 +485,7 @@ async function refresh(force){
   const fsVals = BANDS.filter(b => b.fsince != null).map(b => b.fsince);
   SPREAD = fsVals.length ? {min: Math.min(...fsVals), max: Math.max(...fsVals)} : {min:0, max:0};
   $("#s-vil").textContent = S.farming ? S.farming.villages.toLocaleString() : "—";
+  $("#s-pol").textContent = S.polities ? `${S.polities.chiefdoms.toLocaleString()} · ${S.polities.states.toLocaleString()}` : "—";
   const modes = {paused:"paused", running:`running · ${S.years_per_day_normal} years/day${S.first_village ? " (historical clock)" : ""}`, following:`following · ${fmtRate(S.follow_rate)}`, fast:"fast-forward"};
   $("#mode").textContent = (S.extinct ? "humanity has died out · " : "") + modes[S.mode];
   $("#b-play").textContent = S.mode === "paused" ? "▶ Run" : "❚❚ Pause";
@@ -449,7 +498,8 @@ async function refresh(force){
   $("#err").textContent = S.error || S.load_warning || "";
   chart(S.series);
   if (LAYER === "hazards") HAZ = await api("/api/hazards?years=100");
-  if (force || !refresh.n || refresh.n % 5 === 0){ refreshLanguages(); refreshCrops(); }
+  if (force || !refresh.n || refresh.n % 5 === 0){ refreshLanguages(); refreshCrops(); refreshPolities(); }
+  if (LAYER === "wars") WARS = await api("/api/wars");
   refresh.n = (refresh.n || 0) + 1;
   const ev = await api("/api/events");
   $("#events").innerHTML = ev.map(e => `<li onclick="why('${e.ref}')">${esc(e.title)} <small>${bp(e.bp)}</small></li>`).join("");
@@ -465,6 +515,7 @@ document.querySelectorAll("[data-layer]").forEach(b => b.onclick = async () => {
   LAYER = b.dataset.layer;
   document.querySelectorAll("[data-layer]").forEach(x => x.classList.toggle("on", x === b));
   if (LAYER === "hazards") HAZ = await api("/api/hazards?years=100");
+  if (LAYER === "wars") WARS = await api("/api/wars");
   legend(); draw();
 });
 function legend(){
@@ -474,6 +525,8 @@ function legend(){
     + `<span><i style="background:#8a8f73;border-radius:50%"></i>foragers who also farm</span><span><i style="background:#3b4247;border-radius:50%"></i>foragers</span> · villages by their main crop or herd, ringed white`; return; }
   if (LAYER === "spread"){ $("#legend").innerHTML = `<span><i style="background:hsl(5,80%,35%);border-radius:50%"></i>farmed longest</span><span><i style="background:hsl(55,80%,70%);border-radius:50%"></i>farming recently</span><span><i style="background:#3b4247;border-radius:50%"></i>never mainly farmers</span> · when each people (or the people it came from) first lived mainly by farming${SPREAD.max ? `: ${bp(SPREAD.max)} – ${bp(SPREAD.min)}` : ""}`; return; }
   if (LAYER === "surplus"){ $("#legend").innerHTML = `<span><i style="background:hsl(45,85%,58%);border-radius:50%"></i>a few specialists</span><span><i style="background:hsl(5,85%,58%);border-radius:50%"></i>15% or more specialists</span><span><i style="background:#8a8f73;border-radius:50%"></i>surplus, no specialists</span><span><i style="background:#3b4247;border-radius:50%"></i>no surplus</span> · specialists (leaders, ritual specialists, craft workers) live from the surplus`; return; }
+  if (LAYER === "polities"){ $("#legend").innerHTML = `settlements coloured by polity; seats ringed white (thicker for complex chiefdoms and states); <span><i style="background:#3b4247;border-radius:50%"></i>on their own</span>`; return; }
+  if (LAYER === "wars"){ $("#legend").innerHTML = `wars of the last 30 years, from attacker to target, fading with age: <span><i style="background:rgb(240,70,60);border-radius:50%"></i>conquest</span><span><i style="background:rgb(240,160,60);border-radius:50%"></i>raid that succeeded</span><span><i style="background:rgb(150,170,190);border-radius:50%"></i>repelled</span>; thicker lines, more killed`; return; }
   if (LAYER === "hazards"){ $("#legend").innerHTML = Object.entries(HAZ_COLOUR).map(([k, v]) => `<span><i style="border:2px solid ${v};border-radius:50%"></i>${k.replace("_"," ")}</span>`).join("") + " · last 100 years"; return; }
   $("#legend").innerHTML = Object.entries(BIOME_COLOUR).map(([k, v]) => `<span><i style="background:${v}"></i>${k.replace("_"," ")}</span>`).join("")
   + `<span><i style="background:#fff1c9;border:1px solid #101418;border-radius:50%"></i>band</span><span><i style="background:#ff6b57;border:1px solid #101418;border-radius:50%"></i>hungry band</span><span><i style="background:#c9d6dc;border:1px solid #101418;border-radius:50%"></i>group</span>`;

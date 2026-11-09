@@ -154,7 +154,7 @@ def summary(w) -> dict:
         "follow_rate": state["follow_rate"], "fast_target": state["fast_target"], "error": state["error"],
         "extinct": engine.extinct(w), "series": series, "invariant_failures": len(w.invariant_failures),
         "intervened": w.intervened, "years_per_day_normal": years_per_day(w), "threshold": P.INDIVIDUAL_THRESHOLD,
-        "first_village": first_village(w), "farming": farming_counts(w),
+        "first_village": first_village(w), "farming": farming_counts(w), "polities": polity_counts(w),
         "food_ratio": w.season_stats.get("ratio", 1.0), "load_warning": getattr(w, "load_warning", ""),
     }
 
@@ -185,7 +185,87 @@ def bands_view(w) -> list:
                     "farm": round(fs, 2), "village": bool(b.village), "crop": main,
                     "fsince": _bp(b.farming_since) if b.farming_since >= 0 else
                     (_bp(b.village_since) if b.village and b.village_since >= 0 else None),   # saves before farming_since
-                    "spec": round(float(w.spec[b.id]) / max(size, 1.0), 3), "surplus": round(surplus_pp / 0.95)})
+                    "spec": round(float(w.spec[b.id]) / max(size, 1.0), 3), "surplus": round(surplus_pp / 0.95),
+                    "pol": _pol_of(w, b.id), "seat": _is_seat(w, b.id),
+                    "tier": w.polities[_pol_of(w, b.id)].tier if _pol_of(w, b.id) >= 0 else 0})
+    return out
+
+
+def _pol_of(w, bid) -> int:
+    pid = int(w.polity_of[bid]) if hasattr(w, "polity_of") and bid < len(w.polity_of) else -1
+    return pid if pid >= 0 and pid in w.polities and w.polities[pid].alive else -1
+
+
+def _is_seat(w, bid) -> bool:
+    pid = _pol_of(w, bid)
+    return pid >= 0 and w.polities[pid].seat == bid
+
+
+def polities_view(w) -> list:
+    from .sim import polity as PL
+    sizes = w.band_sizes()
+    g = w.planet.grid
+    out = []
+    by = {}
+    for b in w.living_bands():
+        pid = _pol_of(w, b.id)
+        if pid >= 0:
+            by.setdefault(pid, []).append(b)
+    for pid, mem in by.items():
+        p = w.polities[pid]
+        seat = w.bands[p.seat]
+        out.append({"id": pid, "name": p.name, "tier": PL.TIERS[p.tier], "tier_n": p.tier, "settlements": len(mem),
+                    "people": int(round(sum(sizes[b.id] for b in mem))),
+                    "lon": round(float(g.lon[seat.cell]), 3), "lat": round(float(g.lat[seat.cell]), 3),
+                    "leader": w.people.name(p.leader) if p.leader >= 0 else "",
+                    "institutions": [PL.INSTITUTIONS[k] for k in range(len(PL.INSTITUTIONS)) if p.inst[k]],
+                    "load": round(p.load, 1), "capacity": round(p.cap, 1)})
+    out.sort(key=lambda r: -r["people"])
+    return out
+
+
+def polity_detail(w, pid: int) -> dict:
+    from .sim import polity as PL
+    p = w.polities[pid]
+    sizes = w.band_sizes()
+    seat = w.bands[p.seat]
+    mem = PL.members_of(w, pid) if p.alive else []
+    depth = PL._depths(w, [b.id for b in mem], p.seat) if mem else {}
+    ev = [e for e in w.events if e["data"].get("polity") == pid or e["data"].get("attacker_polity") == pid
+          or e["data"].get("defender_polity") == pid]
+    leaders = [{"name": w.people.name(e["person"]), "id": e["person"], "bp": _bp(e["t"]),
+                "contested": bool(e["data"].get("contested"))} for e in ev if e["kind"] == "succession" and e["person"] >= 0]
+    return {"id": pid, "name": p.name, "alive": p.alive, "tier": PL.TIERS[p.tier], "founded_bp": _bp(p.founded),
+            "ended_bp": _bp(p.ended) if p.ended >= 0 else None, "founding_event": p.founding_event,
+            "seat": {"id": seat.id, "name": w.band_name(seat)},
+            "leader": person_brief(w, p.leader) if p.leader >= 0 else None, "leaders": leaders[-12:],
+            "institutions": [{"name": PL.INSTITUTIONS[k], "held": bool(p.inst[k])} for k in range(len(PL.INSTITUTIONS))],
+            "load": round(p.load, 2), "capacity": round(p.cap, 2),
+            "levels": max(depth.values()) if depth else 0,
+            "members": [{"id": b.id, "name": w.band_name(b), "people": int(round(sizes[b.id])),
+                         "level": depth.get(b.id, 0), "language": language.display(w, b.language),
+                         "conquered": bool(w.conquered_at[b.id] >= 0)} for b in sorted(mem, key=lambda b: depth.get(b.id, 0))],
+            "events": [{"id": e["id"], "title": explain.describe(w, {"event": e["id"]})["title"], "bp": _bp(e["t"])}
+                       for e in ev[-60:]][::-1]}
+
+
+def wars_view(w, years: int = 30) -> list:
+    g = w.planet.grid
+    since = w.t - years * P.TICKS_PER_YEAR
+    out = []
+    for e in reversed(w.events[-20000:]):
+        if e["t"] < since:
+            break
+        if e["kind"] != "war":
+            continue
+        a = w.bands.get(e["band"])
+        t = w.bands.get(e["data"].get("target"))
+        if a is None or t is None:
+            continue
+        out.append({"id": e["id"], "from": [round(float(g.lon[a.cell]), 3), round(float(g.lat[a.cell]), 3)],
+                    "to": [round(float(g.lon[e["cell"]]), 3), round(float(g.lat[e["cell"]]), 3)],
+                    "outcome": e["data"].get("outcome", ""), "deaths": e["data"].get("attacker_deaths", 0)
+                    + e["data"].get("defender_deaths", 0), "age": (w.t - e["t"]) // P.TICKS_PER_YEAR})
     return out
 
 
@@ -212,6 +292,12 @@ def farming_counts(w) -> dict:
         people[k] += float(sizes[b.id])
     return {"villages": v, "people": {k: int(round(x)) for k, x in people.items()},
             "specialists": int(sum(w.spec[b.id] for b in bands))}
+
+
+def polity_counts(w) -> dict:
+    ps = [p for p in getattr(w, "polities", {}).values() if p.alive]
+    return {"chiefdoms": sum(1 for p in ps if p.tier in (1, 2)), "states": sum(1 for p in ps if p.tier == 3),
+            "all": len(ps)}
 
 
 def farming_story(w) -> list:
@@ -370,6 +456,8 @@ def band_detail(w, bid: int) -> dict:
         out["members"] = [person_brief(w, i) for i in order]
         out["size"] = len(mem)
     out["farming"] = band_farming(w, b, out["size"])
+    pid = _pol_of(w, b.id)
+    out["polity"] = {"id": pid, "name": w.polities[pid].name, "seat": w.polities[pid].seat == b.id} if pid >= 0 else None
     out["events"] = [{"id": e["id"], "title": explain.describe(w, {"event": e["id"]})["title"],
                       "bp": P.START_YEARS_BP - e["t"] // P.TICKS_PER_YEAR}
                      for e in w.events if e["band"] == bid or e["data"].get("new_band") == bid
@@ -583,6 +671,12 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, language_tree(w))
                 if u.path == "/api/hazards":
                     return self._send(200, hazard_view(w, int(q.get("years", 60))))
+                if u.path == "/api/polities":
+                    return self._send(200, polities_view(w))
+                if u.path == "/api/polity":
+                    return self._send(200, polity_detail(w, int(q["id"])))
+                if u.path == "/api/wars":
+                    return self._send(200, wars_view(w))
                 if u.path == "/api/farming":
                     return self._send(200, {"species": farming_story(w), "first_village": first_village(w)})
                 if u.path == "/api/saves":

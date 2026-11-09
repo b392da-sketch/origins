@@ -130,3 +130,19 @@ All four numbers are starting values; G3 check 9 tests them over thousands of ye
 
 - **What changed:** when the world passes 20,000 individuals and distant bands fold into groups, the seats of chiefdoms and states are no longer folded. A seat that is already a group is unfolded each year, for up to 200 seats, the most loaded first. Their people, with leaders, heirs, households and genealogies, are then followed person by person. Unfolding is M0's existing `groups.unfold`, which recreates people from the group's counts with the same totals.
 - **How it differs from the specification:** the specification proposed drawing notables out of their groups one by one. Keeping whole seats individual is simpler and keeps every count exact. The trade-off is that sub-leaders outside the seat, and war leaders of folded groups, are not followed as people.
+
+## Step 8: observatory for M3 (9 November 2026)
+
+- **New map layers:**
+  - **Polities:** settlements coloured by polity; seats ringed white, more thickly for higher tiers.
+  - **Wars:** wars of the last 30 years drawn from attacker to target, fading with age and thicker with more killed. Conquests are red, successful raids orange, repelled attacks grey.
+- **Polity page:**
+  - tier and levels of rule; founding, linked to its cause chain; seat and leader;
+  - load against capacity; institutions held and not held;
+  - settlements by level, with their languages and whether they were conquered;
+  - leaders over time, with contested successions marked;
+  - a chronicle of its events (successions, secessions, institutions, wars, conquests), each linked to its "why" chain.
+- **Elsewhere:** a band's page links to its polity. A Polities panel lists the largest chiefdoms and states, and the header counts chiefdoms and states.
+- **Successors:** heirs are now chosen from people aged 20–59 where there are any, rather than the eldest man. With that, the test world's leaders served a median of 10 years. They died of old age (40%), in war (32%), of accident or illness (19%), or in outbreaks (7%), at a median age of 50.
+
+Checked on a test world (planet 4, 600 villages, 150 years): all views render without errors. Tests: 46 pass.

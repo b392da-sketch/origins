@@ -201,7 +201,10 @@ def _successor(w, seat, old, rule):
     mem = w.members(seat.id)
     if not len(mem):
         return -1, 0
-    adult = mem[w.ages(mem) >= 18]
+    ages = w.ages(mem)
+    adult = mem[(ages >= 20) & (ages < 60)]          # an heir in the prime of life where there is one
+    if not len(adult):
+        adult = mem[ages >= 18]
     if not len(adult):
         return -1, 0
     cands = np.zeros(0, dtype=np.int64)
@@ -224,7 +227,7 @@ def _successor(w, seat, old, rule):
             return new, rivals
         men = adult[p.sex[adult] == 1]
         pool = men if len(men) else adult
-        return int(pool[np.argmin(p.birth[pool])]), 0
+        return int(pool[np.argmin(p.birth[pool])]), 0      # the eldest man in the prime of life
     order = cands[np.argsort(p.birth[cands])]
     return int(order[0]), len(order) - 1
 
