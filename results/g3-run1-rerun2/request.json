@@ -1,0 +1,2 @@
+{"gate": "g3", "label": "g3-run1-rerun2", "jobs": ["4:1"], "after_first": 6000,
+ "note": "G3 run 1: planet 4 seed 1 lost (runner shut down in its second stage, likely memory), rerun with streamed events."}
