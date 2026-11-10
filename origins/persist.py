@@ -18,7 +18,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .state import READABLE_SCHEMAS, SCHEMA, VERSION, Band, Bands, People, World, new_accumulators
+from .state import READABLE_SCHEMAS, SCHEMA, VERSION, Band, Bands, EventStore, People, World, new_accumulators
 from .sim import conflict, farming, language, polity, surplus
 from .sim.groups import Groups
 from .worldgen import generate
@@ -98,7 +98,7 @@ def from_bytes(data: bytes, planet=None) -> World:
         arrays = dict(np.load(io.BytesIO(z.read("arrays.npz"))))
         if "events.jsonl" in z.namelist():
             with z.open("events.jsonl") as f:
-                meta["events"] = [json.loads(line) for line in io.TextIOWrapper(f, encoding="utf-8") if line.strip()]
+                meta["events"] = EventStore(json.loads(line) for line in io.TextIOWrapper(f, encoding="utf-8") if line.strip())
     if meta.get("schema") not in READABLE_SCHEMAS:
         raise ValueError(f"unsupported save schema {meta.get('schema')} (this version reads {READABLE_SCHEMAS})")
     planet = planet if planet is not None and planet.seed == meta["world_seed"] else generate(meta["world_seed"])
@@ -138,7 +138,7 @@ def from_bytes(data: bytes, planet=None) -> World:
             acc[k] = list(v)
     w.accum = acc
     w.season_stats = meta["season_stats"]
-    w.events = meta["events"]
+    w.events = meta["events"] if isinstance(meta["events"], EventStore) else EventStore(meta["events"])
     w.bands = Bands()
     for d in meta["bands"]:
         d["trail"] = [tuple(x) for x in d["trail"]]
