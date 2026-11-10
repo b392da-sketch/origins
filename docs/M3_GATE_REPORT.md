@@ -4,12 +4,12 @@
 
 ## In short
 
-- **Gate G3, run 1:** 62 of 70 histories finished (44 with institutions on 5 planets, 18 with institutions switched off). **7 of the 11 checks with a pass mark pass.** Checks 1, 4, 5 and 9 fail.
-- **Still out:**
-  - planet 4 seed 1 (rerun 42747883661), planet 4 seed 5, planet 4 seed 6 (rerun 42708701695);
-  - five no-institutions histories.
-
-  Expect small changes to the figures, not a different verdict.
+- **Gate G3, run 1:** 63 of 70 histories finished (45 with institutions on 5 planets, 18 with institutions switched off). **7 of the 11 checks with a pass mark pass.** Checks 1, 4, 5 and 9 fail. The figures below are from 62 histories; adding the 63rd (planet 4 seed 1) changed none of the verdicts.
+- **Lost to memory:** seven planet-4 histories (seeds 5–9, and seeds 1–2 without institutions).
+  - At year 14,726, planet 4 seed 6 held 4.0 million events: 2.1 million wars and 1.2 million group hunger deaths. Kept as Python dicts, they take about 7 GB. GitHub's machines have 16 GB, and the save needs more on top.
+  - **Fix (11 November):** events older than the newest 20,000 are now kept as compact text, about a fifth of the memory. A test shows that results are identical with and without it.
+  - The seven histories are being rerun with run 1's simulation plus only this fix (run 42845720805, `g3-run1-rerun3`).
+  - This is the on-disk event store planned for M4, brought forward in a simpler form.
 - **Decisions for you:** checks 4, 5 and 9 (below), and whether M3 continues to conflict refinements and notables, or reworks institutions first.
 
 **Runs:** GitHub Actions 42642951715 (`g3-run1`) and 42708701695 (`g3-run1-rerun`, planet 1 seed 3 and planet 4 seed 6, lost while writing checkpoints). Gate branch code: `fc929b5` and earlier; Python 3.13, NumPy 2.5.4.
@@ -71,6 +71,14 @@ Every history with chiefdoms has at least one collapse, and every collapse is fo
 - (b) Find and loosen the size ceiling (load from distance and culture, and conquest room), then rerun G3.
 - (c) Lower the churn: secession and war rates, so polities last longer. Then rerun G3.
 
+**What the records show** (polity-years at 10 or more settlements, across 45 histories with institutions and 18 without):
+- **Large polities are made by conquest.** In the median polity of 10 or more settlements, every settlement was conquered; alliances hardly reach that size.
+- **They are overloaded most of the time.** Load is above capacity in 64% of polity-years with institutions (median load ÷ capacity 1.29), and in 100% without (median 2.95). Overloaded polities lose members to secession, so they shrink back within decades.
+- **Large polities rarely have many institutions.** The median polity of 10 or more settlements has 1 of the 5.
+- **Levels of rule hardly grow with size:** a median of 2.
+
+So the pattern is conquest overshooting capacity, then secession. War builds polities faster than institutions can be found to hold them. Institutions are rare discoveries (a 1% chance a year, then copied), so most conquerors have none.
+
 **My view:** (b) and (c) together are the substantive answer. The churn is the bigger realism problem, and it probably also caps size. (a) alone would pass the check while leaving polities that come and go every few generations.
 
 ### Check 9: inequality still does not compound
@@ -83,9 +91,25 @@ The new mechanisms (an advantage from scarce heritable land, breeding herds) rai
 
 **I lean to (a).** Impartible inheritance, for example to the eldest son, is the mechanism the literature points to. It fits the succession customs that already exist.
 
-## Seshat comparison
+## Comparison with historical data (first pass)
 
-Not done yet. Doing it properly means checking published Seshat figures (polity size against levels of rule, time from first villages to states, how often polities fragment). That takes research that I've left until Thursday rather than quote figures unverified.
+| Measure | Historical | Model (G3 run 1) |
+|---|---|---|
+| Size against levels of rule | Correlation 0.78 between polity population and levels of hierarchy, over 414 polities in 30 regions from the beginnings of farming to about 1900 CE (Turchin et al. 2018, Seshat) | Rank correlation of log population with levels of rule: median 0.07 per history (−0.18 to 0.47) |
+| How long large polities last | Mean about 220 years for 41 empires, 3000 BCE to 600 CE, and the chance of collapse does not depend on age (Arbesman 2011) | Longest time one polity holds 10 or more settlements: median 50 years per history |
+
+**Caveats:**
+- The model's polities span a narrow range (2–34 settlements), against Seshat's villages to empires. A narrow range alone lowers a correlation.
+- Arbesman's empires are far larger than anything the model makes.
+
+Even so, both comparisons point the same way as the check 5 analysis: polities that grow without adding levels of rule, and fall apart too fast.
+
+**Not yet compared:** time from first villages to states, against Seshat's regional sequences. I haven't verified a published figure for it.
+
+## Sources
+
+- Arbesman, S. (2011). The life-spans of empires. *Historical Methods*, 44(3), 127–129.
+- Turchin, P., Currie, T. E., Whitehouse, H., et al. (2018). Quantitative historical analysis uncovers a single dimension of complexity that structures global variation in human social organization. *PNAS*, 115, E144–E151. https://doi.org/10.1073/pnas.1708800115
 
 ## Next
 
