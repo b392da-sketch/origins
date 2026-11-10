@@ -1,0 +1,2 @@
+{"gate": "g3", "label": "g3-run1-rerun3", "jobs": ["4:5", "4:6", "4:7", "4:8", "4:9"], "noinst_jobs": ["4:1", "4:2"], "after_first": 6000,
+ "note": "G3 run 1: the seven planet-4 histories that ran out of memory, rerun with the compact event record (results unchanged by it; the simulation is run 1's)."}
