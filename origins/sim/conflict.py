@@ -163,11 +163,16 @@ def _captives(w, loser, winner, share, rng) -> int:
     if not len(mem):
         return 0
     a = w.ages(mem)
-    pool = mem[((p.sex[mem] == 0) & (a >= 12) & (a < 30)) | (a < 12)]
+    # children under 3 are never taken on their own: they go with their mother if she is taken
+    pool = mem[((p.sex[mem] == 0) & (a >= 12) & (a < 30)) | ((a >= 3) & (a < 12))]
     k = int(rng.binomial(len(pool), share)) if len(pool) else 0
     if k <= 0:
         return 0
     taken = rng.choice(pool, k, replace=False)
+    small = mem[a < 3]
+    if len(small):
+        taken = np.concatenate([taken, small[np.isin(p.mother[small], taken)]])
+        k = len(taken)
     part = p.partner[taken]
     has = part >= 0
     p.partner[part[has]] = -1

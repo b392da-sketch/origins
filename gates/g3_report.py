@@ -176,6 +176,28 @@ def report(out: Path) -> str:
                    f"{len(kfarm)} histories with farming); states without institutions: {kstates} "
                    f"(pass: median under a quarter, no states)"))
 
+    # not a check: how long polities stay large (for the analysis of check 5)
+    def held(r, n=10):
+        """Longest run of years one polity holds n+ settlements, and all polity-years at n+."""
+        longest, total = 0, 0
+        for rows in _series(r["polity_log"]).values():
+            yrs = sorted(y for y, s, *_ in rows if s >= n)
+            total += 10 * len(yrs)
+            run, prev = 0, None
+            for y in yrs:
+                run = run + 10 if prev is not None and y - prev <= 10 else 10
+                longest, prev = max(longest, run), y
+        return longest, total
+    hi = [held(r) for r in farm]
+    hk = [held(r) for r in kfarm]
+    if hi and hk:
+        checks.append(("5b. How long polities stay large (no mark)", None,
+                       f"longest time one polity held 10+ settlements: median {np.median([h[0] for h in hi]):,.0f} "
+                       f"years with institutions ({_range_txt([h[0] for h in hi])}), "
+                       f"{np.median([h[0] for h in hk]):,.0f} without ({_range_txt([h[0] for h in hk])}); "
+                       f"polity-years at 10+ settlements per history: median {np.median([h[1] for h in hi]):,.0f} with, "
+                       f"{np.median([h[1] for h in hk]):,.0f} without"))
+
     # 6 conflict rises with scarcity and proximity
     def rates(key):
         pooled = {}
@@ -237,6 +259,26 @@ def report(out: Path) -> str:
                    f"{n_emp} empires (polities holding conquered settlements of another language) across the "
                    f"histories; for the {len(life)} that ended, rank correlation of duration with mean overextension "
                    f"(load ÷ capacity): {rho_e:.2f} (pass: clearly negative)"))
+
+    # 9 inequality compounds (M2 check 9's wording and pass mark)
+    rt, rs9, early, late = [], [], [], []
+    for r in farm:
+        g = np.array(r["gini_log"], dtype=float)
+        if len(g) < 10:
+            continue
+        rt.append(_spearman(g[:, 5], g[:, 2]))
+        rs9.append(_spearman(g[:, 3], g[:, 2]))
+        e, l_ = g[g[:, 5] < 100, 2], g[g[:, 5] >= 500, 2]
+        if len(e) and len(l_):
+            early.append(float(np.median(e)))
+            late.append(float(np.median(l_)))
+    ok9 = bool(rt) and np.nanmedian(rt) > 0.2 and np.nanmedian(rs9) > 0
+    checks.append(("9. Inequality compounds", ok9 if rt else None,
+                   (f"rank correlation of household inequality (Gini) with how long a people has farmed: median "
+                    f"{np.nanmedian(rt):.2f}; with surplus per person: median {np.nanmedian(rs9):.2f}; median Gini in "
+                    f"a people's first 100 years of farming {np.median(early):.2f} vs after 500 years "
+                    f"{np.median(late):.2f}" if rt and early else "not enough villages with property")
+                   + " (pass: clearly positive with time (above 0.2), positive with surplus)"))
 
     # 10 traceable
     chk = sum(r["polity_explain_checked"] for r in allr)
