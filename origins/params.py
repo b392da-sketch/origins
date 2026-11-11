@@ -132,6 +132,7 @@ DOWRY_SHARE = 0.3                  # share of a mother's household holdings a da
 SURPLUS_FOR_FULL_LUCK = 150.0      # surplus per person (food units) at which luck has its full effect
 FORAGER_OUTBREAK = 0.3             # outbreak start rate multiplier for foragers (scattered, mobile)
 VILLAGE_OUTBREAK = 2.0             # ... for villages (crowded, settled, near animals)
+INHERITANCE_BY_CUSTOM = True         # M3 (Ben, 11 Nov 2026, check 9 option a): holdings pass by the succession custom (one heir), not always in equal shares
 LAND_ADVANTAGE = 0.03              # M3: yearly growth of a household's holdings per unit of its size above the village mean, in full villages
 LAND_SCARCE = 0.5                  # M3: a village's land counts as scarce from this share of what its farmland can feed
 HERD_GROWTH = 0.02                 # M3: yearly growth of holdings in animals (herds breed), before losses
