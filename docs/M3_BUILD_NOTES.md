@@ -289,3 +289,78 @@ Planet 3 seed 1, run locally to 2,500 years after its first village (year 11,697
 - median Gini by years farmed: 0.34 at 100–500 years, 0.40 at 500–1,000, 0.39 at 1,000–3,000.
 
 The Gini log keeps only the latest 20,000 samples, so the first century is missing. On one history, inheritance to a single heir does not make inequality keep rising: it levels off at about 0.4, as before. The levelling force is probably the yearly harvest luck and the equal split of land and herds in `_land_and_herds`, not inheritance. To look at next. All rates are tunable starting values.
+
+## 11–12 November: after G3 run 1 (Ben's decisions of 11 November, and what was found)
+
+### Found: the gate logs covered only the end of each history
+
+The polity log kept its latest 40,000 rows in memory and saved its latest 20,000 at checkpoints. The war log did the same, and the inequality log kept 20,000 rows and saved 5,000. In G3 run 1:
+- the polity log covered about the last 1,000 of the 6,000 years after the first village;
+- the war log covered the last few hundred years;
+- the inequality log covered about the last 600 years.
+
+So checks 4, 5, 5b, 8 and 9, and the comparisons with historical data, were measured on the end of each history only. In particular, check 9 (inequality rises with years of farming) never saw a people's early centuries of farming in a long history. The same cut applied to the inequality log in G2 and probably affected M2's check 9 too.
+
+**Fix:**
+- The polity log is now kept whole (it is small: about 40 rows a year).
+- The war, inequality and specialist logs are thinned evenly: every stride-th row is kept, and when a log is full, every second row is dropped and the stride doubles. No random numbers are drawn (`state.log_row`).
+- Checkpoints save the logs whole.
+
+### Found: land never counted as scarce
+
+`_land_and_herds` compared one village's people with the farming capacity of its whole cell. A cell holds several villages, so no village ever reached the threshold of half the capacity.
+- Planet 3 trial (to 1,500 years after the first village): crowding was 0 in 100% of 41,836 village-years.
+- So the land advantage added in M3 (from M2's option c) never acted.
+- Measured per cell (all farming people in the cell ÷ its capacity), crowding is a median 0.43 of capacity, 0.65 at the 90th percentile.
+
+**Fix:** crowding is now measured per cell.
+
+### Found: new households were topped up to the village average
+
+A new household with no mother present to endow it got the full average holding of the village, from nothing. Each generation, orphaned households, and with impartible inheritance the siblings who did not inherit, were brought back to the mean.
+
+**Fix:** they now start with a tenth of the mean (`NEW_HOUSEHOLD_START`).
+
+### Found: inheritance stopped after 3 million person records
+
+Inheritance searched for children only while there were fewer than 3 million person records. Most long histories pass that, after which holdings went to a partner or were lost.
+
+**Fix:** the lookup is done once per step for all the deaths, with no cut-off.
+
+### Check 9, option (a): inheritance by custom
+
+Holdings pass by the people's succession custom:
+- "to a son": all to the eldest living son;
+- "to a daughter": all to the eldest living daughter;
+- "to a sister's son": all to the eldest living sister's son;
+- "chosen by the council": equal shares to all living children.
+
+Where the custom names no living heir, equal shares to the children (`INHERITANCE_BY_CUSTOM`). On its own, in one trial with the logs still cut, it did not change the trend (see above).
+
+### Check 5, options (b) and (c)
+
+- **Conquest room is judged after the conquest.** The conqueror's load plus the conquered settlement, and, if a polity's seat falls, its other members ruled through it, must stay within capacity. Before, a polity just under capacity could swallow a whole neighbouring polity. A village that conquers becomes a polity with no institutions, so it can take a village but rarely a polity.
+- **Rule through district heads lightens the load.** A settlement ruled through a district head weighs `DELEGATED_LOAD` = 0.5 of its load on the seat. This follows Johnson's (1982) argument that hierarchy relieves scalar stress. It is meant to let polities grow by adding levels of rule, which the comparison with Seshat showed was missing (rank correlation of size with levels 0.07, against 0.78 in Seshat).
+- **Less churn.** `SECESSION_BASE` is 0.001 (was 0.002) and `SECESSION_STRESS` 0.01 (was 0.02).
+
+### Memory
+
+- **Compact events:** events older than the newest 20,000 are kept as compact JSON, about a fifth of the memory.
+- **Streamed saves:** saves stream to file (events, customs log, arrays), so a checkpoint no longer holds the save two or three times in memory. Planet 4 seed 8 had reached 8.3 GB at its first checkpoint.
+
+### Comparison with historical data: time from farming to states
+
+Borcan, Olsson and Putterman (2021) find that states arose on average 3.1 millennia after the transition to farming where they arose internally, and 2.7 millennia where they came from outside.
+
+In G3 run 1:
+- the median was about 1,000 years after the first village (quartiles 640–2,690), in the 37 of 47 farming histories that had a state;
+- the other 10 had none within 6,000 years.
+
+So states come too early. The first-state date is recorded separately, so it was not affected by the cut logs.
+
+### Sources
+
+- Borcan, O., Olsson, O., & Putterman, L. (2021). Transition to agriculture and first state presence: A global analysis. *Explorations in Economic History*, 82, 101404. https://doi.org/10.1016/j.eeh.2021.101404
+- Johnson, G. A. (1982). Organizational structure and scalar stress. In C. Renfrew, M. J. Rowlands, & B. A. Segraves (Eds.), *Theory and Explanation in Archaeology* (pp. 389–421). New York: Academic Press.
+
+All rates are tunable starting values.
