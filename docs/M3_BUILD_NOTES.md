@@ -281,3 +281,11 @@ Two of 70 jobs failed: planet 1 seed 3 ("the runner has received a shutdown sign
 - **The gate worker logs memory** every 500 years and at each checkpoint.
 
 The two histories are rerun with this code. The on-disk event store planned for M4 is the full answer.
+
+## 11 November: inheritance by custom (check 9, option a): first trial
+
+Planet 3 seed 1, run locally to 2,500 years after its first village (year 11,697), with `INHERITANCE_BY_CUSTOM` on:
+- rank correlation of household Gini with years farmed: 0.04; with surplus: 0.12;
+- median Gini by years farmed: 0.34 at 100–500 years, 0.40 at 500–1,000, 0.39 at 1,000–3,000.
+
+The Gini log keeps only the latest 20,000 samples, so the first century is missing. On one history, inheritance to a single heir does not make inequality keep rising: it levels off at about 0.4, as before. The levelling force is probably the yearly harvest luck and the equal split of land and herds in `_land_and_herds`, not inheritance. To look at next. All rates are tunable starting values.
