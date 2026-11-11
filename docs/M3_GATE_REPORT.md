@@ -117,3 +117,11 @@ Even so, both comparisons point the same way as the check 5 analysis: polities t
 2. Make the Seshat comparison.
 3. Act on your decisions on checks 4, 5 and 9.
 4. Rerun G3 with the fixes.
+
+## Decisions (Ben, 11 November 2026)
+
+- **Check 4: option (a).** Drop the upper limit of 90% on collapse; keep "recovery after at least half of collapses". This is a change to the approved specification, recorded as Ben's.
+- **Check 5: options (b) and (c) together, provisionally.** Loosen the size ceiling (load from distance and culture, and conquest room) and lower the churn (secession and war rates), then rerun G3. Check 5's wording stands for now.
+- **Check 9: option (a).** Strengthen the compounding of inequality, with inheritance favouring one heir where custom says so, then rerun G3.
+
+The work starts on Thursday 12 November, when Ben's usage resets. Every change will be recorded in `M3_BUILD_NOTES.md`, and G3 will be rerun with all the fixes, including the captive-infant fix and the compact event record.
