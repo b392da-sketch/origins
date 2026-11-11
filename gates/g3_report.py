@@ -260,25 +260,33 @@ def report(out: Path) -> str:
                    f"histories; for the {len(life)} that ended, rank correlation of duration with mean overextension "
                    f"(load ÷ capacity): {rho_e:.2f} (pass: clearly negative)"))
 
-    # 9 inequality compounds (M2 check 9's wording and pass mark)
-    rt, rs9, early, late = [], [], [], []
+    # 9 inequality rises with scarce land and herds (wording changed by Ben, 12 November 2026, from "inequality
+    # compounds with time"; Kohler et al. 2017 find inequality kept rising only where draft animals let advantage
+    # compound, and Borgerhoff Mulder et al. 2009 that land and livestock are the most heritable wealth).
+    # The level must also be plausible: median Gini of farming villages 0.25-0.55 (agriculturalists 0.48,
+    # pastoralists 0.42, Borgerhoff Mulder et al. 2009; house sizes 0.27-0.35, Kohler et al. 2017).
+    rc, ra, rt, lev = [], [], [], []
     for r in farm:
         g = np.array(r["gini_log"], dtype=float)
         if len(g) < 10:
             continue
+        lev.append(float(np.median(g[:, 2])))
         rt.append(_spearman(g[:, 5], g[:, 2]))
-        rs9.append(_spearman(g[:, 3], g[:, 2]))
-        e, l_ = g[g[:, 5] < 100, 2], g[g[:, 5] >= 500, 2]
-        if len(e) and len(l_):
-            early.append(float(np.median(e)))
-            late.append(float(np.median(l_)))
-    ok9 = bool(rt) and np.nanmedian(rt) > 0.2 and np.nanmedian(rs9) > 0
-    checks.append(("9. Inequality compounds", ok9 if rt else None,
-                   (f"rank correlation of household inequality (Gini) with how long a people has farmed: median "
-                    f"{np.nanmedian(rt):.2f}; with surplus per person: median {np.nanmedian(rs9):.2f}; median Gini in "
-                    f"a people's first 100 years of farming {np.median(early):.2f} vs after 500 years "
-                    f"{np.median(late):.2f}" if rt and early else "not enough villages with property")
-                   + " (pass: clearly positive with time (above 0.2), positive with surplus)"))
+        if g.shape[1] >= 8:
+            if np.ptp(g[:, 6]) > 0:
+                rc.append(_spearman(g[:, 6], g[:, 2]))
+            if np.ptp(g[:, 7]) > 0:
+                ra.append(_spearman(g[:, 7], g[:, 2]))
+    if rc and ra:
+        ok9 = np.nanmedian(rc) > 0.2 and np.nanmedian(ra) > 0.2 and 0.25 <= np.median(lev) <= 0.55
+        ev9 = (f"rank correlation of household inequality (Gini) with land scarcity: median {np.nanmedian(rc):.2f} "
+               f"({len(rc)} histories); with the share of farming in herds: median {np.nanmedian(ra):.2f} "
+               f"({len(ra)}); median Gini of farming villages {np.median(lev):.2f} ({min(lev):.2f}–{max(lev):.2f}); "
+               f"with years farmed (no mark): {np.nanmedian(rt):.2f}")
+    else:
+        ok9, ev9 = None, "land scarcity and herds not recorded in these histories (records before 12 November 2026)"
+    checks.append(("9. Inequality rises with scarce land and herds", ok9, ev9
+                   + " (pass: both correlations clearly positive (median above 0.2), and median Gini 0.25-0.55)"))
 
     # 10 traceable
     chk = sum(r["polity_explain_checked"] for r in allr)

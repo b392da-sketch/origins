@@ -87,6 +87,24 @@ def yearly(w):
             p.wealth[mem] = 0.0
             continue
         units = _households(w, mem)
+        # for property, a household is founded at partnership: a single adult with no partner or children of their
+        # own stays in their mother's household (and their holdings with hers) while she heads one in the village.
+        # (Until 12 November 2026 every woman from 15, and every lone man, held property as a household of their
+        # own, taking a share of their mother's holdings: many tiny households and a Gini far above the literature.)
+        head_at = {u[0]: k for k, u in enumerate(units)}
+        mset = set(int(x) for x in mem)
+        keep = []
+        for k, u in enumerate(units):
+            h = u[0]
+            m = int(p.mother[h])
+            if len(u) == 1 and int(p.partner[h]) not in mset and m != h and m in head_at and len(units[head_at[m]]) > 0 \
+                    and units[head_at[m]][0] == m:
+                p.wealth[m] += p.wealth[h]
+                p.wealth[h] = 0.0
+                units[head_at[m]].append(h)
+            else:
+                keep.append(u)
+        units = keep
         heads = np.array([u[0] for u in units])                 # the woman (or lone person) heading each
         hw = p.wealth[heads].astype(float)
         new = np.nonzero(hw <= 0)[0]
@@ -128,7 +146,8 @@ def yearly(w):
                 p.role[i] = 2 if j % 4 == 0 else 3
         if len(heads) >= 3 and w.year % 10 == 0:          # sampled every 10 years so the log spans the whole history
             age = (w.t - b.farming_since) // P.TICKS_PER_YEAR if b.farming_since >= 0 else 0
-            log_row(w, "gini_log", [w.year, b.id, round(gini(hw), 4), round(per_person, 1), len(heads), int(age)], 20000)
+            log_row(w, "gini_log", [w.year, b.id, round(gini(hw), 4), round(per_person, 1), len(heads), int(age),
+                                    round(float(crowd), 3), round(float(animals), 3)], 20000)
 
 
 def _land_and_herds(w, b, n):

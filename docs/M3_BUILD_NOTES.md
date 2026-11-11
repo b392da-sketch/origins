@@ -364,3 +364,79 @@ So states come too early. The first-state date is recorded separately, so it was
 - Johnson, G. A. (1982). Organizational structure and scalar stress. In C. Renfrew, M. J. Rowlands, & B. A. Segraves (Eds.), *Theory and Explanation in Archaeology* (pp. 389–421). New York: Academic Press.
 
 All rates are tunable starting values.
+
+## 12 November: what each change after G3 run 1 rests on
+
+Ben asked that the changes be backed by the literature. Here is each one, by kind.
+
+**Grounded in the literature:**
+- **Rule through district heads lightens the load.** Johnson (1982): decision-making hierarchy appears because it relieves "scalar stress" as the number of units grows.
+- **The comparison targets for polities:**
+  - size against levels of rule: correlation 0.78 in Seshat (Turchin et al. 2018);
+  - large polities last about 220 years on average (Arbesman 2011);
+  - states arrive 2.7–3.1 millennia after farming (Borcan, Olsson & Putterman 2021).
+- **Inheritance matters for inequality, and material wealth is what passes down.** Borgerhoff Mulder et al. (2009): material wealth is far more heritable than embodied or relational wealth. The transmission coefficient for material wealth averages 0.55 among agriculturalists and 0.67 among pastoralists, against 0.09 among horticulturalists. Livestock are the most heritable form (about 0.66).
+- **Draft animals let advantage compound.** Kohler et al. (2017): in the Old World, draft animals let richer households farm more land; inequality kept rising there but levelled off in the Americas.
+- **Inequality targets** (overall wealth Gini, Borgerhoff Mulder et al. 2009):
+
+  | Hunter-gatherers | Horticulturalists | Pastoralists | Agriculturalists |
+  |---|---|---|---|
+  | 0.25 | 0.27 | 0.42 | 0.48 |
+
+  House-size Gini (Kohler et al. 2017, as reported by Washington State University):
+
+  | Hunter-gatherers | Horticulturalists | Larger-scale farmers | Old World peak (modelled) |
+  |---|---|---|---|
+  | 0.17 | 0.27 | 0.35 | 0.59 |
+
+**Bookkeeping fixes, not modelling claims:**
+- logs covering whole histories;
+- load counted at once, so several joins in a year cannot overshoot;
+- daughter villages weighed by their mother settlement;
+- land scarcity measured per cell (the threshold now does what M3 specified);
+- inheritance not stopping at 3 million records.
+
+**Tunings, judged against the targets above, not taken from the literature:**
+- `WEALTH_LUCK` 0.1;
+- `NEW_HOUSEHOLD_START` 0.1;
+- `DELEGATED_LOAD` 0.5;
+- the halved secession rates.
+
+The local check on planet 3 reached a Gini of about 0.7, above every target, which is why luck was lowered. The test is whether the trial's farming villages land near 0.3–0.5, rising where land is scarce and herds are kept.
+
+**A question about check 9 itself.** Kohler et al. find that inequality kept rising after farming only where draft animals allowed it, and levelled off elsewhere. So a plateau is not unrealistic in itself. The model has herds but no draft animals or plough. If check 9 still fails at realistic levels, the honest options are:
+- add draft animals as the compounding mechanism;
+- reword check 9 to "inequality rises with herds and scarce land", which is what the literature supports.
+
+That is Ben's decision.
+
+### Sources (added)
+
+- Borgerhoff Mulder, M., Bowles, S., Hertz, T., et al. (2009). Intergenerational wealth transmission and the dynamics of inequality in small-scale societies. *Science*, 326(5953), 682–688. https://doi.org/10.1126/science.1178336
+- Kohler, T. A., Smith, M. E., Bogaard, A., et al. (2017). Greater post-Neolithic wealth disparities in Eurasia than in North America and Mesoamerica. *Nature*, 551, 619–622. https://doi.org/10.1038/nature24646
+
+## 12 November, early morning: G3 trial 3 (16 of 20 histories)
+
+GitHub run 43039106958: 8 histories with institutions and 8 without (planets 1, 2, 3 and 5, seeds 1–2), to 2,000 years after the first village. The 4 planet-4 histories were still running. Full G3 run 2 was **not** launched, because check 9 is not acceptable (below).
+
+**Check 5 (institutions):**
+- Largest polity: median 21 settlements with institutions (17–34), 6 without (5–7). The ratio is 0.29 against a mark of under 0.25, so it narrowly fails.
+- No states without institutions.
+- Longest time one polity held 10+ settlements: median 200 years with institutions (110–430), never without.
+- Institutions now clearly decide both size and durability.
+
+**Other checks:**
+- Checks 2, 3, 4, 6, 7, 8 and 10 pass.
+- Collapse happens in 8 of 8 histories, with recovery after 131 of 131 collapses.
+- Rank correlation of empire duration with overextension: −0.22.
+
+**States still come early:** 448–1,458 years after the first village, against 2.7–3.1 millennia historically.
+
+**Check 9 (inequality) is not acceptable:**
+- Median Gini 0.66 in a people's first 100 years of farming and 0.73 after 500 years.
+- Correlation with years farmed: 0.04.
+- The level is far above the literature's targets: 0.48 for agriculturalists and 0.42 for pastoralists (Borgerhoff Mulder et al. 2009); 0.27–0.35 by house size (Kohler et al. 2017).
+- It is already high at the start, so the most likely cause is `NEW_HOUSEHOLD_START` = 0.1: every new household without an endowing mother starts at a tenth of the mean, and young households are numerous. Lowering luck alone did not bring the level down.
+- To be diagnosed, not tuned blindly; options are with Ben.
+
+**Not a real failure:** G2 check 3 (adoption dates vary widely) fails here only because there are two seeds per planet.

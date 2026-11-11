@@ -132,3 +132,13 @@ Even so, both comparisons point the same way as the check 5 analysis: polities t
 - **Check 9: option (a).** Strengthen the compounding of inequality, with inheritance favouring one heir where custom says so, then rerun G3.
 
 The work starts on Thursday 12 November, when Ben's usage resets. Every change will be recorded in `M3_BUILD_NOTES.md`, and G3 will be rerun with all the fixes, including the captive-infant fix and the compact event record.
+
+## Decisions (Ben, 12 November 2026)
+
+1. **Inequality level:** diagnose and fix it against the literature's targets before G3 run 2. G3 trial 3 gave a median Gini of 0.66–0.73, against 0.48 for agriculturalists (Borgerhoff Mulder et al. 2009) and 0.27–0.35 by house size (Kohler et al. 2017).
+2. **Check 9 reworded** to "inequality rises with scarce land and herds", in place of "inequality rises with time". This is the pattern the literature supports: Kohler et al. find inequality kept rising only where draft animals let advantage compound. The marks are mine:
+   - rank correlation of Gini with land scarcity, and with the share of farming in herds: each with a median above 0.2;
+   - median Gini of farming villages between 0.25 and 0.55.
+
+   The trend with time is still reported, without a mark.
+3. **States arrive too early** (448–1,458 years after the first village in trial 3, against 2.7–3.1 millennia historically): carried forward, not addressed in M3.
