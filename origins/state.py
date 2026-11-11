@@ -253,6 +253,21 @@ class Bands:
         self._sid = {x: k for k, x in enumerate(self.strings)}
 
 
+def log_row(w, name: str, row: list, cap: int) -> None:
+    """Append a row to a sampled log (w.<name>) so that it covers the whole history in at most cap rows: every
+    stride-th row is kept, and when the log is full, every second row is dropped and the stride doubles. No random
+    numbers are drawn. (Until 12 November 2026 these logs kept only their latest rows, so gate checks saw only the
+    last centuries of a history.)"""
+    log = getattr(w, name)
+    s = w.log_strides.setdefault(name, [0, 1])
+    if s[0] % s[1] == 0:
+        log.append(row)
+        if len(log) > cap:
+            log[:] = log[::2]
+            s[1] *= 2
+    s[0] += 1
+
+
 class EventStore:
     """The event record: a list of event dicts that keeps old events compactly.
 
@@ -334,6 +349,7 @@ class World:
         self.bands = Bands()
         self.next_band = 0
         self.events = EventStore()
+        self.log_strides: dict = {}      # sampled logs: name -> [rows offered, stride] (see log_row)
         self.counts = {"founders": 0, "births": 0, "deaths": 0, "births_ind": 0,
                        "folded": 0, "unfolded": 0}
         from .sim.groups import Groups

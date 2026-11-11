@@ -23,6 +23,7 @@ from __future__ import annotations
 import numpy as np
 
 from .. import params as P
+from ..state import log_row
 
 ROLES = ["", "leader", "ritual specialist", "craft worker"]
 ANNUAL = 365.0 * 0.95                         # food units a typical person needs in a year
@@ -61,6 +62,11 @@ def yearly(w):
     sizes = w.band_sizes()
     idx = w.alive_idx()
     p.role[idx] = 0
+    # farming people per cell: land is scarce when everyone farming a cell, not one village, presses on it
+    cell_farmers: dict = {}
+    for b in w.living_bands():
+        if w.farm_share[b.id] >= P.PROPERTY_SHARE:
+            cell_farmers[b.cell] = cell_farmers.get(b.cell, 0.0) + float(sizes[b.id])
     for b in w.living_bands():
         n = float(sizes[b.id])
         if n <= 0:
@@ -70,7 +76,7 @@ def yearly(w):
         spec = min(np.floor(surplus / ANNUAL), np.floor(P.SPECIALIST_MAX * n)) if P.STORAGE else 0.0
         w.spec[b.id] = spec
         if w.year % 50 == 0 and (b.store > 0 or spec > 0):
-            w.spec_log.append([w.year, b.id, round(per_person, 1), round(spec / n, 4), round(float(w.farm_share[b.id]), 3)])
+            log_row(w, "spec_log", [w.year, b.id, round(per_person, 1), round(spec / n, 4), round(float(w.farm_share[b.id]), 3)], 20000)
         if b.mode != "individual":
             continue
         mem = w.members(b.id)
@@ -86,7 +92,7 @@ def yearly(w):
         new = np.nonzero(hw <= 0)[0]
         if len(new):
             # a new household takes a share of her mother's holdings (land and stores pass down the generations);
-            # without a living mother, an average share
+            # without a mother to endow it (or after an heir took all), it starts poor: a small share of the mean
             avg = float(np.mean(hw[hw > 0])) if (hw > 0).any() else 1.0
             pos = {int(h): k for k, h in enumerate(heads)}
             for k in new:
@@ -96,13 +102,13 @@ def yearly(w):
                     hw[pos[m]] -= give
                     hw[k] = give
                 else:
-                    hw[k] = avg
+                    hw[k] = P.NEW_HOUSEHOLD_START * avg
         sigma = P.WEALTH_LUCK * min(1.0, per_person / P.SURPLUS_FOR_FULL_LUCK)
         # M3 (option c from the M2 gate): advantage compounds where good land is scarce and where herds breed.
         # Scarce land: in a crowded village, households with more land weather bad years and take over the land of
         # those that fail, so a household's holdings grow with its size relative to the village mean.
         # Herds: animals are wealth that breeds in good years and dies in bad ones.
-        crowd, animals = _land_and_herds(w, b, n)
+        crowd, animals = _land_and_herds(w, b, cell_farmers.get(b.cell, n))
         rel = hw / max(float(hw.mean()), 1e-12) - 1
         land = P.LAND_ADVANTAGE * crowd * np.clip(rel, -1, 3)
         land -= float((hw * land).sum() / max(hw.sum(), 1e-12))     # land changes hands: what some gain, others lose
@@ -122,14 +128,13 @@ def yearly(w):
                 p.role[i] = 2 if j % 4 == 0 else 3
         if len(heads) >= 3 and w.year % 10 == 0:          # sampled every 10 years so the log spans the whole history
             age = (w.t - b.farming_since) // P.TICKS_PER_YEAR if b.farming_since >= 0 else 0
-            w.gini_log.append([w.year, b.id, round(gini(hw), 4), round(per_person, 1), len(heads), int(age)])
-    del w.gini_log[:-20000]
-    del w.spec_log[:-20000]
+            log_row(w, "gini_log", [w.year, b.id, round(gini(hw), 4), round(per_person, 1), len(heads), int(age)], 20000)
 
 
 def _land_and_herds(w, b, n):
-    """How crowded a village's farmland is (0: room to spare, 1: full or beyond) and the share of its farming
-    in animals."""
+    """How crowded a village's farmland is (0: room to spare, 1: full or beyond), given n, the people farming
+    its cell, and the share of its farming in animals. (Until 12 November 2026 n was the village alone, which
+    never reached half its cell's capacity, so land never counted as scarce.)"""
     from . import farming
     kp, vp, ka, va = farming.best(w, b)
     _, suit = farming.land_tables(w)
@@ -140,21 +145,71 @@ def _land_and_herds(w, b, n):
 
 
 def inherit(w, dead_ids):
-    """A household head's holdings pass in equal shares to her living children's households."""
+    """A household head's holdings pass to her heirs, by her people's custom of succession.
+
+    "to a son": all to the eldest living son; "to a daughter": all to the eldest living daughter; "to a sister's
+    son": all to the eldest living son of a sister; "chosen by the council": equal shares to all living children.
+    Where the custom's heir does not exist, equal shares to the children. A son's share goes to his partner's
+    household if he has one (women head households). With no children, to the partner. Holdings with no heir
+    at all are lost, as before.
+    """
+    from . import customs
     p = w.people
-    for i in dead_ids:
-        i = int(i)
+    n = p.n
+    dead = np.asarray(dead_ids, dtype=np.int64)
+    alive = np.nonzero(p.alive[:n])[0]
+    mo, fa = p.mother[alive], p.father[alive]
+    kid = np.isin(mo, dead) | np.isin(fa, dead)
+    kids_of: dict = {}
+    for k, m, f in zip(alive[kid].tolist(), mo[kid].tolist(), fa[kid].tolist()):
+        for par in (m, f):
+            if par >= 0:
+                kids_of.setdefault(par, []).append(k)
+    by_custom = getattr(P, "INHERITANCE_BY_CUSTOM", False)
+    nephews_of: dict = {}
+    if by_custom:
+        # sons of sisters: living men whose maternal grandmother is the dead person's mother
+        dm = p.mother[dead]
+        dm = dm[dm >= 0]
+        if len(dm):
+            male = alive[p.sex[alive] == 1]
+            mm = p.mother[male]
+            gm = np.where(mm >= 0, p.mother[np.clip(mm, 0, None)], -1)
+            sel = np.isin(gm, dm)
+            for k, m, g in zip(male[sel].tolist(), mm[sel].tolist(), gm[sel].tolist()):
+                nephews_of.setdefault(g, []).append((k, m))
+
+    def head(k):
+        return int(k) if p.sex[k] == 0 or p.partner[k] < 0 else int(p.partner[k])
+
+    def eldest(ks):
+        return min(ks, key=lambda k: (int(p.birth[k]), k))
+
+    for i in dead.tolist():
         v = float(p.wealth[i])
         if v <= 0:
             continue
         p.wealth[i] = 0.0
-        kids = np.nonzero(((p.mother[:p.n] == i) | (p.father[:p.n] == i)) & p.alive[:p.n])[0] if p.n < 3_000_000 else []
-        if len(kids):
-            # each child's household head receives a share (a daughter heads her own; a son's goes to his partner)
-            heirs = [int(k) if p.sex[k] == 0 or p.partner[k] < 0 else int(p.partner[k]) for k in kids]
+        kids = kids_of.get(i, [])
+        heirs = None
+        if by_custom:
+            band = int(p.band[i])
+            rule = customs.CUSTOMS["succession"][int(w.customs[band, customs.SUCCESSION])] if band >= 0 else ""
+            if rule == "to a son":
+                sons = [k for k in kids if p.sex[k] == 1]
+                heirs = [eldest(sons)] if sons else None
+            elif rule == "to a daughter":
+                ds = [k for k in kids if p.sex[k] == 0]
+                heirs = [eldest(ds)] if ds else None
+            elif rule == "to a sister's son" and p.mother[i] >= 0:
+                nep = [k for k, m in nephews_of.get(int(p.mother[i]), []) if m != i]
+                heirs = [eldest(nep)] if nep else None
+        if heirs is None and kids:
+            heirs = kids
+        if heirs:
             share = v / len(heirs)
             for h in heirs:
-                p.wealth[h] += share
+                p.wealth[head(h)] += share
         else:
             pa = int(p.partner[i])
             if pa >= 0 and p.alive[pa]:
@@ -168,7 +223,7 @@ def work_share(w, ids, sizes=None):
 
 
 def to_json(w):
-    return {"gini_log": w.gini_log[-5000:], "spec_log": w.spec_log[-5000:]}
+    return {"gini_log": w.gini_log, "spec_log": w.spec_log}          # whole logs (until 12 Nov 2026 the last 5,000 rows: checkpoints lost the early ones)
 
 
 def from_json(w, d):

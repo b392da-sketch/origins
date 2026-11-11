@@ -120,7 +120,7 @@ def worker(jobs, budget, ckpt: Path, institutions: bool):
                 import gc
                 gc.collect()
                 t0 = time.time()
-                tmp.write_bytes(persist.to_bytes(w, fast=True))
+                persist.to_file(w, tmp, fast=True)
                 print(f"checkpoint written in {time.time() - t0:.0f} s; peak memory "
                       f"{resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.2f} GB", flush=True)
                 tmp.replace(cp)

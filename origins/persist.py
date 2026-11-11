@@ -47,6 +47,14 @@ def environment() -> dict:
 
 def to_bytes(w: World, fast: bool = False) -> bytes:
     """The whole world as bytes. fast=True (checkpoints) compresses lightly: much quicker for very large worlds."""
+    buf = io.BytesIO()
+    to_file(w, buf, fast)
+    return buf.getvalue()
+
+
+def to_file(w: World, f, fast: bool = False) -> None:
+    """Write the whole world to a path or file object, streaming the large parts (events, customs log, arrays)
+    so that saving a big world needs little memory beyond the world itself."""
     meta = {
         "schema": SCHEMA, "version": VERSION, "world_seed": w.world_seed, "run_seed": w.run_seed,
         "planet_fingerprint": w.planet.fingerprint, "t": w.t, "counts": w.counts, "ledger": w.ledger,
@@ -58,9 +66,9 @@ def to_bytes(w: World, fast: bool = False) -> bytes:
         "bands": [dataclasses.asdict(b) for b in w.bands.live.values()], "band_strings": w.bands.strings,
         "reveal_pending": sorted(w.reveal_pending), "pending_restore": w.pending_restore,
         "env": environment(),
-        "language": language.to_json(w), "custom_log": w.custom_log, "hazards": w.hazards,
+        "language": language.to_json(w), "hazards": w.hazards,
         "farming": farming.to_json(w), "surplus": surplus.to_json(w), "polity": polity.to_json(w),
-        "conflict": conflict.to_json(w), "timing": w.timing,
+        "conflict": conflict.to_json(w), "timing": w.timing, "log_strides": w.log_strides,
     }
     arrays = {"stock": w.stock, "known": w.known, "discovered_by": w.discovered_by,
               "discovered_at": w.discovered_at, "food_modifier": w.food_modifier,
@@ -73,23 +81,22 @@ def to_bytes(w: World, fast: bool = False) -> bytes:
     arrays.update({"p_" + k: v for k, v in w.people.arrays().items()})
     arrays.update({"g_" + k: v for k, v in w.groups.arrays().items()})
     arrays.update({"b_" + k: v for k, v in w.bands.arrays().items()})
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED, compresslevel=1 if fast else None) as z:
+    with zipfile.ZipFile(f, "w", zipfile.ZIP_DEFLATED, compresslevel=1 if fast else None) as z:
         z.writestr("meta.json", json.dumps(_jsonable(meta), separators=(",", ":")))
         # events are written one per line, streamed, so a history of millions of events never becomes one huge string
-        with z.open("events.jsonl", "w", force_zip64=True) as f:
-            chunk = []
-            for e in w.events:
-                chunk.append(json.dumps(_jsonable(e), separators=(",", ":")))
-                if len(chunk) >= 5000:
-                    f.write(("\n".join(chunk) + "\n").encode())
-                    chunk = []
-            if chunk:
-                f.write(("\n".join(chunk) + "\n").encode())
-        a = io.BytesIO()
-        (np.savez if fast else np.savez_compressed)(a, **arrays)
-        z.writestr("arrays.npz", a.getvalue())
-    return buf.getvalue()
+        for name, rows in (("events.jsonl", w.events),
+                           ("custom_log.jsonl", ([int(k), v] for k, v in w.custom_log.items()))):
+            with z.open(name, "w", force_zip64=True) as out:
+                chunk = []
+                for e in rows:
+                    chunk.append(json.dumps(_jsonable(e), separators=(",", ":")))
+                    if len(chunk) >= 5000:
+                        out.write(("\n".join(chunk) + "\n").encode())
+                        chunk = []
+                if chunk:
+                    out.write(("\n".join(chunk) + "\n").encode())
+        with z.open("arrays.npz", "w", force_zip64=True) as out:
+            (np.savez if fast else np.savez_compressed)(out, **arrays)
 
 
 def from_bytes(data: bytes, planet=None) -> World:
@@ -99,6 +106,9 @@ def from_bytes(data: bytes, planet=None) -> World:
         if "events.jsonl" in z.namelist():
             with z.open("events.jsonl") as f:
                 meta["events"] = EventStore(json.loads(line) for line in io.TextIOWrapper(f, encoding="utf-8") if line.strip())
+        if "custom_log.jsonl" in z.namelist():
+            with z.open("custom_log.jsonl") as f:
+                meta["_custom_log"] = {int(r[0]): r[1] for r in (json.loads(line) for line in io.TextIOWrapper(f, encoding="utf-8") if line.strip())}
     if meta.get("schema") not in READABLE_SCHEMAS:
         raise ValueError(f"unsupported save schema {meta.get('schema')} (this version reads {READABLE_SCHEMAS})")
     planet = planet if planet is not None and planet.seed == meta["world_seed"] else generate(meta["world_seed"])
@@ -161,9 +171,11 @@ def from_bytes(data: bytes, planet=None) -> World:
     w.groups = Groups.from_arrays({k[2:]: v for k, v in arrays.items() if k.startswith("g_")})
     if "language" in meta:                   # schema 1 (M0) saves: everyone speaks the proto-language
         language.from_json(w, meta["language"])
-        w.custom_log = {int(k): v for k, v in meta["custom_log"].items()}
+        w.custom_log = ({int(k): v for k, v in meta["custom_log"].items()} if "custom_log" in meta
+                        else meta.get("_custom_log", {}))
         w.hazards = meta["hazards"]
         w.timing = meta.get("timing", {})
+        w.log_strides = meta.get("log_strides", {})
     if "farming" in meta:
         farming.from_json(w, meta["farming"])
     if "surplus" in meta:

@@ -63,7 +63,12 @@ def describe(w, ref: dict) -> dict:
         if p.death_hazard[i] >= 0:
             causes.append({"event": int(p.death_hazard[i])})
         if p.cause[i] == C["orphaned infant"] and p.mother[i] >= 0:
-            causes.append({"death": int(p.mother[i])})
+            m = int(p.mother[i])
+            if p.death[m] >= 0:
+                causes.append({"death": m})
+            else:
+                causes.append({"note": f"separated from their mother {p.name(m)}, whose people were later "
+                                       f"counted only as a group (her record ends there)"})
         if p.cause[i] == C["childbirth"]:
             kids = [k for k in range(p.n) if p.mother[k] == i and p.birth[k] == p.death[i]] if p.n < 200000 else []
             causes += [{"birth": int(k)} for k in kids[:1]]

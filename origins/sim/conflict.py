@@ -28,7 +28,7 @@ from __future__ import annotations
 import numpy as np
 
 from .. import params as P
-from ..state import C
+from ..state import C, log_row
 
 OUTCOMES = ["repelled", "raided", "annexed", "polity conquered"]
 
@@ -163,11 +163,16 @@ def _captives(w, loser, winner, share, rng) -> int:
     if not len(mem):
         return 0
     a = w.ages(mem)
-    pool = mem[((p.sex[mem] == 0) & (a >= 12) & (a < 30)) | (a < 12)]
+    # children under 3 are never taken on their own: they go with their mother if she is taken
+    pool = mem[((p.sex[mem] == 0) & (a >= 12) & (a < 30)) | ((a >= 3) & (a < 12))]
     k = int(rng.binomial(len(pool), share)) if len(pool) else 0
     if k <= 0:
         return 0
     taken = rng.choice(pool, k, replace=False)
+    small = mem[a < 3]
+    if len(small):
+        taken = np.concatenate([taken, small[np.isin(p.mother[small], taken)]])
+        k = len(taken)
     part = p.partner[taken]
     has = part >= 0
     p.partner[part[has]] = -1
@@ -274,7 +279,6 @@ def yearly(w):
         for key, bn in (("scarcity", sbin), ("distance", dbin)):
             w.war_stats[key][bn][1] += 1
         _fight(w, rng, s, mem, b, best, d, sc, cd, share, g, att, dfd, is_pol, pol, sizes, fighters)
-    del w.war_log[:-40000]
 
 
 def _fight(w, rng, s, mem, b, t, d, sc, cd, share, g, att, dfd, is_pol, pol, sizes, fighters):
@@ -306,13 +310,13 @@ def _fight(w, rng, s, mem, b, t, d, sc, cd, share, g, att, dfd, is_pol, pol, siz
         caps = _captives(w, t, b, P.CAPTIVE_SHARE, rng)
         # conquest: a polity or village of farmers may take a farming village (and with its seat, a polity)
         # (a conqueror without the capacity to rule more only plunders: annexing needs room under its capacity)
-        room = (not is_pol) or pol.load < P.CONQUEST_ROOM * pol.cap
+        room = _room_for(w, b, t, ts, is_pol, pol, cd, sizes)
         if room and (is_pol or w.farm_share[b.id] >= 0.5) and w.farm_share[t.id] >= 0.5:
             want = P.CONQUEST_CHANCE * (1.5 if is_pol and pol.inst[polity.WARRIORS] else 1.0)
             if rng.random() < want:
                 outcome = _conquer(w, b, t, s, ts, is_pol, pol, eid)
-    w.war_log.append([w.year, b.id, t.id, round(sc, 3), round(d, 2), round(cd, 3), round(share, 3), outcome,
-                      da, dd, int(is_pol)])
+    log_row(w, "war_log", [w.year, b.id, t.id, round(sc, 3), round(d, 2), round(cd, 3), round(share, 3), outcome,
+                      da, dd, int(is_pol)], 40000)
     if outcome == 0 and da == 0 and dd == 0 and eid == len(w.events) - 1:
         w.events.pop()                    # a raid driven off with no one killed leaves no event (it is in the war log)
     else:
@@ -321,6 +325,21 @@ def _fight(w, rng, s, mem, b, t, d, sc, cd, share, g, att, dfd, is_pol, pol, siz
     if win and ts[0] == "p" and w.polities[ts[1]].alive:
         dp = w.polities[ts[1]]
         dp.defeated_until = max(dp.defeated_until, w.t + P.DEFEAT_YEARS * P.TICKS_PER_YEAR)
+
+
+def _room_for(w, b, t, ts, is_pol, pol, cd, sizes) -> bool:
+    """Would the conqueror still be within its capacity after taking t (and, if t is a polity's seat, the whole
+    polity, which it would rule through t)? A village that conquers becomes a polity with no institutions."""
+    from . import polity
+    load, cap = (pol.load, pol.cap) if is_pol else (0.0, P.POLITY_CAPACITY)
+    seat_cell = w.bands[pol.seat].cell if is_pol else b.cell
+    d = polity._cells_apart(w, seat_cell, t.cell)
+    size = float(sizes.get(t.id, 150.0))
+    u = np.sqrt(max(size, 1) / 150.0) * (1 + d / P.LOAD_DISTANCE) * (1 + P.LOAD_CULTURE * cd) * (1 + P.CONQUEST_LOAD)
+    n_more = 0
+    if ts[0] == "p" and w.polities[ts[1]].alive and w.polities[ts[1]].seat == t.id:
+        n_more = len(polity.members_of(w, ts[1])) - 1
+    return load + u * (1 + P.DELEGATED_LOAD * n_more) <= P.CONQUEST_ROOM * cap
 
 
 def _conquer(w, b, t, s, ts, is_pol, pol, eid) -> int:
@@ -349,7 +368,7 @@ def _conquer(w, b, t, s, ts, is_pol, pol, eid) -> int:
 
 def to_json(w):
     return {"grievance": [[list(a), list(b), v] for (a, b), v in w.grievance.items()],
-            "war_log": w.war_log[-20000:],
+            "war_log": w.war_log,
             "war_stats": {k: {str(b): v for b, v in d.items()} for k, d in w.war_stats.items()}}
 
 

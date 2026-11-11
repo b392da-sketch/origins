@@ -407,6 +407,8 @@ def yearly(w):
             dist = d / P.LOAD_DISTANCE * (0.5 if p.inst[COLLECTORS] else 1.0)
             u = np.sqrt(max(size_of.get(b.id, 0), 1) / 150.0) * (1 + dist) * (1 + P.LOAD_CULTURE * cd)
             u *= P.COUNCIL_LOAD if p.inst[COUNCIL] else 1.0
+            if depth.get(b.id, 1) >= 2:
+                u *= P.DELEGATED_LOAD          # ruled through a district head, who carries part of the work
             ca = int(w.conquered_at[b.id]) if hasattr(w, "conquered_at") else -1
             if ca >= 0 and w.t - ca < P.CONQUEST_MEMORY * P.TICKS_PER_YEAR:
                 u *= 1 + P.CONQUEST_LOAD * (0.5 if p.inst[WARRIORS] else 1.0) * (1 - (w.t - ca) / (P.CONQUEST_MEMORY * P.TICKS_PER_YEAR))
@@ -581,7 +583,7 @@ def yearly(w):
                                          f"followed one by one from now; their earlier lives were not recorded"}])
                 p.leader, _ = _successor(w, seat, -1, 2)
                 p.led_since = w.t
-    del w.polity_log[:-40000]
+    del w.polity_log[:-3_000_000]    # whole histories (until 12 Nov 2026 only the last 40,000 rows)
 
 
 def _under(w, x, top, seat) -> bool:
@@ -599,7 +601,7 @@ def _under(w, x, top, seat) -> bool:
 def to_json(w):
     from dataclasses import asdict
     return {"next_polity": w.next_polity, "polities": [asdict(p) for p in w.polities.values()],
-            "polity_log": w.polity_log[-20000:], "sec_stats": {str(k): v for k, v in w.sec_stats.items()},
+            "polity_log": w.polity_log, "sec_stats": {str(k): v for k, v in w.sec_stats.items()},
             "polity_firsts": w.polity_firsts}
 
 
