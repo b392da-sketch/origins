@@ -314,7 +314,9 @@ def _fight(w, rng, s, mem, b, t, d, sc, cd, share, g, att, dfd, is_pol, pol, siz
         if room and (is_pol or w.farm_share[b.id] >= 0.5) and w.farm_share[t.id] >= 0.5:
             want = P.CONQUEST_CHANCE * (1.5 if is_pol and pol.inst[polity.WARRIORS] else 1.0)
             if rng.random() < want:
+                added = _conquest_load(w, b, t, ts, is_pol, pol, sizes)
                 outcome = _conquer(w, b, t, s, ts, is_pol, pol, eid)
+                w.polities[int(w.polity_of[b.id])].load += added      # counted at once: no second conquest on stale load
     log_row(w, "war_log", [w.year, b.id, t.id, round(sc, 3), round(d, 2), round(cd, 3), round(share, 3), outcome,
                       da, dd, int(is_pol)], 40000)
     if outcome == 0 and da == 0 and dd == 0 and eid == len(w.events) - 1:
@@ -330,16 +332,26 @@ def _fight(w, rng, s, mem, b, t, d, sc, cd, share, g, att, dfd, is_pol, pol, siz
 def _room_for(w, b, t, ts, is_pol, pol, cd, sizes) -> bool:
     """Would the conqueror still be within its capacity after taking t (and, if t is a polity's seat, the whole
     polity, which it would rule through t)? A village that conquers becomes a polity with no institutions."""
+    return _conquest_load(w, b, t, ts, is_pol, pol, sizes) + (pol.load if is_pol else 0.0) <= \
+        P.CONQUEST_ROOM * (pol.cap if is_pol else P.POLITY_CAPACITY)
+
+
+def _conquest_load(w, b, t, ts, is_pol, pol, sizes) -> float:
+    """The load taking t would add: t itself, ruled through the conqueror b, as a fresh conquest; and if t is a
+    polity's seat, its other members, ruled through t."""
     from . import polity
-    load, cap = (pol.load, pol.cap) if is_pol else (0.0, P.POLITY_CAPACITY)
-    seat_cell = w.bands[pol.seat].cell if is_pol else b.cell
-    d = polity._cells_apart(w, seat_cell, t.cell)
-    size = float(sizes.get(t.id, 150.0))
-    u = np.sqrt(max(size, 1) / 150.0) * (1 + d / P.LOAD_DISTANCE) * (1 + P.LOAD_CULTURE * cd) * (1 + P.CONQUEST_LOAD)
-    n_more = 0
+    probe = pol if is_pol else polity.Polity(-1, b.id, w.t, "")
+    seat = w.bands[probe.seat]
+    depth = 1 if b.id == probe.seat else polity._depths(w, [b.id], probe.seat).get(b.id, 1) + 1
+    ca_old = int(w.conquered_at[t.id])
+    w.conquered_at[t.id] = w.t                       # weigh it as a fresh conquest
+    u, _, _ = polity.unit_load(w, probe, seat, t, float(sizes.get(t.id, 150.0)), depth)
+    w.conquered_at[t.id] = ca_old
+    extra = 0.0
     if ts[0] == "p" and w.polities[ts[1]].alive and w.polities[ts[1]].seat == t.id:
         n_more = len(polity.members_of(w, ts[1])) - 1
-    return load + u * (1 + P.DELEGATED_LOAD * n_more) <= P.CONQUEST_ROOM * cap
+        extra = u * P.DELEGATED_LOAD * n_more if depth + 1 <= polity.max_depth(probe) else u * n_more
+    return u + extra
 
 
 def _conquer(w, b, t, s, ts, is_pol, pol, eid) -> int:
