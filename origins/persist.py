@@ -68,7 +68,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
         "env": environment(),
         "language": language.to_json(w), "hazards": w.hazards,
         "farming": farming.to_json(w), "surplus": surplus.to_json(w), "polity": polity.to_json(w),
-        "conflict": conflict.to_json(w), "timing": w.timing,
+        "conflict": conflict.to_json(w), "timing": w.timing, "log_strides": w.log_strides,
     }
     arrays = {"stock": w.stock, "known": w.known, "discovered_by": w.discovered_by,
               "discovered_at": w.discovered_at, "food_modifier": w.food_modifier,
@@ -175,6 +175,7 @@ def from_bytes(data: bytes, planet=None) -> World:
                         else meta.get("_custom_log", {}))
         w.hazards = meta["hazards"]
         w.timing = meta.get("timing", {})
+        w.log_strides = meta.get("log_strides", {})
     if "farming" in meta:
         farming.from_json(w, meta["farming"])
     if "surplus" in meta:

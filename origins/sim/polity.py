@@ -583,7 +583,7 @@ def yearly(w):
                                          f"followed one by one from now; their earlier lives were not recorded"}])
                 p.leader, _ = _successor(w, seat, -1, 2)
                 p.led_since = w.t
-    del w.polity_log[:-40000]
+    del w.polity_log[:-3_000_000]    # whole histories (until 12 Nov 2026 only the last 40,000 rows)
 
 
 def _under(w, x, top, seat) -> bool:
@@ -601,7 +601,7 @@ def _under(w, x, top, seat) -> bool:
 def to_json(w):
     from dataclasses import asdict
     return {"next_polity": w.next_polity, "polities": [asdict(p) for p in w.polities.values()],
-            "polity_log": w.polity_log[-20000:], "sec_stats": {str(k): v for k, v in w.sec_stats.items()},
+            "polity_log": w.polity_log, "sec_stats": {str(k): v for k, v in w.sec_stats.items()},
             "polity_firsts": w.polity_firsts}
 
 

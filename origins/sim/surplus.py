@@ -23,6 +23,7 @@ from __future__ import annotations
 import numpy as np
 
 from .. import params as P
+from ..state import log_row
 
 ROLES = ["", "leader", "ritual specialist", "craft worker"]
 ANNUAL = 365.0 * 0.95                         # food units a typical person needs in a year
@@ -61,6 +62,11 @@ def yearly(w):
     sizes = w.band_sizes()
     idx = w.alive_idx()
     p.role[idx] = 0
+    # farming people per cell: land is scarce when everyone farming a cell, not one village, presses on it
+    cell_farmers: dict = {}
+    for b in w.living_bands():
+        if w.farm_share[b.id] >= P.PROPERTY_SHARE:
+            cell_farmers[b.cell] = cell_farmers.get(b.cell, 0.0) + float(sizes[b.id])
     for b in w.living_bands():
         n = float(sizes[b.id])
         if n <= 0:
@@ -70,7 +76,7 @@ def yearly(w):
         spec = min(np.floor(surplus / ANNUAL), np.floor(P.SPECIALIST_MAX * n)) if P.STORAGE else 0.0
         w.spec[b.id] = spec
         if w.year % 50 == 0 and (b.store > 0 or spec > 0):
-            w.spec_log.append([w.year, b.id, round(per_person, 1), round(spec / n, 4), round(float(w.farm_share[b.id]), 3)])
+            log_row(w, "spec_log", [w.year, b.id, round(per_person, 1), round(spec / n, 4), round(float(w.farm_share[b.id]), 3)], 20000)
         if b.mode != "individual":
             continue
         mem = w.members(b.id)
@@ -102,7 +108,7 @@ def yearly(w):
         # Scarce land: in a crowded village, households with more land weather bad years and take over the land of
         # those that fail, so a household's holdings grow with its size relative to the village mean.
         # Herds: animals are wealth that breeds in good years and dies in bad ones.
-        crowd, animals = _land_and_herds(w, b, n)
+        crowd, animals = _land_and_herds(w, b, cell_farmers.get(b.cell, n))
         rel = hw / max(float(hw.mean()), 1e-12) - 1
         land = P.LAND_ADVANTAGE * crowd * np.clip(rel, -1, 3)
         land -= float((hw * land).sum() / max(hw.sum(), 1e-12))     # land changes hands: what some gain, others lose
@@ -122,14 +128,13 @@ def yearly(w):
                 p.role[i] = 2 if j % 4 == 0 else 3
         if len(heads) >= 3 and w.year % 10 == 0:          # sampled every 10 years so the log spans the whole history
             age = (w.t - b.farming_since) // P.TICKS_PER_YEAR if b.farming_since >= 0 else 0
-            w.gini_log.append([w.year, b.id, round(gini(hw), 4), round(per_person, 1), len(heads), int(age)])
-    del w.gini_log[:-20000]
-    del w.spec_log[:-20000]
+            log_row(w, "gini_log", [w.year, b.id, round(gini(hw), 4), round(per_person, 1), len(heads), int(age)], 20000)
 
 
 def _land_and_herds(w, b, n):
-    """How crowded a village's farmland is (0: room to spare, 1: full or beyond) and the share of its farming
-    in animals."""
+    """How crowded a village's farmland is (0: room to spare, 1: full or beyond), given n, the people farming
+    its cell, and the share of its farming in animals. (Until 12 November 2026 n was the village alone, which
+    never reached half its cell's capacity, so land never counted as scarce.)"""
     from . import farming
     kp, vp, ka, va = farming.best(w, b)
     _, suit = farming.land_tables(w)
@@ -218,7 +223,7 @@ def work_share(w, ids, sizes=None):
 
 
 def to_json(w):
-    return {"gini_log": w.gini_log[-5000:], "spec_log": w.spec_log[-5000:]}
+    return {"gini_log": w.gini_log, "spec_log": w.spec_log}          # whole logs (until 12 Nov 2026 the last 5,000 rows: checkpoints lost the early ones)
 
 
 def from_json(w, d):

@@ -30,3 +30,21 @@ class EventStoreChangesNothing(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SampledLogsCoverTheWholeHistory(unittest.TestCase):
+    def test_log_row(self):
+        from origins.state import log_row
+
+        class W:
+            pass
+        w = W()
+        w.log_strides, w.war_log = {}, []
+        for i in range(10_000):
+            log_row(w, "war_log", [i], 100)
+        rows = [r[0] for r in w.war_log]
+        self.assertLessEqual(len(rows), 100)
+        self.assertEqual(rows[0], 0)
+        self.assertGreater(rows[-1], 9_800)                      # the end of the history is there
+        gaps = {b - a for a, b in zip(rows, rows[1:])}
+        self.assertEqual(len(gaps), 1)                           # evenly spaced: every stride-th row

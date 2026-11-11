@@ -28,7 +28,7 @@ from __future__ import annotations
 import numpy as np
 
 from .. import params as P
-from ..state import C
+from ..state import C, log_row
 
 OUTCOMES = ["repelled", "raided", "annexed", "polity conquered"]
 
@@ -279,7 +279,6 @@ def yearly(w):
         for key, bn in (("scarcity", sbin), ("distance", dbin)):
             w.war_stats[key][bn][1] += 1
         _fight(w, rng, s, mem, b, best, d, sc, cd, share, g, att, dfd, is_pol, pol, sizes, fighters)
-    del w.war_log[:-40000]
 
 
 def _fight(w, rng, s, mem, b, t, d, sc, cd, share, g, att, dfd, is_pol, pol, sizes, fighters):
@@ -316,8 +315,8 @@ def _fight(w, rng, s, mem, b, t, d, sc, cd, share, g, att, dfd, is_pol, pol, siz
             want = P.CONQUEST_CHANCE * (1.5 if is_pol and pol.inst[polity.WARRIORS] else 1.0)
             if rng.random() < want:
                 outcome = _conquer(w, b, t, s, ts, is_pol, pol, eid)
-    w.war_log.append([w.year, b.id, t.id, round(sc, 3), round(d, 2), round(cd, 3), round(share, 3), outcome,
-                      da, dd, int(is_pol)])
+    log_row(w, "war_log", [w.year, b.id, t.id, round(sc, 3), round(d, 2), round(cd, 3), round(share, 3), outcome,
+                      da, dd, int(is_pol)], 40000)
     if outcome == 0 and da == 0 and dd == 0 and eid == len(w.events) - 1:
         w.events.pop()                    # a raid driven off with no one killed leaves no event (it is in the war log)
     else:
@@ -369,7 +368,7 @@ def _conquer(w, b, t, s, ts, is_pol, pol, eid) -> int:
 
 def to_json(w):
     return {"grievance": [[list(a), list(b), v] for (a, b), v in w.grievance.items()],
-            "war_log": w.war_log[-20000:],
+            "war_log": w.war_log,
             "war_stats": {k: {str(b): v for b, v in d.items()} for k, d in w.war_stats.items()}}
 
 
