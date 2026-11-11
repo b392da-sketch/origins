@@ -78,9 +78,15 @@ def ensure(w, band_id: int, parent: int):
             setattr(w, k, a)
     pid = int(w.polity_of[parent]) if parent >= 0 else -1
     p = w.polities.get(pid) if pid >= 0 else None
-    if p is not None and p.alive and p.load < p.cap:
+    u = 0.0
+    if p is not None and p.alive:
+        depth = (1 if parent == p.seat else _depths(w, [parent], p.seat).get(parent, 1)) + 1
+        # the daughter is not registered yet: weigh her as her mother's place and people (not as a conquest)
+        u, _, _ = unit_load(w, p, w.bands[p.seat], w.bands[parent], P.VILLAGE_FISSION_SIZE / 2, depth, conquest=False)
+    if p is not None and p.alive and p.load + u <= p.cap:
         w.polity_of[band_id] = pid                        # a daughter settlement stays in its mother's polity ...
         w.polity_via[band_id] = parent                    # attached through her
+        p.load += u                                       # (counted at once, so several daughters in a year cannot overshoot)
     # ... unless the polity already holds more than it can bear: then the new settlement goes its own way
     else:
         w.polity_of[band_id] = -1
@@ -181,6 +187,28 @@ def staff_needed(p, n_members) -> float:
     return sum(P.INSTITUTION_STAFF[k] * np.sqrt(max(n_members, 1)) for k in range(len(INSTITUTIONS)) if p.inst[k])
 
 
+def unit_load(w, p, seat, b, size, depth, conquest=True) -> tuple:
+    """The load one member settlement puts on its polity's seat, with its distance and cultural distance.
+
+    What each institution does (M3 specification, section 4): a council lightens every member's load, tribute
+    collectors halve the cost of distance, warriors kept by the leader halve the extra weight of recent conquests;
+    capacity comes from all of them (see capacity()). A settlement ruled through a district head weighs less
+    (DELEGATED_LOAD), but only at levels of rule the polity's institutions support (max_depth): without them,
+    a chain of settlements is ruled as if each answered to the seat directly.
+    """
+    d = _cells_apart(w, seat.cell, b.cell)
+    cd = cultural_distance(w, seat, b)
+    dist = d / P.LOAD_DISTANCE * (0.5 if p.inst[COLLECTORS] else 1.0)
+    u = np.sqrt(max(size, 1) / 150.0) * (1 + dist) * (1 + P.LOAD_CULTURE * cd)
+    u *= P.COUNCIL_LOAD if p.inst[COUNCIL] else 1.0
+    if 2 <= depth <= max_depth(p):
+        u *= P.DELEGATED_LOAD
+    ca = int(w.conquered_at[b.id]) if conquest and hasattr(w, "conquered_at") and b.id < len(w.conquered_at) else -1
+    if ca >= 0 and w.t - ca < P.CONQUEST_MEMORY * P.TICKS_PER_YEAR:
+        u *= 1 + P.CONQUEST_LOAD * (0.5 if p.inst[WARRIORS] else 1.0) * (1 - (w.t - ca) / (P.CONQUEST_MEMORY * P.TICKS_PER_YEAR))
+    return float(u), d, cd
+
+
 def capacity(p) -> float:
     c = P.POLITY_CAPACITY * (1 + sum(P.INSTITUTION_GAIN[k] for k in range(len(INSTITUTIONS)) if p.inst[k] and k != OFFICIALS))
     return c * (P.OFFICIALS_MULTIPLIER if p.inst[OFFICIALS] else 1.0)
@@ -209,6 +237,7 @@ def _new_polity(w, seat, causes, parent=-1, why="") -> Polity:
     w.next_polity += 1
     p = Polity(pid, seat.id, w.t, _name(w, seat), parent=parent)
     p.led_since = w.t
+    p.cap = capacity(p)
     p.leader = seat.leader if seat.mode == "individual" and seat.leader >= 0 and w.people.alive[seat.leader] \
         and int(w.people.band[seat.leader]) == seat.id else _successor(w, seat, -1, 2)[0]
     w.polities[pid] = p
@@ -399,19 +428,7 @@ def yearly(w):
         for b in mem:
             if b.id == p.seat:
                 continue
-            d = _cells_apart(w, seat.cell, b.cell)
-            cd = cultural_distance(w, seat, b)
-            # what each institution does (M3 specification, section 4): a council lightens every member's load,
-            # tribute collectors halve the cost of distance, warriors kept by the leader halve the extra weight of
-            # recent conquests; capacity comes from all of them (see capacity())
-            dist = d / P.LOAD_DISTANCE * (0.5 if p.inst[COLLECTORS] else 1.0)
-            u = np.sqrt(max(size_of.get(b.id, 0), 1) / 150.0) * (1 + dist) * (1 + P.LOAD_CULTURE * cd)
-            u *= P.COUNCIL_LOAD if p.inst[COUNCIL] else 1.0
-            if depth.get(b.id, 1) >= 2:
-                u *= P.DELEGATED_LOAD          # ruled through a district head, who carries part of the work
-            ca = int(w.conquered_at[b.id]) if hasattr(w, "conquered_at") else -1
-            if ca >= 0 and w.t - ca < P.CONQUEST_MEMORY * P.TICKS_PER_YEAR:
-                u *= 1 + P.CONQUEST_LOAD * (0.5 if p.inst[WARRIORS] else 1.0) * (1 - (w.t - ca) / (P.CONQUEST_MEMORY * P.TICKS_PER_YEAR))
+            u, d, cd = unit_load(w, p, seat, b, size_of.get(b.id, 0), depth.get(b.id, 1))
             unit[b.id] = (u, d, cd)
             load += u
         p.load = load
@@ -547,8 +564,8 @@ def yearly(w):
                     depth_here = 1 if t.id == p.seat else _depths(w, [t.id], p.seat).get(t.id, 1) + 1
                     if depth_here > max_depth(p):
                         continue
-                    if p.load > P.INSTITUTION_PRESSURE * 1.5 * p.cap:
-                        continue
+                    if p.load + unit_load(w, p, head, b, size_of.get(b.id, 0), depth_here)[0] > p.cap:
+                        continue                  # (until 12 Nov 2026: joined while load was under 1.2 x capacity)
                 else:
                     head = t
                     s = standing.get(t.id, 0.0)
@@ -565,6 +582,11 @@ def yearly(w):
             pid = p.id
         w.polity_of[b.id] = pid
         w.polity_via[b.id] = best.id
+        q = w.polities[pid]
+        q.load += unit_load(w, q, w.bands[q.seat], b, size_of.get(b.id, 0),
+                            1 if best.id == q.seat else _depths(w, [best.id], q.seat).get(best.id, 1) + 1)[0]
+        if q.cap <= 0:
+            q.cap = capacity(q)
         w.event("polity_joined", cell=b.cell, band=b.id, polity=pid, causes=[{"note": why}],
                 through=best.id)
 
