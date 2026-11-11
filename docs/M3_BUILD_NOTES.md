@@ -414,3 +414,29 @@ That is Ben's decision.
 
 - Borgerhoff Mulder, M., Bowles, S., Hertz, T., et al. (2009). Intergenerational wealth transmission and the dynamics of inequality in small-scale societies. *Science*, 326(5953), 682–688. https://doi.org/10.1126/science.1178336
 - Kohler, T. A., Smith, M. E., Bogaard, A., et al. (2017). Greater post-Neolithic wealth disparities in Eurasia than in North America and Mesoamerica. *Nature*, 551, 619–622. https://doi.org/10.1038/nature24646
+
+## 12 November, early morning: G3 trial 3 (16 of 20 histories)
+
+GitHub run 43039106958: 8 histories with institutions and 8 without (planets 1, 2, 3 and 5, seeds 1–2), to 2,000 years after the first village. The 4 planet-4 histories were still running. Full G3 run 2 was **not** launched, because check 9 is not acceptable (below).
+
+**Check 5 (institutions):**
+- Largest polity: median 21 settlements with institutions (17–34), 6 without (5–7). The ratio is 0.29 against a mark of under 0.25, so it narrowly fails.
+- No states without institutions.
+- Longest time one polity held 10+ settlements: median 200 years with institutions (110–430), never without.
+- Institutions now clearly decide both size and durability.
+
+**Other checks:**
+- Checks 2, 3, 4, 6, 7, 8 and 10 pass.
+- Collapse happens in 8 of 8 histories, with recovery after 131 of 131 collapses.
+- Rank correlation of empire duration with overextension: −0.22.
+
+**States still come early:** 448–1,458 years after the first village, against 2.7–3.1 millennia historically.
+
+**Check 9 (inequality) is not acceptable:**
+- Median Gini 0.66 in a people's first 100 years of farming and 0.73 after 500 years.
+- Correlation with years farmed: 0.04.
+- The level is far above the literature's targets: 0.48 for agriculturalists and 0.42 for pastoralists (Borgerhoff Mulder et al. 2009); 0.27–0.35 by house size (Kohler et al. 2017).
+- It is already high at the start, so the most likely cause is `NEW_HOUSEHOLD_START` = 0.1: every new household without an endowing mother starts at a tenth of the mean, and young households are numerous. Lowering luck alone did not bring the level down.
+- To be diagnosed, not tuned blindly; options are with Ben.
+
+**Not a real failure:** G2 check 3 (adoption dates vary widely) fails here only because there are two seeds per planet.
