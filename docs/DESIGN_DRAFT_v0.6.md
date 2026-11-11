@@ -322,6 +322,18 @@ Deferred or rejected, with reasons:
 
 20. **Branching.** From any save, change one thing (a drought, a leader surviving a battle) and run both futures side by side. This is the direct test of behaviour 10, and a natural use of god mode. *Any time after M3.*
 21. **History scrubber.** Rewind and replay any span on the map from the saves. *Any time after M3.*
+22. **A local runner in Claude Code, in dialogue with this chat** (agreed 12 November 2026).
+    - **What it does:** Claude Code on Ben's laptop runs batches of local tests natively, 4–6 at once on its 12 threads.
+    - **The channel is the GitHub repository:**
+      - this chat writes requests to `local/requests/`;
+      - Claude Code runs them and commits results and a short summary to `local/results/`;
+      - both append one line per request and result to `docs/LOCAL_LOG.md`.
+    - **Same rules on both sides:** both follow `CLAUDE.md`.
+    - **Division of work:**
+      - this chat keeps design, specifications, gate runs and reports, the literature work, and the checks that run while Ben is away;
+      - Claude Code does fast experiments and anything that needs the laptop.
+    - **Load:** at most about 4 tests at a time, so the laptop stays usable.
+    - *To set up after the G3 gate.* A handover note will come first.
 
 **Considered and left out:** detailed inner lives and personalities for individuals. Inventing them would narrate more than the simulation computes, against the principle that every answer comes from recorded causes.
 
