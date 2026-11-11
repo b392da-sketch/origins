@@ -128,7 +128,8 @@ def yearly(w):
                 p.role[i] = 2 if j % 4 == 0 else 3
         if len(heads) >= 3 and w.year % 10 == 0:          # sampled every 10 years so the log spans the whole history
             age = (w.t - b.farming_since) // P.TICKS_PER_YEAR if b.farming_since >= 0 else 0
-            log_row(w, "gini_log", [w.year, b.id, round(gini(hw), 4), round(per_person, 1), len(heads), int(age)], 20000)
+            log_row(w, "gini_log", [w.year, b.id, round(gini(hw), 4), round(per_person, 1), len(heads), int(age),
+                                    round(float(crowd), 3), round(float(animals), 3)], 20000)
 
 
 def _land_and_herds(w, b, n):
