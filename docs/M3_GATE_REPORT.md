@@ -2,6 +2,13 @@
 
 10 November 2026. For Ben's decision. All rates are tunable starting values (`origins/params.py`), not measurements.
 
+> **Correction (12 November 2026):** the logs that checks 4, 5, 5b, 8 and 9 and the historical comparisons are computed from covered only the end of each history:
+> - polities: about the last 1,000 of 6,000 years;
+> - wars: the last few hundred years;
+> - household inequality: the last 600 years.
+>
+> The figures below for those checks describe the end of each history, not all of it. Fixed for G3 run 2 (GitHub run 43026594859), which also includes the changes from your decisions. See `M3_BUILD_NOTES.md`, 11–12 November.
+
 ## In short
 
 - **Gate G3, run 1:** 63 of 70 histories finished (45 with institutions on 5 planets, 18 with institutions switched off). **7 of the 11 checks with a pass mark pass.** Checks 1, 4, 5 and 9 fail. The figures below are from 62 histories; adding the 63rd (planet 4 seed 1) changed none of the verdicts.
