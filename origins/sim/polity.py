@@ -407,6 +407,8 @@ def yearly(w):
             dist = d / P.LOAD_DISTANCE * (0.5 if p.inst[COLLECTORS] else 1.0)
             u = np.sqrt(max(size_of.get(b.id, 0), 1) / 150.0) * (1 + dist) * (1 + P.LOAD_CULTURE * cd)
             u *= P.COUNCIL_LOAD if p.inst[COUNCIL] else 1.0
+            if depth.get(b.id, 1) >= 2:
+                u *= P.DELEGATED_LOAD          # ruled through a district head, who carries part of the work
             ca = int(w.conquered_at[b.id]) if hasattr(w, "conquered_at") else -1
             if ca >= 0 and w.t - ca < P.CONQUEST_MEMORY * P.TICKS_PER_YEAR:
                 u *= 1 + P.CONQUEST_LOAD * (0.5 if p.inst[WARRIORS] else 1.0) * (1 - (w.t - ca) / (P.CONQUEST_MEMORY * P.TICKS_PER_YEAR))

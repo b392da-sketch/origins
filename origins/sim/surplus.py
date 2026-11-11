@@ -86,7 +86,7 @@ def yearly(w):
         new = np.nonzero(hw <= 0)[0]
         if len(new):
             # a new household takes a share of her mother's holdings (land and stores pass down the generations);
-            # without a living mother, an average share
+            # without a mother to endow it (or after an heir took all), it starts poor: a small share of the mean
             avg = float(np.mean(hw[hw > 0])) if (hw > 0).any() else 1.0
             pos = {int(h): k for k, h in enumerate(heads)}
             for k in new:
@@ -96,7 +96,7 @@ def yearly(w):
                     hw[pos[m]] -= give
                     hw[k] = give
                 else:
-                    hw[k] = avg
+                    hw[k] = P.NEW_HOUSEHOLD_START * avg
         sigma = P.WEALTH_LUCK * min(1.0, per_person / P.SURPLUS_FOR_FULL_LUCK)
         # M3 (option c from the M2 gate): advantage compounds where good land is scarce and where herds breed.
         # Scarce land: in a crowded village, households with more land weather bad years and take over the land of
