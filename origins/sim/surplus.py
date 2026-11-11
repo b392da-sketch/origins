@@ -87,6 +87,24 @@ def yearly(w):
             p.wealth[mem] = 0.0
             continue
         units = _households(w, mem)
+        # for property, a household is founded at partnership: a single adult with no partner or children of their
+        # own stays in their mother's household (and their holdings with hers) while she heads one in the village.
+        # (Until 12 November 2026 every woman from 15, and every lone man, held property as a household of their
+        # own, taking a share of their mother's holdings: many tiny households and a Gini far above the literature.)
+        head_at = {u[0]: k for k, u in enumerate(units)}
+        mset = set(int(x) for x in mem)
+        keep = []
+        for k, u in enumerate(units):
+            h = u[0]
+            m = int(p.mother[h])
+            if len(u) == 1 and int(p.partner[h]) not in mset and m != h and m in head_at and len(units[head_at[m]]) > 0 \
+                    and units[head_at[m]][0] == m:
+                p.wealth[m] += p.wealth[h]
+                p.wealth[h] = 0.0
+                units[head_at[m]].append(h)
+            else:
+                keep.append(u)
+        units = keep
         heads = np.array([u[0] for u in units])                 # the woman (or lone person) heading each
         hw = p.wealth[heads].astype(float)
         new = np.nonzero(hw <= 0)[0]
