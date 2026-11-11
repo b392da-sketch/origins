@@ -81,7 +81,8 @@ def ensure(w, band_id: int, parent: int):
     u = 0.0
     if p is not None and p.alive:
         depth = (1 if parent == p.seat else _depths(w, [parent], p.seat).get(parent, 1)) + 1
-        u, _, _ = unit_load(w, p, w.bands[p.seat], w.bands[band_id], P.VILLAGE_FISSION_SIZE / 2, depth)
+        # the daughter is not registered yet: weigh her as her mother's place and people (not as a conquest)
+        u, _, _ = unit_load(w, p, w.bands[p.seat], w.bands[parent], P.VILLAGE_FISSION_SIZE / 2, depth, conquest=False)
     if p is not None and p.alive and p.load + u <= p.cap:
         w.polity_of[band_id] = pid                        # a daughter settlement stays in its mother's polity ...
         w.polity_via[band_id] = parent                    # attached through her
@@ -186,7 +187,7 @@ def staff_needed(p, n_members) -> float:
     return sum(P.INSTITUTION_STAFF[k] * np.sqrt(max(n_members, 1)) for k in range(len(INSTITUTIONS)) if p.inst[k])
 
 
-def unit_load(w, p, seat, b, size, depth) -> tuple:
+def unit_load(w, p, seat, b, size, depth, conquest=True) -> tuple:
     """The load one member settlement puts on its polity's seat, with its distance and cultural distance.
 
     What each institution does (M3 specification, section 4): a council lightens every member's load, tribute
@@ -202,7 +203,7 @@ def unit_load(w, p, seat, b, size, depth) -> tuple:
     u *= P.COUNCIL_LOAD if p.inst[COUNCIL] else 1.0
     if 2 <= depth <= max_depth(p):
         u *= P.DELEGATED_LOAD
-    ca = int(w.conquered_at[b.id]) if hasattr(w, "conquered_at") and b.id < len(w.conquered_at) else -1
+    ca = int(w.conquered_at[b.id]) if conquest and hasattr(w, "conquered_at") and b.id < len(w.conquered_at) else -1
     if ca >= 0 and w.t - ca < P.CONQUEST_MEMORY * P.TICKS_PER_YEAR:
         u *= 1 + P.CONQUEST_LOAD * (0.5 if p.inst[WARRIORS] else 1.0) * (1 - (w.t - ca) / (P.CONQUEST_MEMORY * P.TICKS_PER_YEAR))
     return float(u), d, cd
