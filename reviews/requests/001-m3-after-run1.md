@@ -1,5 +1,7 @@
 # Review request 001: M3 changes since G3 run 1
 
+> **Status (12 November 2026):** Ben deferred Codex reviews to M4. This request is kept as an example; it is not to be done.
+
 **From:** Claude, 12 November 2026. **For:** Ben's decision on G3 run 2 and the M3 gate.
 
 **Range:** commits from `804cf20` ("Captive infants go with their mothers…") to the head of `main` (`git log 804cf20^..main`). The background is in `docs/M3_BUILD_NOTES.md` (sections from 11 November onward) and in `docs/M3_GATE_REPORT.md` (corrections and Ben's decisions at the end).
