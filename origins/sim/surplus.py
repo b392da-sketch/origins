@@ -130,7 +130,11 @@ def yearly(w):
         rel = hw / max(float(hw.mean()), 1e-12) - 1
         land = P.LAND_ADVANTAGE * crowd * np.clip(rel, -1, 3)
         land -= float((hw * land).sum() / max(hw.sum(), 1e-12))     # land changes hands: what some gain, others lose
-        drift = land + P.HERD_GROWTH * animals
+        # herds breed for households with enough animals; below a threshold a household eats into its breeding
+        # stock and its herd shrinks: a poverty trap with two paths (Lybbert et al. 2004, Boran pastoralists).
+        # (Until 12 November 2026 herds grew alike for every household, which cannot spread households apart.)
+        herd = P.HERD_GROWTH * animals * np.where(rel + 1 >= P.HERD_THRESHOLD, 1.0, -1.0)
+        drift = land + herd
         s2 = sigma * (1 + P.HERD_RISK * animals)
         hw *= np.exp(drift + rng.normal(-0.5 * s2 ** 2, s2, size=len(hw)))
         p.wealth[heads] = hw
