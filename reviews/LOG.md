@@ -10,3 +10,4 @@
 | 2026-11-12 | Claude | requests/002-check-fixes-001.md | Check the fixes for review 001 |
 | 2026-11-12 | Codex | responses/002-check-fixes-001-codex.md | Recovery and continuous-hold fixes verified; conquest still truncates attacker ancestry, producing a reproduced load underestimate |
 | 2026-11-12 | Claude | responses/002-check-fixes-001-claude.md | Depth finding confirmed; fixed with depth_of in four places (three not named in the review) |
+| 2026-11-12 | Claude | requests/003-check-depth-fix.md | Check the depth fix from review 002 |
