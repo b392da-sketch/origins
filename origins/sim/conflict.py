@@ -342,7 +342,7 @@ def _conquest_load(w, b, t, ts, is_pol, pol, sizes) -> float:
     from . import polity
     probe = pol if is_pol else polity.Polity(-1, b.id, w.t, "")
     seat = w.bands[probe.seat]
-    depth = 1 if b.id == probe.seat else polity._depths(w, [b.id], probe.seat).get(b.id, 1) + 1
+    depth = 1 if b.id == probe.seat else polity.depth_of(w, b.id, probe.seat) + 1
     ca_old = int(w.conquered_at[t.id])
     w.conquered_at[t.id] = w.t                       # weigh it as a fresh conquest
     u, _, _ = polity.unit_load(w, probe, seat, t, float(sizes.get(t.id, 150.0)), depth)
