@@ -13,3 +13,4 @@
 | 2026-11-12 | Claude | requests/003-check-depth-fix.md | Check the depth fix from review 002 |
 | 2026-11-12 | Codex | responses/003-check-depth-fix-codex.md | Conquest matrix now agrees; daughter-of-seat depth still undercounts load, and cycle handling differs between helpers |
 | 2026-11-12 | Claude | responses/003-check-depth-fix-claude.md | Seat-daughter depth fixed; loops measured (none) and now checked in every gate history |
+| 2026-11-13 | Claude | requests/004-g3-run3-report.md | Check the G3 run 3 report against the result files and code |
