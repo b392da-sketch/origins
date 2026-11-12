@@ -74,6 +74,9 @@ def cultural_distances(w, a, targets) -> np.ndarray:
     return out
 
 
+STALE_SKIPS = [0]
+
+
 def side_of(w, b) -> tuple:
     pid = int(w.polity_of[b.id])
     if pid >= 0 and w.polities[pid].alive:
@@ -282,6 +285,7 @@ def yearly(w):
         # found by G3 run 3's new loop check, planet 2 seed 6, year 7,523.)
         if (b.id == best.id or not b.alive or not best.alive or side_of(w, b) != s or side_of(w, best) == s
                 or (is_pol and not pol.alive)):
+            STALE_SKIPS[0] += 1                  # (counted for diagnosis only; not saved, not used by the simulation)
             continue
         for key, bn in (("scarcity", sbin), ("distance", dbin)):
             w.war_stats[key][bn][1] += 1
