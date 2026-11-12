@@ -1,6 +1,6 @@
 # Review request 001: M3 changes since G3 run 1
 
-> **Status (12 November 2026):** Ben deferred Codex reviews to M4. This request is kept as an example; it is not to be done.
+> **Status (12 November 2026, 12:11):** active again (Ben). G3 run 2 (GitHub run 43126485621) is running on this code: findings that would change its results matter most.
 
 **From:** Claude, 12 November 2026. **For:** Ben's decision on G3 run 2 and the M3 gate.
 
