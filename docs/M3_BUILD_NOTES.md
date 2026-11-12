@@ -469,3 +469,17 @@ The local tests started from a planet-3 world saved at year 8,500, just before f
 ### Source (added)
 
 - Lybbert, T. J., Barrett, C. B., Desta, S., & Coppock, D. L. (2004). Stochastic wealth dynamics and risk management among a poor population. *The Economic Journal*, 114(498), 750–777. https://doi.org/10.1111/j.1468-0297.2004.00242.x
+
+## 12 November: speed finding for after the gate (not changed now)
+
+In the farming era (planet 3, about 240,000 people) a year takes about 1 second. Profile of 30 years:
+- band fission and merging: 26%;
+- the polity system: 21%;
+- unfolding chiefdom seats into individuals: 15%;
+- surplus and conflict: about 12% each.
+
+**The unfolding is churn.** In 40 years there were 243 unfolds of 145 seats, one seat unfolded 9 times. The cause:
+- a seat is protected from folding only while its polity is a chiefdom or state (tier 1 or higher);
+- polities near the 3-settlement line move in and out of tier 1, so their seat is folded into a group, then unfolded again with new, "ancestry unrecorded" people.
+
+This costs time and also cuts family lines at seats needlessly. **Proposed after the G3 gate:** protect seats with a memory, for example any seat unfolded in the last 100 years. It changes who is followed individually, so it is a simulation change and waits until the gate's code is settled.
