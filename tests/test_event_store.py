@@ -18,7 +18,7 @@ class EventStoreChangesNothing(unittest.TestCase):
                 digests.append(persist.digest(w))
                 saved.append([e for e in w.events])
                 if hot == 20:
-                    self.assertGreater(len(w.events._cold), 0)
+                    self.assertGreater(len(w.events._offs), 0)
                     w2 = persist.from_bytes(persist.to_bytes(w), pl)
                     self.assertEqual(persist.digest(w2), digests[-1])
             finally:

@@ -269,57 +269,101 @@ def log_row(w, name: str, row: list, cap: int) -> None:
 
 
 class EventStore:
-    """The event record: a list of event dicts that keeps old events compactly.
+    """The event record: a list of event dicts whose old events live on disk.
 
     The newest events stay as ordinary dicts, because systems still update them in the step that made them.
-    Older events are kept as compact JSON bytes (about a fifth of the memory) and decoded when read. Outbreak
-    events stay as dicts for good, because an outbreak updates its event for as long as it spreads.
-    Reading a stored event gives a fresh dict: changing it changes nothing in the record.
+    Older events are written as JSON lines to a temporary file and read back when asked for; memory holds only
+    each one's position (8 bytes). Outbreak events stay as dicts for good, because an outbreak updates its event
+    for as long as it spreads. Reading a stored event gives a fresh dict: changing it changes nothing in the record.
+    (11 November 2026: compact bytes in memory; 12 November: on disk, as agreed for M4.)
     """
     HOT = 20_000          # newest events kept as dicts
-    BATCH = 50_000        # freeze when this many are hot
+    BATCH = 50_000        # move to disk when this many are hot
     KEEP = ("outbreak",)
 
     def __init__(self, events=()):
-        self._cold: list = []          # bytes, or a dict for kinds in KEEP
+        import array
+        self._offs = array.array("q")    # file position of each cold event, or -1 for one kept as a dict
+        self._keep: dict = {}            # index -> dict, for kinds in KEEP
+        self._file = None
+        self._end = 0
         self._hot: list = []
         for e in events:
             self.append(e)
 
     def __len__(self):
-        return len(self._cold) + len(self._hot)
+        return len(self._offs) + len(self._hot)
+
+    def _freeze(self, n):
+        import tempfile
+        if self._file is None:
+            self._file = tempfile.TemporaryFile()
+        f = self._file
+        f.seek(self._end)
+        chunk = []
+        for x in self._hot[:n]:
+            if x["kind"] in self.KEEP:
+                self._keep[len(self._offs)] = x
+                self._offs.append(-1)
+            else:
+                b = _json.dumps(x, separators=(",", ":")).encode() + b"\n"
+                self._offs.append(self._end)
+                self._end += len(b)
+                chunk.append(b)
+        f.write(b"".join(chunk))
+        del self._hot[:n]
 
     def append(self, e: dict):
         self._hot.append(e)
         if len(self._hot) > self.BATCH:
-            n = len(self._hot) - self.HOT
-            self._cold.extend(x if x["kind"] in self.KEEP else _json.dumps(x, separators=(",", ":")).encode()
-                              for x in self._hot[:n])
-            del self._hot[:n]
+            self._freeze(len(self._hot) - self.HOT)
 
     def pop(self):
         return self._hot.pop()
 
+    def _cold(self, i):
+        off = self._offs[i]
+        if off < 0:
+            return self._keep[i]
+        f = self._file
+        f.seek(off)
+        return _json.loads(f.readline())
+
     def __getitem__(self, i):
         if isinstance(i, slice):
             return [self[j] for j in range(*i.indices(len(self)))]
-        nc = len(self._cold)
+        nc = len(self._offs)
         if i < 0:
             i += len(self)
         if i < 0 or i >= len(self):
             raise IndexError("event index out of range")
         if i >= nc:
             return self._hot[i - nc]
-        x = self._cold[i]
-        return x if isinstance(x, dict) else _json.loads(x)
+        return self._cold(i)
 
     def __iter__(self):
-        for x in self._cold:
-            yield x if isinstance(x, dict) else _json.loads(x)
-        yield from self._hot
+        pos = 0
+        f = self._file
+        for i in range(len(self._offs)):
+            off = self._offs[i]
+            if off < 0:
+                yield self._keep[i]
+                continue
+            f.seek(pos)                     # (seek each time: the caller may read other events in between)
+            line = f.readline()
+            pos += len(line)
+            yield _json.loads(line)
+        yield from list(self._hot)
 
     def __bool__(self):
         return len(self) > 0
+
+    def __del__(self):
+        try:
+            if self._file is not None:
+                self._file.close()
+        except Exception:
+            pass
 
 
 class World:
