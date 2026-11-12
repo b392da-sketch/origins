@@ -129,7 +129,7 @@ SPECIALIST_MAX = 0.3               # at most this share of a band can be special
 PROPERTY_SHARE = 0.5               # bands farming at least this share of their work hold fields and stores by household
 WEALTH_LUCK = 0.1                  # yearly spread of households' harvest luck (log scale) at full surplus (0.25 until 12 Nov 2026: inequality hit its ceiling within a few centuries, leaving nothing to compound)
 DOWRY_SHARE = 0.3                  # share of a mother's household holdings a daughter's new household takes
-NEW_HOUSEHOLD_START = 0.1          # a new household with no mother to endow it starts with this share of the village mean (1.0, the full mean, until 12 Nov 2026: it levelled households every generation)
+NEW_HOUSEHOLD_START = 0.5          # a new household with no mother to endow it starts with this share of the village mean (1.0 until 11 Nov 2026; 0.1 on 11-12 Nov gave a Gini of 0.62-0.73; 0.5 gives about 0.40, between Kohler et al. 2017 house sizes and Borgerhoff Mulder et al. 2009 agriculturalists)
 SURPLUS_FOR_FULL_LUCK = 150.0      # surplus per person (food units) at which luck has its full effect
 FORAGER_OUTBREAK = 0.3             # outbreak start rate multiplier for foragers (scattered, mobile)
 VILLAGE_OUTBREAK = 2.0             # ... for villages (crowded, settled, near animals)
@@ -137,6 +137,7 @@ INHERITANCE_BY_CUSTOM = True         # M3 (Ben, 11 Nov 2026, check 9 option a): 
 LAND_ADVANTAGE = 0.03              # M3: yearly growth of a household's holdings per unit of its size above the village mean, in full villages
 LAND_SCARCE = 0.5                  # M3: a village's land counts as scarce from this share of what its farmland can feed
 HERD_GROWTH = 0.02                 # M3: yearly growth of holdings in animals (herds breed), before losses
+HERD_THRESHOLD = 0.5               # M3 (12 Nov 2026): below this share of the village mean, a household's herd shrinks instead of breeding (Lybbert et al. 2004)
 HERD_RISK = 1.0                    # M3: herds' extra spread of luck (disease, drought, raids), as a share of the harvest's
 
 
