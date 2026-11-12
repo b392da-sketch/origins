@@ -276,6 +276,13 @@ def yearly(w):
         if best is None or rng.random() >= min(1.0, best_p / P.WAR_CONSIDER):
             continue
         b, d, sc, cd, share, g, att, dfd, sbin, dbin = info
+        # sides can change during the year (an earlier war this year may have taken the attacker or the target):
+        # fight only if the attacker still belongs to this side and the target does not. (Until 12 November 2026
+        # a settlement annexed earlier in the year could "conquer" itself, leaving a chain of rule that loops:
+        # found by G3 run 3's new loop check, planet 2 seed 6, year 7,523.)
+        if (b.id == best.id or not b.alive or not best.alive or side_of(w, b) != s or side_of(w, best) == s
+                or (is_pol and not pol.alive)):
+            continue
         for key, bn in (("scarcity", sbin), ("distance", dbin)):
             w.war_stats[key][bn][1] += 1
         _fight(w, rng, s, mem, b, best, d, sc, cd, share, g, att, dfd, is_pol, pol, sizes, fighters)
