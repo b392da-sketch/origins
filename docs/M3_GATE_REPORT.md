@@ -147,7 +147,7 @@ The work starts on Thursday 12 November, when Ben's usage resets. Every change w
 
 # G3 run 3 (12–13 November 2026): for Ben's decision on M3
 
-**Run:** GitHub Actions run 43136210637 (`g3-run3`), from `main` at `8a0d4a1`. It includes every decision of 11 and 12 November and the fixes from Codex reviews 001–003.
+**Run:** GitHub Actions run 43136210637 (`g3-run3`), from `main` at `f1f05db`. It includes every decision of 11 and 12 November and the fixes from Codex reviews 001–003.
 
 **Histories:** 68 of 70: all 50 with institutions, and 18 of 20 without.
 - **No institutions, planet 4 seed 3:** still in its last stage when this was written.
@@ -203,7 +203,7 @@ All rates are tunable starting values, not measurements.
 ### Check 10: one looping chain of rule (found, fixed, measured)
 
 - **Cause:** planet 2 seed 6, year 7,523. A settlement annexed earlier in the year was still treated as its old side's member in that year's later wars. It attacked itself, won, and annexed itself.
-- **Fix:** commit `79c14e9`, after the run. A war is fought only if both sides are still what they were.
+- **Fix:** commit `95556dd`, after the run. A war is fought only if both sides are still what they were.
 - **Verified:**
   - the same history rerun past that year, with no loop;
   - 49 tests pass.
