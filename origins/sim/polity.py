@@ -80,7 +80,7 @@ def ensure(w, band_id: int, parent: int):
     p = w.polities.get(pid) if pid >= 0 else None
     u = 0.0
     if p is not None and p.alive:
-        depth = (1 if parent == p.seat else _depths(w, [parent], p.seat).get(parent, 1)) + 1
+        depth = depth_of(w, parent, p.seat) + 1          # (the seat is depth 0, so a daughter of the seat is 1: Codex, review 003)
         # the daughter is not registered yet: weigh her as her mother's place and people (not as a conquest)
         u, _, _ = unit_load(w, p, w.bands[p.seat], w.bands[parent], P.VILLAGE_FISSION_SIZE / 2, depth, conquest=False)
     if p is not None and p.alive and p.load + u <= p.cap:
@@ -126,6 +126,21 @@ def _surplus(b, size):
 
 def members_of(w, pid) -> list:
     return [b for b in w.living_bands() if w.polity_of[b.id] == pid]
+
+
+def depth_of(w, i, seat) -> int:
+    """Levels of rule between one settlement and its polity's seat, following polity_via up the chain.
+    (_depths needs the whole membership: given one settlement it treats that settlement's leader as the seat.
+    Found by Codex, review 002.)"""
+    pid = int(w.polity_of[i]) if i < len(w.polity_of) else -1
+    d, j = 0, int(i)
+    while j != seat and d <= len(w.polity_of):
+        k = int(w.polity_via[j]) if j < len(w.polity_via) else -1
+        d += 1
+        if k < 0 or k == j or int(w.polity_of[k]) != pid:
+            break                 # the chain ends: answering to the seat directly
+        j = k
+    return d
 
 
 def _depths(w, mem_ids, seat):
@@ -561,7 +576,7 @@ def yearly(w):
                         continue
                     head = w.bands[p.seat]
                     s = standing.get(head.id, 0.0) + 0.25 * p.load
-                    depth_here = 1 if t.id == p.seat else _depths(w, [t.id], p.seat).get(t.id, 1) + 1
+                    depth_here = 1 if t.id == p.seat else depth_of(w, t.id, p.seat) + 1
                     if depth_here > max_depth(p):
                         continue
                     if p.load + unit_load(w, p, head, b, size_of.get(b.id, 0), depth_here)[0] > p.cap:
@@ -584,7 +599,7 @@ def yearly(w):
         w.polity_via[b.id] = best.id
         q = w.polities[pid]
         q.load += unit_load(w, q, w.bands[q.seat], b, size_of.get(b.id, 0),
-                            1 if best.id == q.seat else _depths(w, [best.id], q.seat).get(best.id, 1) + 1)[0]
+                            1 if best.id == q.seat else depth_of(w, best.id, q.seat) + 1)[0]
         if q.cap <= 0:
             q.cap = capacity(q)
         w.event("polity_joined", cell=b.cell, band=b.id, polity=pid, causes=[{"note": why}],
