@@ -483,3 +483,11 @@ In the farming era (planet 3, about 240,000 people) a year takes about 1 second.
 - polities near the 3-settlement line move in and out of tier 1, so their seat is folded into a group, then unfolded again with new, "ancestry unrecorded" people.
 
 This costs time and also cuts family lines at seats needlessly. **Proposed after the G3 gate:** protect seats with a memory, for example any seat unfolded in the last 100 years. It changes who is followed individually, so it is a simulation change and waits until the gate's code is settled.
+
+## 12 November: yearly or twice-yearly demography for groups (closed)
+
+Ben agreed to keep group births and deaths seasonal, four times a year like individuals.
+- **The saving would be small:** group deaths take about 3.6% of the farming era's time, and births less.
+- **The cost:** groups would lose the seasonal pattern of hunger and outbreaks, and behave differently from followed people.
+
+Speed work after the G3 gate goes to fission and merging, the polity system, and the seat churn (branch `seat-memory`).
