@@ -41,8 +41,18 @@ def collapses(rec, min_settlements=10, held_years=50, window=100, drop=0.5):
     out = []
     for pid, rows in _series(rec["polity_log"]).items():
         rows.sort()
-        big = [y for y, n, ppl, tier, cell in rows if n >= min_settlements]
-        if not big or max(big) - min(big) < held_years:
+        # held: a continuous run of samples (10 years apart) at min_settlements or more, lasting held_years
+        # (until 12 Nov 2026 the first and last large samples were compared, so two brief peaks 50 years apart
+        # counted: found by Codex, review 001)
+        longest, run, prev = 0, 0, None
+        for y, n, ppl, tier, cell in rows:
+            if n >= min_settlements:
+                run = run + (y - prev) if prev is not None and y - prev <= 10 else 0
+                prev = y
+                longest = max(longest, run)
+            else:
+                run, prev = 0, None
+        if longest < held_years:
             continue
         peak, peak_y, peak_cell = 0, None, -1
         for y, n, ppl, tier, cell in rows:
@@ -155,7 +165,9 @@ def report(out: Path) -> str:
             n_col += 1
             n_rec += recovered(r, c, xyz, sp)
     share = with_col / max(len(with_chief), 1)
-    ok4 = with_chief and 0.2 <= share and n_col > 0  # upper mark of 90% dropped (Ben, 11 Nov 2026) and n_rec >= 0.5 * n_col
+    # upper mark of 90% dropped (Ben, 11 Nov 2026); recovery after at least half of collapses still required
+    # (until 12 Nov 2026 the recovery condition had been left inside the comment by mistake: found by Codex, review 001)
+    ok4 = with_chief and 0.2 <= share and n_col > 0 and n_rec >= 0.5 * n_col
     checks.append(("4. Collapse happens, and recovery follows", ok4,
                    f"at least one collapse (a polity that held 10+ settlements for 50+ years losing half its people "
                    f"within a century) in {with_col} of {len(with_chief)} histories with chiefdoms; recovery (a polity "

@@ -349,8 +349,17 @@ def _conquest_load(w, b, t, ts, is_pol, pol, sizes) -> float:
     w.conquered_at[t.id] = ca_old
     extra = 0.0
     if ts[0] == "p" and w.polities[ts[1]].alive and w.polities[ts[1]].seat == t.id:
-        n_more = len(polity.members_of(w, ts[1])) - 1
-        extra = u * P.DELEGATED_LOAD * n_more if depth + 1 <= polity.max_depth(probe) else u * n_more
+        # each of the fallen polity's other members, weighed as itself (its people, distance, culture), at its new
+        # depth (its depth under t, below t's depth under the conqueror), as a fresh conquest. (Until 12 Nov 2026
+        # each was counted as a copy of t, so a small seat could hide large members: found by Codex, review 001.)
+        others = [m for m in polity.members_of(w, ts[1]) if m.id != t.id]
+        if others:
+            under_t = polity._depths(w, [m.id for m in others], t.id)
+            fresh = 1 + P.CONQUEST_LOAD * (0.5 if probe.inst[polity.WARRIORS] else 1.0)
+            for m in others:
+                um, _, _ = polity.unit_load(w, probe, seat, m, float(sizes.get(m.id, 150.0)),
+                                            depth + under_t.get(m.id, 1), conquest=False)
+                extra += um * fresh
     return u + extra
 
 
