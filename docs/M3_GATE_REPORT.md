@@ -142,3 +142,95 @@ The work starts on Thursday 12 November, when Ben's usage resets. Every change w
 
    The trend with time is still reported, without a mark.
 3. **States arrive too early** (448–1,458 years after the first village in trial 3, against 2.7–3.1 millennia historically): carried forward, not addressed in M3.
+
+---
+
+# G3 run 3 (12–13 November 2026): for Ben's decision on M3
+
+**Run:** GitHub Actions run 43136210637 (`g3-run3`), from `main` at `8a0d4a1`. It includes every decision of 11 and 12 November and the fixes from Codex reviews 001–003.
+
+**Histories:** 68 of 70: all 50 with institutions, and 18 of 20 without.
+- **No institutions, planet 4 seed 3:** still in its last stage when this was written.
+- **No institutions, planet 4 seed 1:** did not finish. It reached year 28,206 of 30,000 (8.3 million events, 900,000 people) in two stages, and no third stage was scheduled for it.
+- Neither changes a verdict: they are 2 of the 20 knock-out histories.
+
+All rates are tunable starting values, not measurements.
+
+## Results
+
+| Check | Result | Evidence |
+|---|---|---|
+| 1. M0–M2 still hold | PASS | all G2 checks that apply pass on these histories: survival, accounting, life expectancy 25.8–28.0, cause chains, farming conditions, adoption spread, foragers remaining, spread, demographic transition |
+| 2. Polities form; states in some | PASS | chiefdoms in 47 of 47 histories with farming; states in 40, 305–5,571 years after the first village |
+| 3. Oversized polities break up | PASS | yearly secession per member rises from 0.006 (within capacity) to 0.162 (1.75 times over); median rank correlation 0.99 |
+| 4. Collapse happens, recovery follows | PASS | collapse in 47 of 47 histories with chiefdoms (a polity holding 10+ settlements continuously for 50+ years, losing half its people within a century); recovery after 705 of 712 |
+| 5. No institutions, no large polities | **FAIL, on the line** | largest polity: median 24 settlements with institutions (18–38), 6 without (6–8). The ratio is exactly 0.25 against a mark of under a quarter. No states without institutions |
+| 5b. How long polities stay large (no mark) | — | longest hold of 10+ settlements: median 230 years with institutions (90–920), never without; polity-years at 10+ settlements per history: 12,190 with, 0 without |
+| 6. Conflict rises with scarcity and proximity | PASS | by rule; this checks the bookkeeping |
+| 7. Conflict has costs | PASS | war deaths are 5.7–8.5% of deaths at 15 and over (median 6.9%) |
+| 8. Empires are hard to hold | PASS | 58,289 empires; rank correlation of duration with overextension −0.35 |
+| 9. Inequality rises with scarce land and herds | **FAIL, on herds** | land scarcity: median rank correlation 0.32 (passes); median Gini of farming villages 0.40 (passes, 0.23–0.84 across histories); herds: median rank correlation 0.01 (fails) |
+| 10. Traceable | **FAIL, on one loop** | 27,200 of 27,200 sampled polity events have complete cause chains; one history ends with a looping chain of rule (below) |
+| 11. Variation (no mark) | — | largest polity 18–38 settlements, 1,945–33,242 polities per history, across planets |
+| 12. Speed (no mark) | — | 9,983–30,000 years in 1.0–9.9 h of computing (median 3.0 h) |
+
+## The three failures
+
+### Check 5: exactly at the mark
+
+- **Size:** 6 settlements is exactly a quarter of 24, and the mark is "under a quarter". Trial 3 gave the same ratio.
+- **Every other measure of what institutions do is decisive:**
+  - without institutions there are no states;
+  - no polity ever holds 10 settlements for even one sample;
+  - there are no polity-years at that size, against 12,190 with institutions.
+- **Recommendation:** treat check 5 as met in substance and record the ratio as at the line. I have not tuned anything towards the mark, and would not, because a tuning aimed at 0.24 would be aimed at the check, not at history.
+
+### Check 9: land and level pass; herds do not
+
+- **I was wrong about the reason.** I had expected herding villages to be too rare. They are not: in 39% of village-years, more than half of farming is in herds. Villages are mostly all crops or all herds.
+- **Pooled across histories, herding villages are more unequal:** median Gini 0.58, against 0.37 in crop villages.
+- **Within histories, the difference is small:**
+  - in the 12 histories that have both kinds, herding villages are a median 0.04 more unequal (−0.10 to +0.27; higher in 7 of 12);
+  - 12 histories have only herding villages, and 23 only crop villages;
+  - so most of the pooled gap is between histories, not a within-history effect, and the per-history correlation the check uses is near zero.
+- **The literature is also weaker here than the wording suggests.** Borgerhoff Mulder et al. (2009) find pastoralists (Gini 0.42) more unequal than horticulturalists (0.27) and foragers (0.25), but not more than agriculturalists (0.48). So "inequality rises with herds", measured against crop farmers, is not a strong prediction.
+- **Options:**
+  - **(a)** record the herd half as failed and carry it to M4a, where pastoralism (Ben's decision 4 for M4) will make herding a way of life of its own;
+  - **(b)** reword the herd half to "herding societies are more unequal than forager and horticultural ones", which is what the literature supports.
+
+  I lean to (a).
+
+### Check 10: one looping chain of rule (found, fixed, measured)
+
+- **Cause:** planet 2 seed 6, year 7,523. A settlement annexed earlier in the year was still treated as its old side's member in that year's later wars. It attacked itself, won, and annexed itself.
+- **Fix:** commit `79c14e9`, after the run. A war is fought only if both sides are still what they were.
+- **Verified:**
+  - the same history rerun past that year, with no loop;
+  - 49 tests pass.
+- **How often:** 41 of 73,602 wars (0.06%) in a planet-3 history would have been fought on sides that had changed during the year. So run 3's results stand, with this noted.
+- **Recommendation:** treat check 10 as passed with the fix, since every cause chain is complete.
+
+## Comparisons with history (no marks)
+
+| | Historical | G3 run 3 |
+|---|---|---|
+| Size against levels of rule | correlation 0.78 (Seshat; Turchin et al. 2018) | median rank correlation 0.15 per history (−0.07 to 0.58); 0.07 in run 1. Better, still weak |
+| How long large polities last | mean about 220 years for 41 ancient empires (Arbesman 2011) | longest hold of 10+ settlements: median 230 years per history; 50 in run 1 |
+| Farming to first state | 2.7–3.1 millennia (Borcan, Olsson & Putterman 2021) | median 1,168 years after the first village (quartiles 660–2,526), in 40 of 47; no state within 6,000 years in 7. Still too early; carried forward (Ben, 12 November) |
+
+## Notes on the measurements
+
+- **Logs:** they now cover whole histories. The largest polity log had 147,604 rows, far below its ceiling. Polity samples are 10 years apart, so sizes and holds are measured at that resolution.
+- **Codex reviews:** 001–003 found five real bugs, all fixed before this run (`reviews/`). Request 004 asks Codex to check this report against the result files.
+
+## Decisions for Ben
+
+1. **Check 5:** accept as met in substance, with the ratio recorded at the line (recommended); or not.
+2. **Check 9's herd half:** (a) carry to M4a's pastoralism (recommended), or (b) reword.
+3. **Check 10:** accept as passed with the loop fix (recommended).
+4. **Whether M3 closes.** I recommend closing on the above, carrying forward:
+   - states too early;
+   - the herd half of check 9;
+   - size against levels of rule (weak).
+
+   **First, Codex's request 004** should confirm this report against the result files.
