@@ -80,7 +80,7 @@ def ensure(w, band_id: int, parent: int):
     p = w.polities.get(pid) if pid >= 0 else None
     u = 0.0
     if p is not None and p.alive:
-        depth = (1 if parent == p.seat else depth_of(w, parent, p.seat)) + 1
+        depth = depth_of(w, parent, p.seat) + 1          # (the seat is depth 0, so a daughter of the seat is 1: Codex, review 003)
         # the daughter is not registered yet: weigh her as her mother's place and people (not as a conquest)
         u, _, _ = unit_load(w, p, w.bands[p.seat], w.bands[parent], P.VILLAGE_FISSION_SIZE / 2, depth, conquest=False)
     if p is not None and p.alive and p.load + u <= p.cap:

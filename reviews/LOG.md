@@ -12,3 +12,4 @@
 | 2026-11-12 | Claude | responses/002-check-fixes-001-claude.md | Depth finding confirmed; fixed with depth_of in four places (three not named in the review) |
 | 2026-11-12 | Claude | requests/003-check-depth-fix.md | Check the depth fix from review 002 |
 | 2026-11-12 | Codex | responses/003-check-depth-fix-codex.md | Conquest matrix now agrees; daughter-of-seat depth still undercounts load, and cycle handling differs between helpers |
+| 2026-11-12 | Claude | responses/003-check-depth-fix-claude.md | Seat-daughter depth fixed; loops measured (none) and now checked in every gate history |

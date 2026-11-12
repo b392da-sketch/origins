@@ -300,12 +300,15 @@ def report(out: Path) -> str:
     checks.append(("9. Inequality rises with scarce land and herds", ok9, ev9
                    + " (pass: both correlations clearly positive (median above 0.2), and median Gini 0.25-0.55)"))
 
+    loops = [rr.get("polity_chain_loops") for rr in allr if rr.get("polity_chain_loops") is not None]
     # 10 traceable
     chk = sum(r["polity_explain_checked"] for r in allr)
     res = sum(r["polity_explain_resolvable"] for r in allr)
-    checks.append(("10. Traceable", chk == res and chk > 0,
+    checks.append(("10. Traceable", chk == res and chk > 0 and not any(loops),
                    f"{res:,} of {chk:,} sampled polity events (founding, joining, secession, succession, "
-                   f"institutions, tiers) have complete cause chains"))
+                   f"institutions, tiers) have complete cause chains"
+                   + (f"; chains of rule that loop at the end of a history: {sum(loops)} in {len(loops)} histories"
+                      if loops else "")))
 
     # 11 variation
     var = []

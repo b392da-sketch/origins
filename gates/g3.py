@@ -63,6 +63,24 @@ def finish(w, ws, rs, seconds, pr, institutions):
     rec["sec_stats"] = {str(k): v for k, v in w.sec_stats.items()}
     rec["polity_firsts"] = {k: w.events[e]["t"] // 4 for k, e in w.polity_firsts.items()}
     rec["polities_total"] = w.next_polity
+    # chains of rule must be trees: count members whose chain loops (expected 0; Codex review 003 asked how the
+    # depth helpers treat cycles, which should never occur)
+    loops = 0
+    for b in w.living_bands():
+        pid = int(w.polity_of[b.id])
+        if pid < 0 or pid not in w.polities:
+            continue
+        seat, seen, j = w.polities[pid].seat, set(), b.id
+        while j != seat:
+            if j in seen:
+                loops += 1
+                break
+            seen.add(j)
+            k = int(w.polity_via[j])
+            if k < 0 or int(w.polity_of[k]) != pid:
+                break
+            j = k
+    rec["polity_chain_loops"] = loops
     # conflict
     from origins.state import CAUSES
     fv = pr.get("fv_deaths")
