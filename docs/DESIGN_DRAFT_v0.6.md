@@ -223,7 +223,8 @@ Each milestone ends with a gate Ben approves. No new layer begins until the curr
 | M1 | Band fission and spread; cultural and language drift; climate variability and hazards | Behaviours 1–2; plausible responses to droughts and floods |
 | M2 | Domestication, farming, storage, settlement; surplus and specialists; switch from prehistoric to historical clock | Behaviours 3–4 |
 | M3 | Leadership, chiefdoms, early states; institutions; conflict and conquest; individual-to-group folding | Behaviours 5–6 |
-| M4 | Technology network: emergence, diffusion, loss; trade. With it (section 16): military technology, methods of warfare and logistics, reconnaissance and espionage, strategy; crime, norms and enforcement; lineages, personal ties and reputation; people changing the land; diseases from domestic animals; writing, and chronicles written by the people themselves; place names | Behaviour 7 |
+| M4a | Technology network: emergence, diffusion, loss; trade; people changing the land; diseases from domestic animals; writing and place names; pastoralism; circumscription (M4 specification v1, approved 12 November 2026) | Behaviour 7 |
+| M4b | Military technology, methods of warfare and logistics, reconnaissance and strategy; crime, norms and enforcement; lineages, personal ties and reputation; chronicles (specified after G4a) | Warfare, crime and personal-ties checks |
 | M5 | Belief and religion layer; rituals with real costs; god mode. With it (section 16): myths and songs that drift from the events they remember | Behaviour 9 |
 | M6 | Long-run economy and the escape from the population ceiling. With it (section 16): inherited traits shaped by selection, if not added earlier | Behaviour 8 |
 | Throughout | Divergence across runs; causal traceability | Behaviour 10 and the standing requirement |
