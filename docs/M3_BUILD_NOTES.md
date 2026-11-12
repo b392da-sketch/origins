@@ -440,3 +440,32 @@ GitHub run 43039106958: 8 histories with institutions and 8 without (planets 1, 
 - To be diagnosed, not tuned blindly; options are with Ben.
 
 **Not a real failure:** G2 check 3 (adoption dates vary widely) fails here only because there are two seeds per planet.
+
+## 12 November, late morning: fixing the inequality level (Ben's decision 1), and G3 run 2
+
+The local tests started from a planet-3 world saved at year 8,500, just before farming. Each ran to 1,000 years after the first village (year 9,165).
+
+| Test | Settings | Median Gini | With land scarcity | With herds |
+|---|---|---|---|---|
+| A | property households founded at partnership; new households start at 0.1 of the mean | 0.62 | 0.26 | 0.07 |
+| B | as A, new households start at the mean | 0.31 | 0.26 | 0.09 |
+| C | as A, start at half the mean | 0.40 | 0.28 | −0.06 |
+| D | start at the mean, three times the herd risk | 0.29 | 0.26 | 0.03 |
+| E | start at half; herd poverty trap (Lybbert et al. 2004) | 0.39 | 0.31 | −0.02 |
+| F | as E, herd growth doubled | 0.38 | 0.29 | −0.07 |
+
+**Chosen settings:**
+- New households start at half the mean, which gives a median Gini of about 0.4. That is between house sizes (0.27–0.35, Kohler et al. 2017) and agriculturalists (0.48, Borgerhoff Mulder et al. 2009).
+- The herd poverty trap: below half the village mean, a household's herd shrinks instead of breeding.
+
+**Land scarcity works.** In test E, the Gini is 0.35 with room to spare, 0.43 where land is getting scarce, and 0.56 where it is scarcest.
+
+**Herds still do not raise inequality.** The share of farming in herds on planet 3 is small: median 0, 75th percentile 0.07, 90th 0.13. Nothing herd-based can show at those shares. G3 run 2 will show whether other planets have herding villages. If not, check 9's herd half fails for lack of herders, not because the mechanism fails. That would go to Ben.
+
+**States still come early:** 363–853 years after the first village in these tests. Carried forward (Ben's decision 3).
+
+**G3 run 2:** GitHub run 43126485621, from `main` at `e32c319`. The 20-history GitHub trial 4 (run 43119991029) was cancelled, because its code predates these settings.
+
+### Source (added)
+
+- Lybbert, T. J., Barrett, C. B., Desta, S., & Coppock, D. L. (2004). Stochastic wealth dynamics and risk management among a poor population. *The Economic Journal*, 114(498), 750–777. https://doi.org/10.1111/j.1468-0297.2004.00242.x
