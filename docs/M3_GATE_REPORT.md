@@ -249,3 +249,22 @@ All rates are tunable starting values, not measurements.
    - the herd half of check 9;
    - size against levels of rule (weak);
    - the depth limit of the cause-chain validator, to be lifted in M4a.
+
+## Decision (Ben, 13 November 2026)
+
+Ben accepted every recommendation of the run 3 report:
+
+1. **Check 5 is waived.** The ratio is recorded as exactly at the line (0.25 against "under a quarter"). Every other measure of institutions is decisive: no states, no polity at 10+ settlements, and no polity-years at that size without them.
+2. **Check 9's herd half is carried forward** to M4a's pastoralism, to be retested as a comparison between societies. The land half and the level of inequality pass.
+3. **Check 10 is waived with the post-run fix** (`95556dd`), and the corrected code is to be run in full in G4a, which includes M3's checks.
+4. **M3 is closed.**
+
+**Carried forward to M4a:**
+1. States arrive too early (median 1,168 years after the first village, against 2.7–3.1 millennia). The circumscription brake is in the M4 specification.
+2. The herd half of check 9.
+3. Size against levels of rule is weak (0.15, against Seshat's 0.78).
+4. The cause-chain validator follows references only to a depth of 6. Lift it.
+5. From M1 and M2: island peoples do not diverge faster; outbreaks' share of deaths (to be explained by animal diseases); bands cannot cross barren land on foot.
+6. Ready on branches, to merge first:
+   - seats kept individual after their polity drops below chiefdom (`seat-memory`);
+   - the on-disk event store (`event-store-disk`).
