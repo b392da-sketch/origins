@@ -141,6 +141,10 @@ def _event_title(w, e) -> str:
         return f"{d.get('name')} divided into {', '.join(d.get('names', [])) or 'daughter languages'}"
     if k == "language_extinct":
         return f"The last speakers of {d.get('name')} are gone"
+    if k == "invention":
+        from .sim.technology import TECHNIQUES, INDEX
+        t = TECHNIQUES[INDEX[d["technique"]]]
+        return f"{bn} invented {t.name}"
     if k == "took_up_herding":
         return f"{bn} took up a herding life, moving its herds to new pasture"
     if k == "sea_crossing":

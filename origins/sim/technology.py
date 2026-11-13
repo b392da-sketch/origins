@@ -174,3 +174,122 @@ def prerequisites_met(w, b, t: Technique, near: set | None = None) -> tuple[bool
             if not any(m in near for m in group):
                 missing.append("needs " + " or ".join(group) + " within reach")
     return (not missing), missing
+
+
+# --- stage 2: invention ---------------------------------------------------------------------------------------------
+
+def _cell_materials(w) -> np.ndarray:
+    """cells x materials: is each material within two rings? (cached on the planet; the planet does not change)"""
+    pl = w.planet
+    m = getattr(pl, "_tech_materials", None)
+    if m is not None:
+        return m
+    from ..worldgen import BIOMES
+    from .language import ring2
+    here = np.zeros((pl.n, len(MATERIALS)), dtype=bool)
+    forest = np.isin(pl.biome, [BIOMES.index(b) for b in ("boreal_forest", "temperate_forest", "tropical_forest")])
+    here[:, MATERIALS.index("forest")] = forest
+    for name, arr in pl.minerals.items():
+        if name in MATERIALS:
+            here[:, MATERIALS.index(name)] = arr
+    r2 = ring2(w)
+    m = np.zeros_like(here)
+    for c in range(pl.n):
+        idx = [int(x) for x in r2[c] if x >= 0]
+        m[c] = here[idx].any(axis=0)
+    pl._tech_materials = m
+    return m
+
+
+def _possible(w, ids, cells) -> np.ndarray:
+    """live x K: are a technique's prerequisites met (techniques, domesticates, materials)?"""
+    from . import farming
+    held_ = w.tech[ids] >= P.TECH_WORKING
+    sk = w.skill[ids]
+    plant = (sk[:, farming.PLANTS] >= 3).any(axis=1)
+    animal = (sk[:, farming.ANIMALS] >= 3).any(axis=1)
+    mats = _cell_materials(w)[cells]
+    ok = np.ones((len(ids), K), dtype=bool)
+    for k, t in enumerate(TECHNIQUES):
+        for n in t.needs:
+            ok[:, k] &= held_[:, INDEX[n]]
+        if "plant" in t.domesticated:
+            ok[:, k] &= plant
+        if "animal" in t.domesticated:
+            ok[:, k] &= animal
+        for group in t.materials:
+            ok[:, k] &= mats[:, [MATERIALS.index(x) for x in group]].any(axis=1)
+    return ok
+
+
+def _needs(w, live, ids, cells, sizes, cell_pop) -> dict:
+    """The pressures behind invention, each 0..1 per band, measured from what the simulation already computes."""
+    ratio = np.array([b.last_ratio for b in live], dtype=float)
+    store = np.array([b.store for b in live], dtype=float)
+    hunger = np.clip(1.0 - ratio, 0, 1)
+    per_head = store / np.maximum(sizes, 1.0)
+    stores = np.clip(1.0 - per_head / max(P.TECH_STORE_REF, 1e-9), 0, 1)
+    cap = np.maximum(w.planet.capacity[cells], 1.0)
+    crowding = np.clip(cell_pop[cells] / cap - 0.5, 0, 1)
+    forager = 1.0 - np.clip(w.farm_share[ids], 0, 1)
+    pl = w.planet
+    water = (pl.coast[cells] | pl.lake[cells]).astype(float) if hasattr(pl, "coast") else np.zeros(len(ids))
+    pol = w.polity_of[ids] >= 0 if hasattr(w, "polity_of") else np.zeros(len(ids), bool)
+    tier = np.zeros(len(ids))
+    for i, b in enumerate(live):
+        if pol[i]:
+            p = w.polities.get(int(w.polity_of[b.id]))
+            tier[i] = (p.tier if p is not None else 0) / 3.0
+    return {"hunting": forager * (0.5 + 0.5 * hunger), "hunger": hunger, "stores": np.maximum(stores, hunger),
+            "crowding": crowding, "water": water, "trade": np.clip(pol * 0.5 + crowding, 0, 1),
+            "power": tier, "tribute": np.clip(pol * (0.3 + tier), 0, 1), "war": np.clip(tier + crowding * 0.5, 0, 1)}
+
+
+def yearly(w):
+    """Invention: each band, for each technique it could hold but does not, invents it with chance
+    TECH_INVENT x (TECH_NEED_FLOOR + need) x (connected people / TECH_POP_REF) ** TECH_POP_EXPONENT.
+
+    Connected people are everyone within two rings of the band's cell (contact; Henrich 2004; Kline & Boyd 2010).
+    TECH_POP_EXPONENT 0 is the knock-out with no population effect (M4 specification section 3.2, check 6)."""
+    if not getattr(P, "TECHNOLOGY", False):
+        return
+    live = w.living_bands()
+    if not live:
+        return
+    from .language import ring2
+    ids, _pos = w.live_index()
+    ids = np.asarray(ids)
+    sizes = np.asarray(w.live_sizes(), dtype=float)
+    cells = np.array([b.cell for b in live])
+    cell_pop = np.bincount(cells, weights=sizes, minlength=w.planet.n)
+    r2 = ring2(w)
+    connected = np.array([cell_pop[[int(x) for x in r2[c] if x >= 0]].sum() for c in cells])
+    possible = _possible(w, ids, cells) & (w.tech[ids] < P.TECH_WORKING)
+    if not possible.any():
+        return
+    needs = _needs(w, live, ids, cells, sizes, cell_pop)
+    need = np.stack([needs[t.need] for t in TECHNIQUES], axis=1)
+    pop = (connected / P.TECH_POP_REF) ** P.TECH_POP_EXPONENT
+    chance = P.TECH_INVENT * (P.TECH_NEED_FLOOR + need) * pop[:, None]
+    rng = w.rng["technology"]
+    draw = rng.random(chance.shape)
+    hits = np.argwhere(possible & (draw < chance))
+    for i, k in hits.tolist():
+        b = live[i]
+        t = TECHNIQUES[k]
+        w.tech[b.id, k] = P.TECH_INVENT_LEVEL
+        top = needs[t.need][i]
+        why = (f"{w.band_name(b)} invented {t.name}, under pressure of {t.need} ({top:.0%}), "
+               f"with {connected[i]:,.0f} people within reach")
+        if t.materials:
+            why += "; materials within reach: " + ", ".join(
+                next(m for m in group if _cell_materials(w)[b.cell, MATERIALS.index(m)]) for group in t.materials)
+        w.event("invention", cell=b.cell, band=b.id, technique=t.key, causes=[{"note": why}],
+                need=t.need, pressure=round(float(top), 3), connected=int(connected[i]))
+        firsts = w.tech_firsts if hasattr(w, "tech_firsts") else {}
+        if t.key not in firsts:
+            firsts[t.key] = len(w.events) - 1
+            w.tech_firsts = firsts
+
+
+from .. import params as P  # noqa: E402  (after the data, which does not depend on parameters)

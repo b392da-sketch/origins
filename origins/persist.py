@@ -68,7 +68,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
         "env": environment(),
         "language": language.to_json(w), "hazards": w.hazards,
         "farming": farming.to_json(w), "surplus": surplus.to_json(w), "polity": polity.to_json(w),
-        "conflict": conflict.to_json(w), "timing": w.timing, "first_herders": getattr(w, "first_herders", None), "log_strides": w.log_strides,
+        "conflict": conflict.to_json(w), "timing": w.timing, "first_herders": getattr(w, "first_herders", None), "tech_firsts": getattr(w, "tech_firsts", {}), "log_strides": w.log_strides,
     }
     arrays = {"stock": w.stock, "known": w.known, "discovered_by": w.discovered_by,
               "discovered_at": w.discovered_at, "food_modifier": w.food_modifier,
@@ -178,6 +178,7 @@ def from_bytes(data: bytes, planet=None) -> World:
         h[:len(getattr(w, "herder_since", ()))] = getattr(w, "herder_since", np.zeros(0))
         w.herder_since = h
     w.first_herders = meta.get("first_herders")
+    w.tech_firsts = dict(meta.get("tech_firsts", {}))
     from .sim import customs as _customs
     if w.customs.shape[1] < len(_customs.NAMES):          # saves from before a custom was added: it starts at variant 0
         c = np.zeros((len(w.customs), len(_customs.NAMES)), dtype=w.customs.dtype)

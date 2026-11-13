@@ -212,3 +212,14 @@ def work(age, nursing):
     w = np.select([age < 6, age < 12, age < 16, age < 56, age < 66],
                   [0.0, 0.25, 0.6, 1.0, 0.7], default=0.35)
     return w * np.where(nursing, 0.7, 1.0)
+
+# --- M4a: the technology network (M4 specification section 3; starting values to be tuned) ---
+TECHNOLOGY = True
+TECH_WORKING = 0.5                 # skill level at which a technique counts as held (prerequisites, diffusion)
+TECH_INVENT = 2e-5                 # yearly chance a band invents a technique it could hold, at reference population and no pressure ...
+TECH_NEED_FLOOR = 0.2              # ... times (this + the pressure behind it, 0..1) ...
+TECH_POP_REF = 1000                # ... times (people within two rings / this) ...
+TECH_POP_EXPONENT = 1.0            # ... to this power (0: the knock-out with no population effect, specification check 6)
+TECH_INVENT_LEVEL = 0.6            # skill level of a new invention
+TECH_STORE_REF = 90                # stores per person (days) below which the need for containers rises
+
