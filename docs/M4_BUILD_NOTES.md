@@ -40,3 +40,22 @@ All rates are tunable starting values, not measurements.
 ## Seen in passing
 
 `foraging.move` raises a NumPy warning (0/0 in an unused branch of `np.where`, where a neighbour cell has no people and the band no size). It is harmless, because those entries are masked as invalid, but it should be silenced.
+
+### Pastoralism: first GitHub trial (13 November)
+
+Runs 43357881932 (on) and 43357885359 (off): three histories where herding dominated in G3 run 3 (planet 1 seed 5, planet 4 seed 10, planet 5 seed 7), to 1,000 years after the first village. Planet 4 seed 7 was still running. The local test could not be used: planet 4 did not reach farming within a background job's 2-hour limit.
+
+| History | Took up herding (on) | Gini, herding records: on / off | Largest polity: on / off |
+|---|---|---|---|
+| planet 1 seed 5 | 123 | 0.70 / 0.75 | 16 / 20 |
+| planet 4 seed 10 | 476 | 0.45 / 0.73 | 19 / 19 |
+| planet 5 seed 7 | 254 | 0.76 / (no herding records: the histories diverged) | 18 / 19 |
+
+- **The mechanism works:** hundreds of peoples took up a herding life.
+- **The rules hold:** no accounting failures, every sampled cause chain resolves (including `took_up_herding` and `flight`), and no looping chains of rule.
+- **Herding societies are far too unequal:** median Gini 0.45–0.76, against 0.42 for pastoralists (Borgerhoff Mulder et al. 2009). The cause is in the M3 mechanisms carried over: a herd poverty trap below half the village mean, and doubled yearly risk for herds.
+- **Calibration against that target,** three variants on GitHub, same three histories:
+  - (a) `HERD_RISK` 0.5 (run 43378795580);
+  - (b) `HERD_THRESHOLD` 0.25 (run 43378798622);
+  - (c) both (run 43378801861).
+- **To fix:** the gate record's `herders_alive` counts every living band that ever took up herding, including those that have since gone back to foraging. That is why it can exceed the number of farming bands. It should count current herders.
