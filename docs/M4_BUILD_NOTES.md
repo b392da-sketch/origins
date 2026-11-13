@@ -65,3 +65,25 @@ Runs 43357881932 (on) and 43357885359 (off): three histories where herding domin
 **Decision: (a) for now, (c) later.** A band's standing crop (`crop_store`) travels with it and is harvested wherever the band is at harvest. This is accepted and documented as an abstraction. It matters little for herders, who by definition get at least 70% of their farming value from animals.
 
 **Later (c):** a band harvests its standing crop only if it is back on the cell where it sowed. Raised by Codex in review 005.
+
+### Herd inequality calibration, round 1 (13 November)
+
+Median Gini of herding records, against a target of 0.42 for pastoralists (Borgerhoff Mulder et al. 2009):
+
+| Variant | Planet 1 seed 5 | Planet 4 seed 10 | Planet 5 seed 7 |
+|---|---|---|---|
+| base (`HERD_RISK` 1, `HERD_THRESHOLD` 0.5) | 0.70 | 0.45 | 0.76 |
+| (a) `HERD_RISK` 0.5 | 0.68 | 0.44 | 0.75 |
+| (b) `HERD_THRESHOLD` 0.25 | 0.69 | 0.41 | no herders (the history diverged) |
+| (c) both | 0.68 | 0.43 | 0.74 |
+
+**Neither setting is the driver.** Looking inside the records:
+- **The high values come where herding land is crowded.** Land counts as scarce in 71% and 86% of herding records on planets 1 and 5, against 6% on planet 4. Pasture carries few people per area, so it fills fast, and the M3 land advantage, meant for heritable fields, then pulls richer households ahead.
+- **Even with no crowding, herding records reach 0.60–0.61,** against 0.31 for crop villages (planet 3). The likely driver is the herd poverty trap itself: `HERD_GROWTH` (0.02 a year, gained above the threshold and lost below it) splits households within a generation, whatever the threshold.
+
+**Round 2,** on the code with review 005's fixes, same three histories:
+- (d) `HERD_GROWTH` 0.005 (run 43405965189);
+- (e) `LAND_HERDS` 0: no land advantage on pasture, as if pasture were held in common (run 43405970426);
+- (f) both (run 43405974869).
+
+Whether pasture is held in common is a design assumption, and goes to Ben with the results.
