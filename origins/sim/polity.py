@@ -53,6 +53,7 @@ class Polity:
     led_since: int = -1          # when the present leader took over
     peak_people: int = 0
     founding_event: int = -1
+    notable_until: int = -1      # tick until which its seat is kept individual after being a chiefdom or state's seat
 
 
 def init(w):
@@ -483,6 +484,8 @@ def yearly(w):
                 break
         dmax = levels_of_rule(w, mem_ids, p.seat)
         p.tier = tier_of(p, dmax, n)
+        if p.tier >= 1:
+            p.notable_until = w.t + P.NOTABLE_MEMORY * P.TICKS_PER_YEAR
         people = int(sum(size_of.get(i, 0) for i in mem_ids))
         p.peak_people = max(p.peak_people, people)
         if p.tier >= 1:
