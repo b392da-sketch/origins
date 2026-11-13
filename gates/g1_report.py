@@ -16,12 +16,28 @@ HAZARD_RANGES = {"flood": (1 / 200, 1 / 15), "wildfire": (1 / 2000, 1 / 50), "er
                  "earthquake": (1 / 3000, 1 / 100)}
 
 
+def _ranks(x):
+    """Ranks with ties given their average rank (the standard Spearman convention)."""
+    order = np.argsort(x, kind="mergesort")
+    xs = x[order]
+    r = np.empty(len(x), float)
+    i = 0
+    while i < len(x):
+        j = i
+        while j + 1 < len(x) and xs[j + 1] == xs[i]:
+            j += 1
+        r[order[i:j + 1]] = (i + j) / 2.0
+        i = j + 1
+    return r
+
+
 def _spearman(x, y):
+    """Spearman's rank correlation, ties at their average rank. (Until 13 November 2026 ties got arbitrary distinct
+    ranks, so the result depended on the order of equal values: found by Codex, review 004.)"""
     x, y = np.asarray(x, float), np.asarray(y, float)
     if len(x) < 5 or x.std() == 0 or y.std() == 0:
         return float("nan")
-    rx, ry = np.argsort(np.argsort(x)), np.argsort(np.argsort(y))
-    return float(np.corrcoef(rx, ry)[0, 1])
+    return float(np.corrcoef(_ranks(x), _ranks(y))[0, 1])
 
 
 def _load(out: Path, pattern: str):

@@ -247,6 +247,8 @@ Run across many histories on five planets, plus knock-out histories.
 
 ---
 
+**Independent review (Ben, 13 November 2026):** each M4a build step is reviewed by Codex before its code goes into a gate run, and the G4a report is reviewed against its result files before Ben decides on it (`CLAUDE.md`, `reviews/`).
+
 ## 10. What the observer sees
 
 - **A technology map:** which peoples hold which techniques, and where each was invented and lost.

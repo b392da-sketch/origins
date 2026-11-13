@@ -491,3 +491,19 @@ Ben agreed to keep group births and deaths seasonal, four times a year like indi
 - **The cost:** groups would lose the seasonal pattern of hunger and outbreaks, and behave differently from followed people.
 
 Speed work after the G3 gate goes to fission and merging, the polity system, and the seat churn (branch `seat-memory`).
+
+## 12–13 November: G3 run 3 and the looping chain of rule
+
+G3 run 3 (GitHub run 43136210637) runs `main` with all the fixes from Codex reviews 001–003. The provisional report on 57 of 70 histories is in the gate report once complete.
+
+**The loop check found a looping chain in one history** (planet 2 seed 6). Rerun locally, it appeared at year 7,523:
+- polity 197 annexed settlement 345100 from polity 207;
+- later the same year, the war loop, working from sides set at the start of the year, had 345100 attack as a member of 207. It attacked itself, won, and annexed itself, so `polity_via` pointed to itself.
+
+**Fix:** a war is fought only if the attacker still belongs to its side and the target does not.
+
+**Verified:**
+- the same history, rerun past year 7,523 to 8,600, has no loop;
+- 49 tests pass.
+
+**How often it mattered:** in a planet-3 history (1,000 years after the first village), 41 of 73,602 wars (0.06%) would have been fought on sides that changed earlier in the year. G3 run 3's results therefore stand, with this noted. The fix is not in run 3's code.

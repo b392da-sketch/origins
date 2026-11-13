@@ -28,7 +28,7 @@ from gates.g0 import _planet  # noqa: E402
 
 OUT = ROOT / "gates" / "results_g3"
 MAX_YEARS = 30_000
-POLITY_EVENTS = ("polity_founded", "polity_joined", "secession", "polity_ended", "seat_moved", "succession",
+POLITY_EVENTS = ("polity_founded", "polity_joined", "secession", "flight", "polity_ended", "seat_moved", "succession",
                  "institution_founded", "institution_lost", "first_simple_chiefdom", "first_complex_chiefdom",
                  "first_state", "war", "conquest")
 
@@ -81,6 +81,13 @@ def finish(w, ws, rs, seconds, pr, institutions):
                 break
             j = k
     rec["polity_chain_loops"] = loops
+    # M4a pastoralism: herding peoples now, and how many ever took up a herding life
+    hs = getattr(w, "herder_since", None)
+    live = [b.id for b in w.living_bands()]
+    rec["herders_alive"] = int(sum(1 for i in live if hs is not None and i < len(hs) and hs[i] >= 0))
+    rec["farming_bands_alive"] = int(sum(1 for i in live if w.farm_share[i] >= 0.5))
+    rec["took_up_herding"] = int(sum(1 for e in w.events if e["kind"] == "took_up_herding"))
+    rec["flights"] = int(sum(1 for e in w.events if e["kind"] == "flight"))
     # conflict
     from origins.state import CAUSES
     fv = pr.get("fv_deaths")

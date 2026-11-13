@@ -87,6 +87,7 @@ def init(w):
     w.crop_store = np.zeros(cap)            # this year's standing crop, harvested in the harvest season
     w.still_years = np.zeros(cap)           # years since the band last moved
     w.forage_rr = np.full(cap, P.FORAGE_RATE)   # recent food per worker-day from foraging
+    w.herder_since = np.full(cap, -1.0)     # tick a band first moved with its herds (M4a pastoralism), or -1
     w.first_village = None                  # event id of the first farming village
     w.farm_firsts = {}                      # species -> {stage: event id} (first anywhere in the world)
 
@@ -96,17 +97,23 @@ def ensure(w, band_id: int, parent: int):
         cap = len(w.farm_share)
         while cap <= band_id:
             cap *= 2
-        for name in ("skill", "farm_share", "crop_store", "still_years", "forage_rr"):
+        if not hasattr(w, "herder_since"):
+            w.herder_since = np.full(len(w.farm_share), -1.0)
+        for name in ("skill", "farm_share", "crop_store", "still_years", "forage_rr", "herder_since"):
             old = getattr(w, name)
             new = np.zeros((cap,) + old.shape[1:], dtype=old.dtype)
             if name == "forage_rr":
                 new[:] = P.FORAGE_RATE
+            if name == "herder_since":
+                new[:] = -1.0
             new[:len(old)] = old
             setattr(w, name, new)
     if parent >= 0:
         w.skill[band_id] = w.skill[parent]
         w.farm_share[band_id] = w.farm_share[parent]
         w.forage_rr[band_id] = w.forage_rr[parent]
+        if hasattr(w, "herder_since"):
+            w.herder_since[band_id] = w.herder_since[parent]
 
 
 def best(w, b) -> tuple:

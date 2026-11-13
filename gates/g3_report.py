@@ -190,14 +190,16 @@ def report(out: Path) -> str:
 
     # not a check: how long polities stay large (for the analysis of check 5)
     def held(r, n=10):
-        """Longest run of years one polity holds n+ settlements, and all polity-years at n+."""
+        """Longest observed span (first to last of consecutive samples, 10 years apart) in which one polity holds
+        n+ settlements, as collapses() measures it; and polity-years at n+ (10 per sample, an approximation).
+        (Until 13 November 2026 each run started at 10, adding a decade to every span: found by Codex, review 004.)"""
         longest, total = 0, 0
         for rows in _series(r["polity_log"]).values():
             yrs = sorted(y for y, s, *_ in rows if s >= n)
             total += 10 * len(yrs)
             run, prev = 0, None
             for y in yrs:
-                run = run + 10 if prev is not None and y - prev <= 10 else 10
+                run = run + (y - prev) if prev is not None and y - prev <= 10 else 0
                 longest, prev = max(longest, run), y
         return longest, total
     hi = [held(r) for r in farm]

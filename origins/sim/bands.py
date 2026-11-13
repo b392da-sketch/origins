@@ -240,7 +240,8 @@ def fold_distant(w):
     # bands farthest from the centres of rule (the seats of chiefdoms and states) fold first; before there are
     # any, those farthest from the people's first home.
     sizes = np.bincount(w.people.band[w.alive_idx()], minlength=w.next_band)
-    seats = {p.seat for p in getattr(w, "polities", {}).values() if p.alive and p.tier >= 1}
+    seats = {p.seat for p in getattr(w, "polities", {}).values()
+             if p.alive and (p.tier >= 1 or w.t < p.notable_until)}   # kept for a while after a polity drops below a chiefdom
     focus_cells = sorted({w.bands[s].cell for s in seats}) or [int(w.planet.start_cell)]
     fx = xyz[np.array(focus_cells)]
     focus = focus_cells[0]

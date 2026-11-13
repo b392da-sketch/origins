@@ -3,13 +3,14 @@ from __future__ import annotations
 
 from . import interventions
 from . import params as P
-from .sim import bands, climate, customs, demography, farming, foraging, groups, conflict, hazards, language, observe, polity, surplus
+from .sim import bands, climate, customs, demography, farming, foraging, groups, conflict, hazards, language, observe, pastoral, polity, surplus
 
 PHASES = [
     ("interventions", interventions.restore_due),
     ("climate", lambda w: climate.yearly(w) if w.quarter == 0 and w.t > 0 else None),
     ("regrowth", climate.regrow),
     ("movement", foraging.move),
+    ("pastoral", pastoral.move),
     ("foraging_and_eating", foraging.forage_and_eat),
     ("ageing", lambda w: groups.age_one_year(w) if w.quarter == 0 and w.t > 0 else None),
     ("deaths", demography.deaths),

@@ -68,7 +68,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
         "env": environment(),
         "language": language.to_json(w), "hazards": w.hazards,
         "farming": farming.to_json(w), "surplus": surplus.to_json(w), "polity": polity.to_json(w),
-        "conflict": conflict.to_json(w), "timing": w.timing, "log_strides": w.log_strides,
+        "conflict": conflict.to_json(w), "timing": w.timing, "first_herders": getattr(w, "first_herders", None), "log_strides": w.log_strides,
     }
     arrays = {"stock": w.stock, "known": w.known, "discovered_by": w.discovered_by,
               "discovered_at": w.discovered_at, "food_modifier": w.food_modifier,
@@ -77,7 +77,8 @@ def to_file(w: World, f, fast: bool = False) -> None:
               "hazard_event": w.hazard_event, "immune": w.immune,
               "skill": w.skill, "farm_share": w.farm_share, "crop_store": w.crop_store,
               "still_years": w.still_years, "forage_rr": w.forage_rr, "spec": w.spec,
-              "polity_of": w.polity_of, "polity_via": w.polity_via, "conquered_at": w.conquered_at}
+              "polity_of": w.polity_of, "polity_via": w.polity_via, "conquered_at": w.conquered_at,
+              "herder_since": w.herder_since}
     arrays.update({"p_" + k: v for k, v in w.people.arrays().items()})
     arrays.update({"g_" + k: v for k, v in w.groups.arrays().items()})
     arrays.update({"b_" + k: v for k, v in w.bands.arrays().items()})
@@ -159,9 +160,15 @@ def from_bytes(data: bytes, planet=None) -> World:
     w.pending_restore = [(a, list(b), c) for a, b, c in meta.get("pending_restore", [])]
     for k in ("stock", "known", "discovered_by", "discovered_at", "food_modifier", "intervention_event",
               "cell_hunger", "cell_births", "customs", "neutral", "hazard_food", "hazard_event", "immune",
-              "skill", "farm_share", "crop_store", "still_years", "forage_rr", "spec", "polity_of", "polity_via", "conquered_at"):
+              "skill", "farm_share", "crop_store", "still_years", "forage_rr", "spec", "polity_of", "polity_via", "conquered_at",
+              "herder_since"):
         if k in arrays:                      # older saves of this schema may lack optional arrays
             setattr(w, k, arrays[k])
+    if len(getattr(w, "herder_since", ())) < len(w.farm_share):    # saves from before pastoralism (M4a)
+        h = np.full(len(w.farm_share), -1.0)
+        h[:len(getattr(w, "herder_since", ()))] = getattr(w, "herder_since", np.zeros(0))
+        w.herder_since = h
+    w.first_herders = meta.get("first_herders")
     from .sim import customs as _customs
     if w.customs.shape[1] < len(_customs.NAMES):          # saves from before a custom was added: it starts at variant 0
         c = np.zeros((len(w.customs), len(_customs.NAMES)), dtype=w.customs.dtype)
@@ -226,7 +233,7 @@ def digest(w: World) -> str:
         h.update(k.encode())
         h.update(np.ascontiguousarray(v).tobytes())
     for arr in (w.stock, w.known, w.region_z, w.customs, w.neutral, w.hazard_food, w.immune, w.skill, w.farm_share,
-                w.crop_store, w.spec, w.polity_of, w.polity_via, w.conquered_at):
+                w.crop_store, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since):
         h.update(np.ascontiguousarray(arr).tobytes())
     for k, v in sorted(w.bands.arrays().items()):
         h.update(k.encode())
