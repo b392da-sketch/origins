@@ -122,3 +122,48 @@ On the code with review 005's fixes; median Gini of herding records, with the va
 - **Measured** on the planet-3 farming world: polity and war chains have a median of 2 references and a maximum of 11, so the old limit of 6 did cut some of them.
 - **Speed:** 400 sampled deaths and 400 sampled polity and farming events are checked in about 0.1 s.
 - **Still sampled:** the check samples events; it does not cover every event in a history.
+
+## The technology network, stages 1–4 (14 November 2026)
+
+Built in `origins/sim/technology.py`: 27 techniques with prerequisites (stage 1), invention from need, materials and connected population (stage 2), keeping and losing skills after Henrich (2004) (stage 3), and spreading by contact (stage 4). Techniques do not yet change anything else; effects are stage 5. Every number below comes from starting values in `params.py`, which are tunable, not facts.
+
+All trials start from the planet-3 snapshot at year 8,500 and run 1,500 years.
+
+### Trial 1: invention only
+
+1,840 inventions: far too many. Hard techniques were invented as readily as easy ones.
+
+**Change:** a difficulty factor, `(TECH_EASY_KEEP / keep) ** TECH_DIFFICULTY`, so techniques that need more practitioners are rarer inventions; base rate cut to 5e-6; tribute pressure set by polity tier only.
+
+### Trial 2: invention only, after the change
+
+97 inventions. Simple techniques were invented many times (cordage 46, fire-hardened points 32), harder ones rarely (canoes 3, terracing 3, irrigation 1, stone building 1). No writing, metals or plough. Cause chains 97 of 97.
+
+### Trial 3: all four stages
+
+29 inventions, 16,174 adoptions, 11 losses. Spreading did most of the work, as the specification intends. But it spread too freely:
+
+- Terraced fields reached 2,923 of 3,312 bands within about 360 years of first appearing, and stone building 2,762, including foragers. The prerequisite asked only whether a band knew a domesticated crop, not whether it farmed.
+- Adoption ignored whether a technique was any use to the adopter.
+- With everything held everywhere, no band was short of practitioners nearby, so losses could not show.
+
+The cause-chain check in the trial script was cut off at the time limit: it checked all 16,000 events before sampling. It now samples 300 events spread through the run.
+
+**Changes (design choices for Ben to confirm; the specification does not spell them out):**
+
+1. **Farming techniques need farmers.** A domesticate is not enough; the band must take at least `TECH_FARMING` (0.2) of its food from farming or herding.
+2. **Adoption is weighted by need,** as invention is: chance x (`TECH_NEED_FLOOR` + need). A technique spreads faster where it answers a pressing problem (relative advantage: Rogers 2003; adoption curves shaped by biased transmission: Henrich 2001).
+
+### Trial 4: after changes 1 and 2
+
+46 inventions, 6,588 adoptions, 3 losses; cause chains 300 of 300.
+
+- Foraging techniques now spread selectively: fish traps held by 57 bands, the bow by 105, canoes by 647, baskets by 391. Cordage and fire-hardened points are held by every band, which is plausible after 1,500 years of contact.
+- **Terracing was still held by 2,775 bands.** Either most bands farm by year 10,000, or the prerequisite is still too loose. Terraces are built on slopes, and irrigation needs water, but neither prerequisite checked the land.
+
+**Change 3:** terrain prerequisites, judged on the band's own cell. Terracing needs hilly land (relief of at least `TECH_HILL_RELIEF`, 300 m, to a neighbouring cell: 41% of land cells on planet 3). Irrigation needs a river or lake in the cell (6.7% of land cells). The trial script now also counts the bands that farm or herd.
+
+### Sources (added)
+
+- Henrich, J. (2001). Cultural transmission and the diffusion of innovations: Adoption dynamics indicate that biased cultural transmission is the predominate force in behavioral change. *American Anthropologist*, 103(4), 992–1013.
+- Rogers, E. M. (2003). *Diffusion of Innovations* (5th ed.). Free Press.

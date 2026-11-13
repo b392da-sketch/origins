@@ -8,7 +8,7 @@ Effects (stage 5: what each technique changes) are not built yet; techniques are
 
 ## Please check
 
-1. **Prerequisites (`_possible`, `prerequisites_met`).** Do the two agree in every case? Farming techniques now need a domesticate *and* a farm or herd share of at least `TECH_FARMING`. Are any of the 27 techniques' prerequisites, materials or keep numbers clearly wrong against the literature cited in the specification?
+1. **Prerequisites (`_possible`, `prerequisites_met`).** Do the two agree in every case? Farming techniques now need a domesticate *and* a farm or herd share of at least `TECH_FARMING`; terracing needs hilly land and irrigation a river or lake on the band's own cell (`_cell_terrain`, `TECH_HILL_RELIEF`). Are any of the 27 techniques' prerequisites, materials or keep numbers clearly wrong against the literature cited in the specification?
 2. **Invention (`yearly`).** Does the formula in the docstring match the code? Is `connected` (people within two rings) computed correctly, including bands on the same cell? Is the knock-out (`TECH_POP_EXPONENT = 0`) a true knock-out?
 3. **Keeping and losing (`keep_and_spread`, stage 3).** Does the drift `TECH_LEARN × ln(skilled within reach / keep)` reproduce the direction of Henrich (2004): gain above the threshold, loss below it? Is a loss recorded exactly once and the level zeroed? Can a technique whose prerequisite is lost still be held?
 4. **Spreading (stage 4).** Adoption needs prerequisites (from `possible_all`, computed *before* this year's losses and inventions: is that a problem?). Its chance is weighted by need. Is the source band (`_source`) really within reach and holding the technique at the start of the year?

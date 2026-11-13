@@ -30,6 +30,7 @@ class Technique:
     needs: tuple = ()                 # techniques that must be held (at a working level)
     domesticated: tuple = ()          # "plant" and/or "animal": a domesticated species of that kind must be held
     materials: tuple = ()             # any-of groups: each inner tuple needs one of its materials within reach
+    terrain: str = ""                 # land the band's own cell must have: "hills" or "water" (river or lake)
     keep: int = 10                    # practitioners needed to keep the skill alive (stage 3; starting values)
     need: str = ""                    # the pressure that leads towards it (stage 2)
     effect: str = ""                  # what it changes (stage 5)
@@ -56,9 +57,9 @@ TECHNIQUES: list[Technique] = [
     T("kilns", "kilns", "containers", needs=("pottery",), materials=(("clay",),), keep=30, need="stores",
       effect="better pottery; the heat that smelting needs"),
     # farming
-    T("terracing", "terraced fields", "farming", domesticated=("plant",), keep=30, need="crowding",
+    T("terracing", "terraced fields", "farming", domesticated=("plant",), terrain="hills", keep=30, need="crowding",
       effect="farming capacity rises on hilly land"),
-    T("irrigation", "irrigation", "farming", domesticated=("plant",), keep=50, need="crowding",
+    T("irrigation", "irrigation", "farming", domesticated=("plant",), terrain="water", keep=50, need="crowding",
       effect="crop yields rise on river and dry land; salting can follow (section 5)"),
     T("manuring", "manuring and fallow", "farming", domesticated=("plant", "animal"), keep=20, need="crowding",
       effect="soil keeps its fertility (section 5)"),
@@ -175,6 +176,8 @@ def prerequisites_met(w, b, t: Technique, near: set | None = None) -> tuple[bool
         for group in t.materials:
             if not any(m in near for m in group):
                 missing.append("needs " + " or ".join(group) + " within reach")
+    if t.terrain and not _cell_terrain(w)[b.cell, TERRAIN.index(t.terrain)]:
+        missing.append("needs hilly land" if t.terrain == "hills" else "needs a river or lake")
     return (not missing), missing
 
 
@@ -203,6 +206,24 @@ def _cell_materials(w) -> np.ndarray:
     return m
 
 
+TERRAIN = ("hills", "water")
+
+
+def _cell_terrain(w) -> np.ndarray:
+    """cells x TERRAIN, judged on the cell itself (cached): hills = relief to a neighbour of at least
+    TECH_HILL_RELIEF metres; water = a river or lake in the cell."""
+    pl = w.planet
+    m = getattr(pl, "_tech_terrain", None)
+    if m is not None:
+        return m
+    e = pl.elevation
+    nb = pl.grid.neighbours
+    relief = np.where(nb >= 0, np.abs(e[np.maximum(nb, 0)] - e[:, None]), 0.0).max(axis=1)
+    m = np.stack([relief >= P.TECH_HILL_RELIEF, pl.river | pl.lake], axis=1)
+    pl._tech_terrain = m
+    return m
+
+
 def _possible(w, ids, cells) -> np.ndarray:
     """live x K: are a technique's prerequisites met (techniques, domesticates, materials)?"""
     from . import farming
@@ -224,6 +245,8 @@ def _possible(w, ids, cells) -> np.ndarray:
             ok[:, k] &= animal
         for group in t.materials:
             ok[:, k] &= mats[:, [MATERIALS.index(x) for x in group]].any(axis=1)
+        if t.terrain:
+            ok[:, k] &= _cell_terrain(w)[cells, TERRAIN.index(t.terrain)]
     return ok
 
 

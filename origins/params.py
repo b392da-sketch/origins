@@ -228,5 +228,6 @@ TECH_LEARN = 0.02                  # yearly drift of a held skill: x ln(skilled 
 TECH_LOST = 0.15                   # below this skill level a technique is lost
 TECH_SPREAD = 0.05                 # yearly chance of adopting a technique, x (skilled people within reach / everyone within reach)
 TECH_ADOPT_LEVEL = 0.5             # skill level of an adopted technique
+TECH_HILL_RELIEF = 300.0           # metres of relief to a neighbouring cell that make land hilly (terracing)
 TECH_FARMING = 0.2                 # farm (or herd) share a people needs before farming techniques apply to them
 
