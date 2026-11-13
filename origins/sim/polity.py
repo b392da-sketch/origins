@@ -429,6 +429,11 @@ def yearly(w):
                 give -= keep
             seat.store += give
 
+    # --- flight (circumscription; Carneiro 1970): a member village under a polity's burden may leave and resettle
+    # open land within reach. Where land is full or barren all round, it cannot, and must stay or secede in place.
+    if P.FLIGHT_RATE > 0:
+        _flight(w, rng, by_polity, size_of)
+
     # --- load, capacity, institutions, tier; secessions
     r2_cache = {"seats": {}}
     for q in w.polities.values():
@@ -624,6 +629,80 @@ def yearly(w):
                 p.leader, _ = _successor(w, seat, -1, 2)
                 p.led_since = w.t
     del w.polity_log[:-3_000_000]    # whole histories (until 12 Nov 2026 only the last 40,000 rows)
+
+
+def _flight(w, rng, by_polity, size_of):
+    """Members under a polity's rule leave and resettle open land nearby (Carneiro 1970: where people can move
+    away from a ruler, they do; states form where they are hemmed in).
+
+    Each year a member village (not the seat) takes flight with chance FLIGHT_RATE x (1 + its hunger + the
+    polity's overload), if a cell within two rings, outside every polity, offers its crops or herds at least
+    FLIGHT_LAND of what it has now, with farming people below FLIGHT_OPEN of that cell's capacity."""
+    from . import farming
+    from .language import ring2
+    wild, suit = farming.land_tables(w)
+    r2 = ring2(w)
+    farmers: dict = {}
+    held: set = set()
+    for b in w.living_bands():
+        if w.farm_share[b.id] >= P.PROPERTY_SHARE:
+            farmers[b.cell] = farmers.get(b.cell, 0.0) + float(size_of.get(b.id, 0))
+        if int(w.polity_of[b.id]) >= 0:
+            held.add(b.cell)
+    for pid, mem in by_polity.items():
+        p = w.polities[pid]
+        over = max(0.0, p.load / max(p.cap, 1e-9) - 1.0)
+        stay = []
+        for b in mem:
+            if b.id == p.seat or w.farm_share[b.id] < 0.5:
+                stay.append(b)
+                continue
+            hunger = 1.0 if b.last_ratio < 0.9 else 0.0
+            if rng.random() >= min(0.5, P.FLIGHT_RATE * (1 + hunger + over)):
+                stay.append(b)
+                continue
+            sk = w.skill[b.id]
+            def value(c):
+                usable = (sk >= 3) | wild[c]
+                return float(np.max(np.where(usable, farming.quality(sk) * suit[c], 0.0)))
+            here = value(b.cell)
+            best, best_room = None, 0.0
+            for c in r2[b.cell]:
+                c = int(c)
+                if c == b.cell or c < 0 or not w.planet.land[c] or c in held:
+                    continue
+                v = value(c)
+                cap = v * P.FARM_CAPACITY
+                if v < P.FLIGHT_LAND * here or cap <= 0:
+                    continue
+                if farmers.get(c, 0.0) >= P.FLIGHT_OPEN * cap:
+                    continue
+                room = cap - farmers.get(c, 0.0)
+                if room > best_room:
+                    best, best_room = c, room
+            if best is None:
+                w.flight_blocked = getattr(w, "flight_blocked", 0) + 1     # (diagnosis: hemmed in)
+                stay.append(b)
+                continue
+            src = b.cell
+            n = float(size_of.get(b.id, 0))
+            farmers[src] = farmers.get(src, 0.0) - n
+            farmers[best] = farmers.get(best, 0.0) + n
+            b.cell = best
+            b.trail = (b.trail + [(w.t, best)])[-40:]
+            b.last_move = f"left the rule of {p.name} for open land"
+            w.reveal_pending.add(b.id)
+            for x in np.nonzero(w.polity_via == b.id)[0].tolist():
+                w.polity_via[x] = p.seat               # settlements that answered through it now answer the seat
+            w.polity_of[b.id] = -1
+            w.polity_via[b.id] = -1
+            why = (f"{w.band_name(b)} left {p.name} and resettled open land "
+                   f"{_cells_apart(w, src, best)} areas away, paying tribute of {P.TRIBUTE_SHARE:.0%} of its surplus"
+                   + (" while short of food" if hunger else "")
+                   + (f", with {p.name} at {p.load / max(p.cap, 1e-9):.1f} times its capacity" if over > 0 else ""))
+            w.event("flight", cell=best, band=b.id, polity=pid, causes=[{"event": p.founding_event}, {"note": why}],
+                    origin=src, size=int(n))
+        mem[:] = stay
 
 
 def _under(w, x, top, seat) -> bool:

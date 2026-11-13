@@ -28,7 +28,7 @@ from gates.g0 import _planet  # noqa: E402
 
 OUT = ROOT / "gates" / "results_g3"
 MAX_YEARS = 30_000
-POLITY_EVENTS = ("polity_founded", "polity_joined", "secession", "polity_ended", "seat_moved", "succession",
+POLITY_EVENTS = ("polity_founded", "polity_joined", "secession", "flight", "polity_ended", "seat_moved", "succession",
                  "institution_founded", "institution_lost", "first_simple_chiefdom", "first_complex_chiefdom",
                  "first_state", "war", "conquest")
 

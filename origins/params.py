@@ -164,6 +164,9 @@ SECESSION_STRESS = 0.01            # (0.02 in G3 run 1; halved 12 Nov 2026, chec
 LAW_CALM = 0.3                     # law and judges cut the chance of secession by this share
 CONTESTED_SUCCESSION = [0.25, 0.2, 0.1, 0.25]   # chance a succession is contested, by custom (son, sister's son, council, daughter)
 CONTEST_YEARS = 5                  # years a contested succession weakens a polity
+FLIGHT_RATE = 0.01                 # M4a (13 Nov 2026): yearly chance a member village under a polity takes flight to open land, x (1 + hunger + overload) (Carneiro 1970); 0 turns it off
+FLIGHT_LAND = 0.7                  # open land must offer at least this share of the farming value of home
+FLIGHT_OPEN = 0.25                 # ... and be farmed below this share of its capacity, outside every polity
 NOTABLE_MEMORY = 100               # years a seat stays individual after its polity was last a chiefdom or state (12 Nov 2026: seats were folding and unfolding as polities crossed the chiefdom line)
 NOTABLE_SEATS = 200                # the seats of at most this many chiefdoms and states are kept person by person
 
