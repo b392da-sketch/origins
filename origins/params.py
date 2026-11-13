@@ -137,6 +137,7 @@ INHERITANCE_BY_CUSTOM = True         # M3 (Ben, 11 Nov 2026, check 9 option a): 
 LAND_ADVANTAGE = 0.03              # M3: yearly growth of a household's holdings per unit of its size above the village mean, in full villages
 LAND_SCARCE = 0.5                  # M3: a village's land counts as scarce from this share of what its farmland can feed
 HERD_GROWTH = 0.02                 # M3: yearly growth of holdings in animals (herds breed), before losses
+LAND_HERDS = 1.0                   # M4a (13 Nov 2026): share of the land advantage that applies to herds (1: as fields; 0: common pasture)
 HERD_THRESHOLD = 0.5               # M3 (12 Nov 2026): below this share of the village mean, a household's herd shrinks instead of breeding (Lybbert et al. 2004)
 HERD_RISK = 1.0                    # M3: herds' extra spread of luck (disease, drought, raids), as a share of the harvest's
 

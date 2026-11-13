@@ -128,7 +128,9 @@ def yearly(w):
         # Herds: animals are wealth that breeds in good years and dies in bad ones.
         crowd, animals = _land_and_herds(w, b, cell_farmers.get(b.cell, n))
         rel = hw / max(float(hw.mean()), 1e-12) - 1
-        land = P.LAND_ADVANTAGE * crowd * np.clip(rel, -1, 3)
+        # the land advantage applies to fields; on pasture it is scaled by LAND_HERDS (1: as fields; 0: pasture held
+        # in common, so crowding gives the richer no extra land). Under calibration, 13 November 2026.
+        land = P.LAND_ADVANTAGE * crowd * np.clip(rel, -1, 3) * (1 - animals * (1 - P.LAND_HERDS))
         land -= float((hw * land).sum() / max(hw.sum(), 1e-12))     # land changes hands: what some gain, others lose
         # herds breed for households with enough animals; below a threshold a household eats into its breeding
         # stock and its herd shrinks: a poverty trap with two paths (Lybbert et al. 2004, Boran pastoralists).
