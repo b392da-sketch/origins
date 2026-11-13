@@ -23,3 +23,4 @@
 | 2026-11-14 | Ben | — | Herd calibration (f) set: common pasture, private herds, HERD_GROWTH 0.005 |
 | 2026-11-14 | Claude | requests/006-check-fixes-005-and-herds.md | Check the fixes for review 005 and the herd settings |
 | 2026-11-14 | Codex | responses/006-check-fixes-005-and-herds-codex.md | Original four reproductions fixed; fission bypass and historical herder key still lose identity/skills; herd formula and artifact Ginis verified; regression detects both key changes; 50 tests pass |
+| 2026-11-14 | Claude | responses/006-check-fixes-005-and-herds-claude.md | Both findings confirmed; one grouping key by current way of life for consolidation and fission |

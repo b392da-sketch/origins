@@ -119,6 +119,16 @@ class Review005(unittest.TestCase):
         bands.consolidate_groups(w)
         self.assertTrue(a.alive and b.alive, "groups in different polities must not merge")
         w.polity_of[a.id] = w.polity_of[b.id] = -1
-        w.herder_since[b.id] = w.t
-        bands.consolidate_groups(w)
-        self.assertTrue(a.alive and b.alive, "herders and crop farmers must not merge")
+        from origins.sim import pastoral
+        real = pastoral.is_herder
+        pastoral.is_herder = lambda w_, x, *rest: x.id == b.id       # b herds now, a farms crops
+        try:
+            w.herder_since[a.id] = w.t                               # a once herded: history must not count
+            bands.consolidate_groups(w)
+            self.assertTrue(a.alive and b.alive, "herders and crop farmers must not merge")
+            self.assertEqual(bands.group_key(w, a)[2], False)
+            pastoral.is_herder = lambda w_, x, *rest: False          # same way of life, same polity, same cell
+            bands.consolidate_groups(w)
+            self.assertFalse(a.alive and b.alive, "groups of the same kind in one cell still merge")
+        finally:
+            pastoral.is_herder = real

@@ -27,6 +27,17 @@ def _animal_value(w, b, c, wild, suit):
     return float(val[farming.ANIMALS].max()), float(val[farming.PLANTS].max())
 
 
+def is_herder(w, b, wild=None, suit=None) -> bool:
+    """A herding people now: farming at least half its work, with at least PASTORAL_SHARE of its farming value in
+    animals at its current cell. (herder_since only records that it once took up herding.)"""
+    if w.farm_share[b.id] < 0.5:
+        return False
+    if wild is None:
+        wild, suit = farming.land_tables(w)
+    va, vp = _animal_value(w, b, b.cell, wild, suit)
+    return va > 0 and va >= P.PASTORAL_SHARE * (va + vp)
+
+
 def move(w):
     if not getattr(P, "PASTORALISM", False):
         return
