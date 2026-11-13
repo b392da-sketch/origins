@@ -87,3 +87,28 @@ Median Gini of herding records, against a target of 0.42 for pastoralists (Borge
 - (f) both (run 43405974869).
 
 Whether pasture is held in common is a design assumption, and goes to Ben with the results.
+
+### Herd inequality calibration, round 2 (14 November)
+
+On the code with review 005's fixes; median Gini of herding records, with the value where land is not crowded in brackets. Target 0.42 (pastoralists, Borgerhoff Mulder et al. 2009).
+
+| Variant | Planet 1 seed 5 | Planet 4 seed 10 | Planet 5 seed 7 |
+|---|---|---|---|
+| (d) `HERD_GROWTH` 0.005 | 0.74 (0.50) | 0.55 (0.46) | 0.76 (0.49) |
+| (e) `LAND_HERDS` 0 | 0.60 (0.56) | 0.57 (0.50) | no herders (the history diverged; crop villages 0.59) |
+| **(f) both** | **0.49 (0.49)** | **0.49 (0.45)** | **0.50 (0.48)** |
+
+- **Only (f) brings all three to the same level,** 0.49–0.50. That is still above 0.42, but near the 0.48 for agriculturalists in the same study. Every sampled cause chain resolves in all variants.
+- **Planet 4 seed 7** never reached a farming village in either run (pastoralism on and off), so it adds nothing.
+
+**The design question, for Ben.** (f) includes `LAND_HERDS` 0: pasture held in common, so crowding gives the richer households no extra land, while herds stay private property.
+- **Literature:** Fratkin and Mearns (2003) describe exactly that combination:
+  - in Mongolia, "pastureland is constitutionally excluded from private ownership" and herders "continue to herd their animals on common pastures", with "public ownership of pastureland, combined with private ownership of livestock";
+  - in traditional Maasai society, "no individual 'owned' grazing or water resources". Privatisation came later.
+
+  These are two cases, not a survey of all pastoral societies.
+- **Recommended:** (f), recorded as Ben's decision if he agrees. It is not set in `params.py` until then.
+
+### Source (added)
+
+- Fratkin, E., & Mearns, R. (2003). Sustainability and pastoral livelihoods: Lessons from East African Maasai and Mongolia. *Human Organization*, 62(2), 112–122.
