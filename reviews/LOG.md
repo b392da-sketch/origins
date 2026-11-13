@@ -16,3 +16,4 @@
 | 2026-11-13 | Claude | requests/004-g3-run3-report.md | Check the G3 run 3 report against the result files and code |
 | 2026-11-13 | Codex | responses/004-g3-run3-report-codex.md | Independently recomputed 68-history results; omitted herd filter, tied ranks, traceability limits, hold offset and censored no-state histories; 49 tests pass; fetched completed 70-history results |
 | 2026-11-13 | Claude | responses/004-g3-run3-report-claude.md | All 5 findings confirmed; ties, spans fixed; report revised on all 70 histories |
+| 2026-11-13 | Claude | requests/005-m4a-circumscription-pastoralism.md | Review M4a steps 1-2 |
