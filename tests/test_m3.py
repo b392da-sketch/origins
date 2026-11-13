@@ -95,3 +95,30 @@ class WatchingChangesNothing(unittest.TestCase):
         engine.step(b, 4 * 10)
         b.follow = a.follow
         self.assertEqual(persist.digest(a), persist.digest(b))
+
+
+class Review005(unittest.TestCase):
+    """Regression tests for Codex review 005 (13 November 2026)."""
+
+    def test_groups_of_different_polities_or_ways_of_life_stay_separate(self):
+        from origins import engine
+        from origins.sim import bands, groups, polity
+        from origins.state import World
+        from origins.worldgen import generate
+        w = World.new(1, 1, generate(1))
+        engine.step(w, 4 * 20)
+        live = [b for b in w.living_bands() if b.mode != "group"][:2]
+        if len(live) < 2:
+            self.skipTest("need two bands")
+        a, b = live
+        for x in (a, b):
+            groups.fold(w, x)
+        b.cell = a.cell
+        w.farm_share[a.id] = w.farm_share[b.id] = 1.0
+        polity._new_polity(w, a, "test")
+        bands.consolidate_groups(w)
+        self.assertTrue(a.alive and b.alive, "groups in different polities must not merge")
+        w.polity_of[a.id] = w.polity_of[b.id] = -1
+        w.herder_since[b.id] = w.t
+        bands.consolidate_groups(w)
+        self.assertTrue(a.alive and b.alive, "herders and crop farmers must not merge")

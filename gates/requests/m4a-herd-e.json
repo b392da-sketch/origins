@@ -1,0 +1,1 @@
+{"gate": "g3", "label": "m4a-herd-e", "jobs": ["1:5", "4:10", "5:7"], "after_first": 1000, "params": {"LAND_HERDS": 0.0}, "note": "M4a herd inequality calibration, round 2 (code with review 005 fixes). Variant e: LAND_HERDS=0.0"}
