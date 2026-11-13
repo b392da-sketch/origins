@@ -114,3 +114,11 @@ On the code with review 005's fixes; median Gini of herding records, with the va
 - Fratkin, E., & Mearns, R. (2003). Sustainability and pastoral livelihoods: Lessons from East African Maasai and Mongolia. *Human Organization*, 62(2), 112–122.
 
 **Decision (Ben, 14 November 2026): (f) is set.** Pasture is held in common and herds privately (`LAND_HERDS` 0), with herds growing and shrinking by 0.5% a year around the poverty-trap line (`HERD_GROWTH` 0.005).
+
+### The cause-chain validator follows whole chains (carried forward from M3; 14 November)
+
+`explain.resolvable` now follows every reference in a chain once each, iteratively, with no depth limit. A chain larger than 200,000 references counts as unresolved, so a gate cannot pass on a chain it did not finish.
+
+- **Measured** on the planet-3 farming world: polity and war chains have a median of 2 references and a maximum of 11, so the old limit of 6 did cut some of them.
+- **Speed:** 400 sampled deaths and 400 sampled polity and farming events are checked in about 0.1 s.
+- **Still sampled:** the check samples events; it does not cover every event in a history.
