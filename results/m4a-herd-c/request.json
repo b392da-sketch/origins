@@ -1,0 +1,1 @@
+{"gate": "g3", "label": "m4a-herd-c", "jobs": ["1:5", "4:10", "5:7"], "after_first": 1000, "params": {"HERD_RISK": 0.5, "HERD_THRESHOLD": 0.25}, "note": "M4a calibration: herding societies' inequality (Gini 0.70-0.76 with pastoralism on, against 0.42 for pastoralists in Borgerhoff Mulder et al. 2009). Variant c: HERD_RISK=0.5, HERD_THRESHOLD=0.25"}
