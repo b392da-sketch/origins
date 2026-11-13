@@ -11,6 +11,7 @@ Ben owns the design. Read `docs/DESIGN_DRAFT_v0.6.md` (or newer) and the current
 - **Exact replay.** Saves round-trip exactly (`persist.digest`). Keep `tests/test_m0.py::Replay` passing.
 - **Python 3.10+ and NumPy only** for running. Keep code 3.10-compatible (Ben's machine environment runs 3.10).
 - Numbers in `params.py` are tunable starting values, not facts. Say so wherever results are reported.
+- **Independent review (Ben, 13 November 2026).** Codex reviews (a) every gate report before Ben decides on it, and (b) each completed build step before its code goes into a gate run. Claude reproduces each finding before acting on it and answers in writing (`reviews/`, rules in `reviews/README.md`). Codex reads everything and writes only to `reviews/`; it does not change code or design (`AGENTS.md`).
 
 ## Layout
 - `origins/worldgen.py` planet from a seed · `origins/grid.py` geodesic grid · `origins/noise.py`
