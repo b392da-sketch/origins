@@ -29,7 +29,8 @@ C = {name: i for i, name in enumerate(CAUSES)}
 
 STREAMS = ["climate", "deaths", "partners", "births", "movement", "fission", "names", "founding",
            "language", "customs", "hazards", "crossing",
-           "farming", "surplus", "polity", "conflict"]   # new streams are appended, never inserted
+           "farming", "surplus", "polity", "conflict",
+           "technology"]   # new streams are appended, never inserted
 
 # ids, ticks and cells all fit in 32 bits; people are never removed, so their rows are kept compact
 FIELDS = {
@@ -410,13 +411,14 @@ class World:
         self.season_stats: dict = {}
         self.intervened = False
         self._live = None
-        from .sim import conflict, customs, farming, language, polity, surplus
+        from .sim import conflict, customs, farming, language, polity, surplus, technology
         language.init(self)
         customs.init(self)
         farming.init(self)
         surplus.init(self)
         polity.init(self)
         conflict.init(self)
+        technology.init(self)
         self.people.languages = self.languages
         self.hazards: list = []                    # active hazards (sim/hazards.py)
         self.hazard_food = np.ones(n)              # hazard effect on wild food, recovering over years
@@ -464,12 +466,13 @@ class World:
         if parent >= 0:
             b.language = self.bands[parent].language
             b.farming_since = self.bands[parent].farming_since
-        from .sim import conflict, customs, farming, polity, surplus
+        from .sim import conflict, customs, farming, polity, surplus, technology
         customs.ensure(self, b.id, parent)
         farming.ensure(self, b.id, parent)
         surplus.ensure(self, b.id, parent)
         polity.ensure(self, b.id, parent)
         conflict.ensure(self, b.id, parent)
+        technology.ensure(self, b.id, parent)
         self.bands[b.id] = b
         if self._pool is not None:
             self._pool[b.id] = b
