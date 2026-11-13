@@ -130,7 +130,7 @@ def fission_and_merge(w):
             if res is None:
                 continue
             nb_, count = res
-            group_at[(target, fsv[k])] = nb_
+            group_at[group_key(w, nb_, tables=tables)] = nb_   # same key as lookups (Codex, review 007)
         else:
             mem = w.members(b.id)
             units = _households(w, mem)
@@ -216,7 +216,7 @@ def group_key(w, b, cell=None, tables=None) -> tuple:
     historical marker herder_since.)"""
     from . import pastoral
     farming = bool(w.farm_share[b.id] >= 0.5)
-    herder = farming and pastoral.is_herder(w, b, *(tables or (None, None)))
+    herder = farming and pastoral.is_herder(w, b, *(tables or (None, None)), cell=cell)   # at the cell asked about
     pol = int(w.polity_of[b.id]) if hasattr(w, "polity_of") and b.id < len(w.polity_of) else -1
     return (b.cell if cell is None else cell, farming, herder, pol)
 

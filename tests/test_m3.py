@@ -121,14 +121,31 @@ class Review005(unittest.TestCase):
         w.polity_of[a.id] = w.polity_of[b.id] = -1
         from origins.sim import pastoral
         real = pastoral.is_herder
-        pastoral.is_herder = lambda w_, x, *rest: x.id == b.id       # b herds now, a farms crops
+        pastoral.is_herder = lambda w_, x, *rest, cell=None: x.id == b.id       # b herds now, a farms crops
         try:
             w.herder_since[a.id] = w.t                               # a once herded: history must not count
             bands.consolidate_groups(w)
             self.assertTrue(a.alive and b.alive, "herders and crop farmers must not merge")
             self.assertEqual(bands.group_key(w, a)[2], False)
-            pastoral.is_herder = lambda w_, x, *rest: False          # same way of life, same polity, same cell
+            pastoral.is_herder = lambda w_, x, *rest, cell=None: False          # same way of life, same polity, same cell
             bands.consolidate_groups(w)
             self.assertFalse(a.alive and b.alive, "groups of the same kind in one cell still merge")
+        finally:
+            pastoral.is_herder = real
+
+    def test_group_key_judges_herding_where_asked(self):
+        from origins.sim import bands, pastoral
+        from origins.state import World
+        from origins.worldgen import generate
+        w = World.new(1, 1, generate(1))
+        b = w.living_bands()[0]
+        w.farm_share[b.id] = 1.0
+        seen = []
+        real = pastoral.is_herder
+        pastoral.is_herder = lambda w_, x, *rest, cell=None: seen.append(cell) or (cell == 7)
+        try:
+            self.assertTrue(bands.group_key(w, b, cell=7)[2])
+            self.assertFalse(bands.group_key(w, b)[2])
+            self.assertEqual(seen, [7, None])
         finally:
             pastoral.is_herder = real

@@ -26,3 +26,4 @@
 | 2026-11-14 | Claude | responses/006-check-fixes-005-and-herds-claude.md | Both findings confirmed; one grouping key by current way of life for consolidation and fission |
 | 2026-11-14 | Claude | requests/007-check-fixes-006.md | Check the fixes for review 006 |
 | 2026-11-14 | Codex | responses/007-check-fixes-006-codex.md | Both original cases fixed; destination classification still uses source cell and new daughters retain the old index key; membership paths audited, 5,003-group timing measured; 50 tests pass |
+| 2026-11-14 | Claude | responses/007-check-fixes-006-claude.md | Both findings confirmed and fixed; herding judged at the destination; per-tick cache |
