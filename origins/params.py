@@ -216,10 +216,16 @@ def work(age, nursing):
 # --- M4a: the technology network (M4 specification section 3; starting values to be tuned) ---
 TECHNOLOGY = True
 TECH_WORKING = 0.5                 # skill level at which a technique counts as held (prerequisites, diffusion)
-TECH_INVENT = 2e-5                 # yearly chance a band invents a technique it could hold, at reference population and no pressure ...
+TECH_INVENT = 5e-6                 # yearly chance a band invents a technique it could hold, at reference population and no pressure ...
 TECH_NEED_FLOOR = 0.2              # ... times (this + the pressure behind it, 0..1) ...
 TECH_POP_REF = 1000                # ... times (people within two rings / this) ...
 TECH_POP_EXPONENT = 1.0            # ... to this power (0: the knock-out with no population effect, specification check 6)
+TECH_EASY_KEEP = 5                 # ... times (this / the technique's keep) ...
+TECH_DIFFICULTY = 2.0              # ... to this power (first trial: independent inventions far too common, e.g. writing 21 times in 400 years)
 TECH_INVENT_LEVEL = 0.6            # skill level of a new invention
 TECH_STORE_REF = 90                # stores per person (days) below which the need for containers rises
+TECH_LEARN = 0.02                  # yearly drift of a held skill: x ln(skilled people within reach / keep) (Henrich 2004)
+TECH_LOST = 0.15                   # below this skill level a technique is lost
+TECH_SPREAD = 0.05                 # yearly chance of adopting a technique, x (skilled people within reach / everyone within reach)
+TECH_ADOPT_LEVEL = 0.5             # skill level of an adopted technique
 

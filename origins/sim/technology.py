@@ -242,12 +242,13 @@ def _needs(w, live, ids, cells, sizes, cell_pop) -> dict:
             tier[i] = (p.tier if p is not None else 0) / 3.0
     return {"hunting": forager * (0.5 + 0.5 * hunger), "hunger": hunger, "stores": np.maximum(stores, hunger),
             "crowding": crowding, "water": water, "trade": np.clip(pol * 0.5 + crowding, 0, 1),
-            "power": tier, "tribute": np.clip(pol * (0.3 + tier), 0, 1), "war": np.clip(tier + crowding * 0.5, 0, 1)}
+            "power": tier, "tribute": tier, "war": np.clip(tier + crowding * 0.5, 0, 1)}
 
 
 def yearly(w):
     """Invention: each band, for each technique it could hold but does not, invents it with chance
-    TECH_INVENT x (TECH_NEED_FLOOR + need) x (connected people / TECH_POP_REF) ** TECH_POP_EXPONENT.
+    TECH_INVENT x (TECH_NEED_FLOOR + need) x (connected people / TECH_POP_REF) ** TECH_POP_EXPONENT
+    x (TECH_EASY_KEEP / keep) ** TECH_DIFFICULTY: harder techniques (more practitioners needed) are rarer inventions.
 
     Connected people are everyone within two rings of the band's cell (contact; Henrich 2004; Kline & Boyd 2010).
     TECH_POP_EXPONENT 0 is the knock-out with no population effect (M4 specification section 3.2, check 6)."""
@@ -264,13 +265,13 @@ def yearly(w):
     cell_pop = np.bincount(cells, weights=sizes, minlength=w.planet.n)
     r2 = ring2(w)
     connected = np.array([cell_pop[[int(x) for x in r2[c] if x >= 0]].sum() for c in cells])
-    possible = _possible(w, ids, cells) & (w.tech[ids] < P.TECH_WORKING)
-    if not possible.any():
-        return
+    possible_all = _possible(w, ids, cells)
+    possible = possible_all & (w.tech[ids] < P.TECH_WORKING)
     needs = _needs(w, live, ids, cells, sizes, cell_pop)
     need = np.stack([needs[t.need] for t in TECHNIQUES], axis=1)
     pop = (connected / P.TECH_POP_REF) ** P.TECH_POP_EXPONENT
-    chance = P.TECH_INVENT * (P.TECH_NEED_FLOOR + need) * pop[:, None]
+    hard = (P.TECH_EASY_KEEP / np.array([t.keep for t in TECHNIQUES], dtype=float)) ** P.TECH_DIFFICULTY
+    chance = P.TECH_INVENT * (P.TECH_NEED_FLOOR + need) * pop[:, None] * hard[None, :]
     rng = w.rng["technology"]
     draw = rng.random(chance.shape)
     hits = np.argwhere(possible & (draw < chance))
@@ -290,6 +291,88 @@ def yearly(w):
         if t.key not in firsts:
             firsts[t.key] = len(w.events) - 1
             w.tech_firsts = firsts
+    keep_and_spread(w, live, ids, cells, sizes, connected, possible_all)
 
 
 from .. import params as P  # noqa: E402  (after the data, which does not depend on parameters)
+
+
+# --- stages 3 and 4: keeping, losing and spreading knowledge -------------------------------------------------------
+
+def _reach(w, cells, values):
+    """For each band's cell, the sum of `values` (cells x K) over the cells within two rings."""
+    from .language import ring2
+    pl = w.planet
+    flat = getattr(pl, "_ring2_flat", None)
+    if flat is None:
+        r2 = ring2(w)
+        lens = np.array([sum(1 for x in r2[c] if x >= 0) for c in range(pl.n)])
+        flat = (np.concatenate([[int(x) for x in r2[c] if x >= 0] for c in range(pl.n)]),
+                np.concatenate([[0], np.cumsum(lens)]))
+        pl._ring2_flat = flat
+    idx, off = flat
+    uc, inv = np.unique(cells, return_inverse=True)
+    out = np.zeros((len(uc), values.shape[1]))
+    for j, c in enumerate(uc.tolist()):
+        out[j] = values[idx[off[c]:off[c + 1]]].sum(axis=0)
+    return out[inv]
+
+
+def keep_and_spread(w, live, ids, cells, sizes, connected, possible_all):
+    """Stage 3 (keeping and losing; Henrich 2004): each held technique's skill level drifts each year with
+    TECH_LEARN x ln(skilled people within reach / keep). With many skilled people within reach, some learners
+    surpass their teachers and the level rises towards 1; with few, imperfect copying wears it down. Below
+    TECH_LOST the technique is lost, with its cause recorded. Contact counts: skilled neighbours keep a skill alive.
+
+    Stage 4 (spreading): a band that could hold a technique (prerequisites met) and has skilled people within
+    reach adopts it with chance TECH_SPREAD x (skilled people within reach / everyone within reach). It starts at
+    TECH_ADOPT_LEVEL, and the adoption is recorded with where it came from."""
+    rng = w.rng["technology"]
+    lvl = w.tech[ids].astype(float)
+    held_ = lvl >= P.TECH_WORKING
+    n_cells = w.planet.n
+    skilled_cell = np.zeros((n_cells, K))
+    np.add.at(skilled_cell, cells, held_ * sizes[:, None])
+    skilled = _reach(w, cells, skilled_cell)                         # skilled people within reach, per technique
+    keep = np.array([t.keep for t in TECHNIQUES], dtype=float)
+    # stage 3
+    known = lvl > 0
+    drift = P.TECH_LEARN * np.log(np.maximum(skilled, 1.0) / keep[None, :])
+    new = np.where(known, np.clip(lvl + drift, 0.0, 1.0), lvl)
+    lost = known & (new < P.TECH_LOST)
+    new[lost] = 0.0
+    for i, k in np.argwhere(lost).tolist():
+        b = live[i]
+        t = TECHNIQUES[k]
+        why = (f"{w.band_name(b)} lost {t.name}: only {skilled[i, k]:,.0f} people within reach practised it, "
+               f"fewer than the {t.keep} it takes to keep it alive, so each generation learned it less well")
+        w.event("technique_lost", cell=b.cell, band=b.id, technique=t.key, causes=[{"note": why}],
+                skilled=int(skilled[i, k]))
+    # stage 4
+    can = possible_all & (new < P.TECH_WORKING) & (skilled > 0)
+    share = skilled / np.maximum(connected[:, None], 1.0)
+    chance = P.TECH_SPREAD * np.clip(share, 0, 1)
+    draw = rng.random(chance.shape)
+    adopt = can & (draw < chance)
+    for i, k in np.argwhere(adopt).tolist():
+        b = live[i]
+        t = TECHNIQUES[k]
+        new[i, k] = max(new[i, k], P.TECH_ADOPT_LEVEL)
+        src = _source(w, live, cells, held_[:, k], b.cell)
+        why = (f"{w.band_name(b)} learned {t.name} from neighbours: {skilled[i, k]:,.0f} of the "
+               f"{connected[i]:,.0f} people within reach practised it")
+        causes = [{"note": why}]
+        if src is not None:
+            causes.insert(0, {"band": src})
+        w.event("technique_adopted", cell=b.cell, band=b.id, technique=t.key, causes=causes, source=src)
+    w.tech[ids] = new.astype(np.float32)
+
+
+def _source(w, live, cells, held_k, cell):
+    """A band within reach that holds the technique (the nearest, lowest id): where it came from."""
+    from .language import ring2
+    near = set(int(x) for x in ring2(w)[cell] if x >= 0)
+    for i in np.nonzero(held_k)[0].tolist():
+        if int(cells[i]) in near:
+            return live[i].id
+    return None

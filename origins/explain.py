@@ -145,6 +145,10 @@ def _event_title(w, e) -> str:
         from .sim.technology import TECHNIQUES, INDEX
         t = TECHNIQUES[INDEX[d["technique"]]]
         return f"{bn} invented {t.name}"
+    if k in ("technique_lost", "technique_adopted"):
+        from .sim.technology import TECHNIQUES, INDEX
+        t = TECHNIQUES[INDEX[d["technique"]]]
+        return f"{bn} {'lost' if k == 'technique_lost' else 'learned'} {t.name}"
     if k == "took_up_herding":
         return f"{bn} took up a herding life, moving its herds to new pasture"
     if k == "sea_crossing":
