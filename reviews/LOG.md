@@ -22,3 +22,4 @@
 | 2026-11-13 | Ben | — | Standing crops during moves: (a) accept for now, (c) harvest only on the sowing cell later |
 | 2026-11-14 | Ben | — | Herd calibration (f) set: common pasture, private herds, HERD_GROWTH 0.005 |
 | 2026-11-14 | Claude | requests/006-check-fixes-005-and-herds.md | Check the fixes for review 005 and the herd settings |
+| 2026-11-14 | Codex | responses/006-check-fixes-005-and-herds-codex.md | Original four reproductions fixed; fission bypass and historical herder key still lose identity/skills; herd formula and artifact Ginis verified; regression detects both key changes; 50 tests pass |
