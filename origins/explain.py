@@ -141,6 +141,8 @@ def _event_title(w, e) -> str:
         return f"{d.get('name')} divided into {', '.join(d.get('names', [])) or 'daughter languages'}"
     if k == "language_extinct":
         return f"The last speakers of {d.get('name')} are gone"
+    if k == "took_up_herding":
+        return f"{bn} took up a herding life, moving its herds to new pasture"
     if k == "sea_crossing":
         return f"{bn} ({d.get('size')} people) crossed the sea to new land"
     if k == "outbreak":
