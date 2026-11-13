@@ -151,7 +151,7 @@ The cause-chain check in the trial script was cut off at the time limit: it chec
 
 **Changes (design choices for Ben to confirm; the specification does not spell them out):**
 
-1. **Farming techniques need farmers.** A domesticate is not enough; the band must take at least `TECH_FARMING` (0.2) of its food from farming or herding.
+1. **Farming techniques need farmers.** A domesticate is not enough; the band must put at least `TECH_FARMING` (0.2) of its work into farming or herding (`farm_share`, the share of work, not of food: Codex review 008).
 2. **Adoption is weighted by need,** as invention is: chance x (`TECH_NEED_FLOOR` + need). A technique spreads faster where it answers a pressing problem (relative advantage: Rogers 2003; adoption curves shaped by biased transmission: Henrich 2001).
 
 ### Trial 4: after changes 1 and 2
@@ -170,7 +170,7 @@ The cause-chain check in the trial script was cut off at the time limit: it chec
 
 ### Trial 5: after change 3 (terrain)
 
-44 inventions, 4,264 adoptions, 2 losses; cause chains 300 of 300. 2,532 of 3,312 bands farm or herd (at least 0.2 of their food) by year 10,000.
+44 inventions, 4,264 adoptions, 2 losses; cause chains 300 of 300. 2,532 of 3,312 bands farm or herd (at least 0.2 of their work) by year 10,000.
 
 - Foraging, container and building techniques as in trial 4.
 - **No terracing or irrigation was invented in this history.** Villages began in year 9,172, so farmers had about 800 years. One history cannot tell whether that is too rare. Terraces and canals came long after the first farming in the archaeological record, so their absence here is not implausible, but the gate's many histories must show them appearing somewhere.

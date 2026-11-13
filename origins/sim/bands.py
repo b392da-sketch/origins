@@ -116,6 +116,8 @@ def fission_and_merge(w):
                 count = groups.transfer(w, b, dst, rng)
                 if count == 0:
                     continue
+                from . import technology
+                technology.combine(w, b, dst, "migration", moved=count)   # movers bring their skills
                 frac = min(1.0, count / max(now, 1e-9))
                 share = b.store * frac
                 dst.store, b.store = dst.store + share, b.store - share
@@ -197,6 +199,8 @@ def fission_and_merge(w):
             w.people_changed()
         else:
             groups.merge_into(w, b, o)
+        from . import technology
+        technology.combine(w, b, o, "merge")          # the people who join bring what they know
         sizes[o.id] += s
         sizes[b.id] = 0
         o.store += b.store
@@ -237,6 +241,8 @@ def consolidate_groups(w):
             first[key] = b
             continue
         groups.merge_into(w, b, o)
+        from . import technology
+        technology.combine(w, b, o, "combined")      # one people now: it keeps what either part knew
         o.store += b.store
         b.store = 0.0
         w.crop_store[o.id] += w.crop_store[b.id]     # the standing crop goes with the people

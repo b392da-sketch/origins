@@ -152,8 +152,10 @@ def materials_near(w, cell: int) -> set:
     return found
 
 
-def held(w, band_id: int, key: str, level: float = 0.5) -> bool:
-    return bool(w.tech[band_id, INDEX[key]] >= level)
+def held(w, band_id: int, key: str, level: float | None = None) -> bool:
+    """Held at a working level (TECH_WORKING unless another level is asked for; the same test as _possible:
+    Codex review 008, finding 4)."""
+    return bool(w.tech[band_id, INDEX[key]] >= (P.TECH_WORKING if level is None else level))
 
 
 def prerequisites_met(w, b, t: Technique, near: set | None = None) -> tuple[bool, list]:
@@ -377,9 +379,17 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, possible_all, need=No
                f"fewer than the {t.keep} it takes to keep it alive, so each generation learned it less well")
         w.event("technique_lost", cell=b.cell, band=b.id, technique=t.key, causes=[{"note": why}],
                 skilled=int(skilled[i, k]))
-    # stage 4
-    can = possible_all & (new < P.TECH_WORKING) & (skilled > 0)
-    share = skilled / np.maximum(connected[:, None], 1.0)
+    # stage 4: teachers and prerequisites are judged after this year's keeping and losing, and a people never
+    # learns from itself (Codex review 008, findings 2 and 3: a declining skill was refreshed from the band's own
+    # pre-drift level, and a technique was adopted after its prerequisite had fallen that year)
+    w.tech[ids] = new.astype(np.float32)
+    held_now = new >= P.TECH_WORKING
+    teach_cell = np.zeros((n_cells, K))
+    np.add.at(teach_cell, cells, held_now * sizes[:, None])
+    teachers = _reach(w, cells, teach_cell) - held_now * sizes[:, None]      # skilled people within reach, not ours
+    possible_now = _possible(w, ids, cells)
+    can = possible_now & ~held_now & (teachers > 0.5)
+    share = teachers / np.maximum(connected[:, None], 1.0)
     chance = P.TECH_SPREAD * np.clip(share, 0, 1)
     if need is not None:
         chance = chance * (P.TECH_NEED_FLOOR + need)
@@ -389,21 +399,48 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, possible_all, need=No
         b = live[i]
         t = TECHNIQUES[k]
         new[i, k] = max(new[i, k], P.TECH_ADOPT_LEVEL)
-        src = _source(w, live, cells, held_[:, k], b.cell)
-        why = (f"{w.band_name(b)} learned {t.name} from neighbours: {skilled[i, k]:,.0f} of the "
+        src = _source(w, live, cells, held_now[:, k], b.cell, exclude=b.id)
+        why = (f"{w.band_name(b)} learned {t.name} from neighbours: {teachers[i, k]:,.0f} of the "
                f"{connected[i]:,.0f} people within reach practised it")
         causes = [{"note": why}]
         if src is not None:
             causes.insert(0, {"band": src})
-        w.event("technique_adopted", cell=b.cell, band=b.id, technique=t.key, causes=causes, source=src)
+        w.event("technique_adopted", cell=b.cell, band=b.id, technique=t.key, causes=causes, source=src,
+                route="contact")
     w.tech[ids] = new.astype(np.float32)
 
 
-def _source(w, live, cells, held_k, cell):
-    """A band within reach that holds the technique (the nearest, lowest id): where it came from."""
+def _source(w, live, cells, held_k, cell, exclude=None):
+    """A teacher: another band within reach that holds the technique, one on the same cell first, otherwise the
+    first in band order (not ranked by distance)."""
     from .language import ring2
     near = set(int(x) for x in ring2(w)[cell] if x >= 0)
+    found = None
     for i in np.nonzero(held_k)[0].tolist():
-        if int(cells[i]) in near:
+        if live[i].id == exclude or int(cells[i]) not in near:
+            continue
+        if int(cells[i]) == cell:
             return live[i].id
-    return None
+        if found is None:
+            found = live[i].id
+    return found
+
+
+def combine(w, src, dst, route: str, moved: float | None = None):
+    """People who join another band bring what they know (M4 specification section 3.4, migration). The joined
+    band holds each technique at the better of the two levels: the best practitioner sets the standard (Henrich
+    2004). route "combined" is two local populations of one land becoming one (a change of representation);
+    "migration" is people moving into a neighbouring population. A technique the band did not hold before is
+    recorded as learned from src. (Codex review 008, finding 1: knowledge was erased when populations combined.)"""
+    if not getattr(P, "TECHNOLOGY", False) or not hasattr(w, "tech"):
+        return
+    a, d = w.tech[src.id].astype(float), w.tech[dst.id].astype(float)
+    gained = (a >= P.TECH_WORKING) & (d < P.TECH_WORKING)
+    w.tech[dst.id] = np.maximum(a, d).astype(np.float32)
+    for k in np.nonzero(gained)[0].tolist():
+        t = TECHNIQUES[k]
+        how = {"combined": "combined with", "merge": "took in the remnant of"}.get(
+            route, f"took in {moved:,.0f} people from" if moved else "took in people from")
+        why = f"{w.band_name(dst)} {how} {w.band_name(src)}, who practised {t.name}"
+        w.event("technique_adopted", cell=dst.cell, band=dst.id, technique=t.key,
+                causes=[{"band": src.id}, {"note": why}], source=src.id, route=route)
