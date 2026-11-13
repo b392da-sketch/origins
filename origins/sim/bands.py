@@ -211,7 +211,14 @@ def consolidate_groups(w):
         if b.mode != "group":
             continue
         # villages and foragers sharing land stay separate peoples (different ways of life, different stores)
-        key = (b.cell, bool(w.farm_share[b.id] >= 0.5))
+        # (and, from 13 November 2026, herders and crop farmers, and members of different polities, stay separate
+        # too: a seasonal pasture move must not dissolve a herding people or move its people between polities.
+        # Found by Codex, review 005)
+        farming = bool(w.farm_share[b.id] >= 0.5)
+        hs = getattr(w, "herder_since", None)
+        herder = farming and hs is not None and b.id < len(hs) and hs[b.id] >= 0
+        pol = int(w.polity_of[b.id]) if hasattr(w, "polity_of") and b.id < len(w.polity_of) else -1
+        key = (b.cell, farming, herder, pol)
         o = first.get(key)
         if o is None:
             first[key] = b
@@ -241,7 +248,8 @@ def fold_distant(w):
     # any, those farthest from the people's first home.
     sizes = np.bincount(w.people.band[w.alive_idx()], minlength=w.next_band)
     seats = {p.seat for p in getattr(w, "polities", {}).values()
-             if p.alive and (p.tier >= 1 or w.t < p.notable_until)}   # kept for a while after a polity drops below a chiefdom
+             if (p.alive and p.tier >= 1) or w.t < p.notable_until}   # kept for a while after a polity drops below a chiefdom,
+    # or ends altogether while its seat lives on (until 13 Nov 2026 an ended polity's seat lost its memory: Codex, review 005)
     focus_cells = sorted({w.bands[s].cell for s in seats}) or [int(w.planet.start_cell)]
     fx = xyz[np.array(focus_cells)]
     focus = focus_cells[0]

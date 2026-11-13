@@ -643,12 +643,12 @@ def _flight(w, rng, by_polity, size_of):
     wild, suit = farming.land_tables(w)
     r2 = ring2(w)
     farmers: dict = {}
-    held: set = set()
+    held: dict = {}
     for b in w.living_bands():
         if w.farm_share[b.id] >= P.PROPERTY_SHARE:
             farmers[b.cell] = farmers.get(b.cell, 0.0) + float(size_of.get(b.id, 0))
         if int(w.polity_of[b.id]) >= 0:
-            held.add(b.cell)
+            held[b.cell] = held.get(b.cell, 0) + 1      # members per cell, kept current as villages leave
     for pid, mem in by_polity.items():
         p = w.polities[pid]
         over = max(0.0, p.load / max(p.cap, 1e-9) - 1.0)
@@ -688,6 +688,9 @@ def _flight(w, rng, by_polity, size_of):
             n = float(size_of.get(b.id, 0))
             farmers[src] = farmers.get(src, 0.0) - n
             farmers[best] = farmers.get(best, 0.0) + n
+            held[src] -= 1                                # (until 13 Nov 2026 a vacated cell stayed "held" for the
+            if held[src] <= 0:                            # rest of the year: found by Codex, review 005)
+                del held[src]
             b.cell = best
             b.trail = (b.trail + [(w.t, best)])[-40:]
             b.last_move = f"left the rule of {p.name} for open land"

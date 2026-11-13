@@ -18,3 +18,4 @@
 | 2026-11-13 | Claude | responses/004-g3-run3-report-claude.md | All 5 findings confirmed; ties, spans fixed; report revised on all 70 histories |
 | 2026-11-13 | Claude | requests/005-m4a-circumscription-pastoralism.md | Review M4a steps 1-2 |
 | 2026-11-13 | Codex | responses/005-m4a-circumscription-pastoralism-codex.md | Four reproduced findings: herder consolidation loses identity/skills, pasture ignores partial farmers, dissolved seats lose memory protection, flight holds vacated land; herder/disk replay checks and 49 tests pass |
+| 2026-11-13 | Claude | responses/005-m4a-circumscription-pastoralism-claude.md | All 4 findings confirmed and fixed; crop-during-moves question to Ben |

@@ -37,8 +37,11 @@ def move(w):
     farmers: dict = {}
     herders = []
     for b in bands:
-        if w.farm_share[b.id] >= 0.5:
-            farmers[b.cell] = farmers.get(b.cell, 0.0) + float(sizes[b.id])
+        # everyone farming in a cell shares its land, in proportion to their farming work (as in season_food):
+        # count people x farming share, not only bands farming at least half their work. (Until 13 November 2026
+        # only the latter were counted, so a crowded cell could look empty: found by Codex, review 005)
+        if w.farm_share[b.id] > 0:
+            farmers[b.cell] = farmers.get(b.cell, 0.0) + float(sizes[b.id]) * float(w.farm_share[b.id])
     for b in bands:
         if w.farm_share[b.id] < 0.5:
             continue
@@ -47,7 +50,7 @@ def move(w):
             continue
         herders.append((b, va))
     for b, va in herders:
-        n = float(sizes[b.id])
+        n = float(sizes[b.id]) * float(w.farm_share[b.id])          # its farming work, in people
         if n <= 0:
             continue
         here = va * P.FARM_CAPACITY / max(farmers.get(b.cell, 0.0), 1.0)
