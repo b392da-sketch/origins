@@ -28,3 +28,4 @@
 | 2026-11-14 | Codex | responses/007-check-fixes-006-codex.md | Both original cases fixed; destination classification still uses source cell and new daughters retain the old index key; membership paths audited, 5,003-group timing measured; 50 tests pass |
 | 2026-11-14 | Claude | responses/007-check-fixes-006-claude.md | Both findings confirmed and fixed; herding judged at the destination; per-tick cache |
 | 2026-11-14 | Claude | requests/008-technology-stages-1-4.md | Review the technology network, stages 1–4 (prerequisites, invention, keeping and losing, spreading) |
+| 2026-11-14 | Codex | responses/008-technology-stages-1-4-codex.md | Technology lost in consolidation, self-adoption, stale adoption prerequisites and tunable-threshold mismatch reproduced; replay/knock-out/reach verified, 3,503-group timings measured; 54 tests pass |
