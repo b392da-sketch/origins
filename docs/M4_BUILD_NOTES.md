@@ -59,3 +59,9 @@ Runs 43357881932 (on) and 43357885359 (off): three histories where herding domin
   - (b) `HERD_THRESHOLD` 0.25 (run 43378798622);
   - (c) both (run 43378801861).
 - **To fix:** the gate record's `herders_alive` counts every living band that ever took up herding, including those that have since gone back to foraging. That is why it can exceed the number of farming bands. It should count current herders.
+
+### Standing crops during seasonal moves (Ben, 13 November 2026)
+
+**Decision: (a) for now, (c) later.** A band's standing crop (`crop_store`) travels with it and is harvested wherever the band is at harvest. This is accepted and documented as an abstraction. It matters little for herders, who by definition get at least 70% of their farming value from animals.
+
+**Later (c):** a band harvests its standing crop only if it is back on the cell where it sowed. Raised by Codex in review 005.

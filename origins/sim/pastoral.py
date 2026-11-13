@@ -7,6 +7,9 @@ here with the neighbouring land cells (herding value x FARM_CAPACITY, shared wit
 moves if a neighbour is at least PASTORAL_MOVE times better. No random numbers are drawn: the order is the order
 of living bands, and ties go to the lower cell number.
 
+The year's standing crop (crop_store) travels with a moving band and is harvested wherever it is at harvest: an
+accepted abstraction for now (Ben, 13 November 2026); later, harvest only back on the sowing cell.
+
 reads: bands, skill, farm_share, planet tables     writes: bands (cell, trail, last_move), herder_since, events
 """
 from __future__ import annotations
