@@ -168,6 +168,8 @@ def prerequisites_met(w, b, t: Technique, near: set | None = None) -> tuple[bool
             missing.append("needs a domesticated crop")
         if "animal" in t.domesticated and not (sk[farming.ANIMALS] >= 3).any():
             missing.append("needs a domesticated animal")
+        if float(w.farm_share[b.id]) < P.TECH_FARMING:
+            missing.append("needs a people who farm or herd")
     if t.materials:
         near = materials_near(w, b.cell) if near is None else near
         for group in t.materials:
@@ -206,8 +208,11 @@ def _possible(w, ids, cells) -> np.ndarray:
     from . import farming
     held_ = w.tech[ids] >= P.TECH_WORKING
     sk = w.skill[ids]
-    plant = (sk[:, farming.PLANTS] >= 3).any(axis=1)
-    animal = (sk[:, farming.ANIMALS] >= 3).any(axis=1)
+    # A farming technique needs a domesticate AND a band that lives partly by farming or herding: terraces and
+    # ploughs are worked by farmers, not by foragers who happen to know a domesticate.
+    farms = np.clip(w.farm_share[ids], 0, 1) >= P.TECH_FARMING
+    plant = (sk[:, farming.PLANTS] >= 3).any(axis=1) & farms
+    animal = (sk[:, farming.ANIMALS] >= 3).any(axis=1) & farms
     mats = _cell_materials(w)[cells]
     ok = np.ones((len(ids), K), dtype=bool)
     for k, t in enumerate(TECHNIQUES):
@@ -291,7 +296,7 @@ def yearly(w):
         if t.key not in firsts:
             firsts[t.key] = len(w.events) - 1
             w.tech_firsts = firsts
-    keep_and_spread(w, live, ids, cells, sizes, connected, possible_all)
+    keep_and_spread(w, live, ids, cells, sizes, connected, possible_all, need)
 
 
 from .. import params as P  # noqa: E402  (after the data, which does not depend on parameters)
@@ -318,15 +323,16 @@ def _reach(w, cells, values):
     return out[inv]
 
 
-def keep_and_spread(w, live, ids, cells, sizes, connected, possible_all):
+def keep_and_spread(w, live, ids, cells, sizes, connected, possible_all, need=None):
     """Stage 3 (keeping and losing; Henrich 2004): each held technique's skill level drifts each year with
     TECH_LEARN x ln(skilled people within reach / keep). With many skilled people within reach, some learners
     surpass their teachers and the level rises towards 1; with few, imperfect copying wears it down. Below
     TECH_LOST the technique is lost, with its cause recorded. Contact counts: skilled neighbours keep a skill alive.
 
     Stage 4 (spreading): a band that could hold a technique (prerequisites met) and has skilled people within
-    reach adopts it with chance TECH_SPREAD x (skilled people within reach / everyone within reach). It starts at
-    TECH_ADOPT_LEVEL, and the adoption is recorded with where it came from."""
+    reach adopts it with chance TECH_SPREAD x (skilled people within reach / everyone within reach)
+    x (TECH_NEED_FLOOR + need): a technique is taken up faster where it answers a pressing need (relative advantage;
+    Rogers 2003; Henrich 2001). It starts at TECH_ADOPT_LEVEL, and the adoption is recorded with where it came from."""
     rng = w.rng["technology"]
     lvl = w.tech[ids].astype(float)
     held_ = lvl >= P.TECH_WORKING
@@ -352,6 +358,8 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, possible_all):
     can = possible_all & (new < P.TECH_WORKING) & (skilled > 0)
     share = skilled / np.maximum(connected[:, None], 1.0)
     chance = P.TECH_SPREAD * np.clip(share, 0, 1)
+    if need is not None:
+        chance = chance * (P.TECH_NEED_FLOOR + need)
     draw = rng.random(chance.shape)
     adopt = can & (draw < chance)
     for i, k in np.argwhere(adopt).tolist():
