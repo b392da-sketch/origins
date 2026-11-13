@@ -167,3 +167,11 @@ The cause-chain check in the trial script was cut off at the time limit: it chec
 
 - Henrich, J. (2001). Cultural transmission and the diffusion of innovations: Adoption dynamics indicate that biased cultural transmission is the predominate force in behavioral change. *American Anthropologist*, 103(4), 992–1013.
 - Rogers, E. M. (2003). *Diffusion of Innovations* (5th ed.). Free Press.
+
+### Trial 5: after change 3 (terrain)
+
+44 inventions, 4,264 adoptions, 2 losses; cause chains 300 of 300. 2,532 of 3,312 bands farm or herd (at least 0.2 of their food) by year 10,000.
+
+- Foraging, container and building techniques as in trial 4.
+- **No terracing or irrigation was invented in this history.** Villages began in year 9,172, so farmers had about 800 years. One history cannot tell whether that is too rare. Terraces and canals came long after the first farming in the archaeological record, so their absence here is not implausible, but the gate's many histories must show them appearing somewhere.
+- **Trial 4 showed 2,775 bands holding terracing when only about 2,500 farmed:** a band keeps a technique after it stops farming, because keeping does not check prerequisites. Asked of Codex in request 008, question 3.
