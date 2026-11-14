@@ -291,7 +291,12 @@ function animate(){
     DYING = DYING.filter(d => now - d.t0 < FADE);
     let busy = DYING.length > 0;
     for (const a of ANIM.values()) if (now - a.t0 < Math.max(a.dur, FADE)) { busy = true; break; }
-    draw();
+    try { draw(); }
+    catch (e) {                       // never leave the map undrawn without saying why (Ben, 14 Nov 2026: bands vanished once)
+      busy = false;
+      $("#err").textContent = "Map drawing failed: " + e.message;
+      console.error(e);
+    }
     if (busy) requestAnimationFrame(step); else animating = false;
   };
   requestAnimationFrame(step);
@@ -626,6 +631,7 @@ legend();
   fitView();
   await refresh(true); loadSaves();
   setInterval(() => refresh(false).catch(e => $("#err").textContent = e.message), 2000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden){ animating = false; animate(); } });   // redraw on return to the tab
 })();
 </script>
 </body>
