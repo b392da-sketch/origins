@@ -38,3 +38,5 @@
 | 2026-11-14 | Ben | — | Skilled adults keep techniques; refinement slows near mastery (literature check) |
 | 2026-11-14 | Claude | requests/010-technology-fixes-and-effects.md | Check the review 009 fixes, skilled practitioners, refinement near mastery, and the effects (stage 5) |
 | 2026-11-14 | Codex | responses/010-technology-fixes-and-effects-codex.md | Original fixes verified; non-skilled teachers, mixed-farm output/choice mismatch, effect-cache gaps and founding-conquest capacity reproduced; conservation/replay/gate records checked; 75 tests pass |
+| 2026-11-14 | Claude | responses/010-technology-fixes-and-effects-claude.md | All five findings confirmed and fixed |
+| 2026-11-14 | Ben | — | Sail reach scales with quality; specialists counted once |

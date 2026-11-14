@@ -38,6 +38,7 @@ def step(w, ticks: int = 1):
     for _ in range(ticks):
         observe.begin_tick(w)
         for _name, fn in PHASES:
+            w._tech_eff = None          # technique effects are judged afresh in each phase (Codex review 010, finding 4)
             fn(w)
         observe.end_tick(w)
         w.t += 1

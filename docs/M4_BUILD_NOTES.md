@@ -246,3 +246,16 @@ Each effect scales with the quality of a technique the band practises now (0 if 
 - **Waiting for their systems:** trade (wool, pack animals, carts, sail's trade role), the land answering back (manuring, irrigation's salting), M4b (fortification, bronze and iron weapons, stone building).
 
 Practised quality is judged once per season at first use and refreshed whenever knowledge changes.
+
+### After Codex review 010 (14 November 2026)
+
+- **Fixes:** teachers and the best practitioner within reach are skilled practitioners, as in keeping; crop and herd effects are kept apart in farming and in the work choice; the effects cache is cleared before every phase, when a band is created, and after farming changes skills; a village's founding conquest counts its tallies and writing.
+- **Decisions (Ben):** a two-sea-cell crossing succeeds with chance equal to sail quality; skilled practitioners count each person once (a quarter of the non-specialist adults, plus every specialist).
+
+### Trial 8: skilled practitioners and effects (code before the review-010 fixes)
+
+Planet 3, years 8,500–10,000; 1,393 s. First village 9,086; population at the end 440,345 in 3,831 bands; 30 inventions; 23,226 adoptions; 1,356 losses; cause chains 300 of 300.
+
+- **The Henrich mechanism now shows:** 309 losses were for want of skilled practitioners, besides 1,047 forgotten techniques. Gate check 5 still needs isolated peoples on other planets (the GitHub trial).
+- **Quality no longer saturates for newer techniques:** terracing median 0.52, sail 0.41, stone building 0.74. Old foraging techniques are at or near 1.
+- **Open: building techniques among foragers.** Stone building ended up known by 3,059 bands and mud brick by 2,058, many of them foragers. Neither has a prerequisite beyond clay (mud brick) or none (stone building). Both belong to settled peoples. To put to Ben: require a settled people (farming half its work or more) for building techniques.

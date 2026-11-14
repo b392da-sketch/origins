@@ -264,7 +264,10 @@ def yearly(w):
     bid = np.array([b.id for b in bands])
     KP, VP, KA, VA = best_all(w, bid, np.array([b.cell for b in bands]))
     from . import technology
-    TPW, _ = technology.farm_multipliers(w, bid, np.array([b.cell for b in bands]), (VA > VP).astype(float))
+    technology.refresh(w)                            # domestication skills changed above (Codex review 010, finding 4)
+    _cw, _cf, _hw, _hf = technology.farm_multipliers(w, bid, np.array([b.cell for b in bands]))
+    _ap = VA / np.maximum(VP + VA, 1e-9)             # the same mixture as the harvest (review 010, finding 3)
+    TPW = _cw * (1 - _ap) + _hw * _ap
     for n, b in enumerate(bands):
         kp, vp, ka, va = int(KP[n]), float(VP[n]), int(KA[n]), float(VA[n])
         v = max(vp, va)
@@ -345,10 +348,12 @@ def season_food_live(w, ids, cells, effort):
     np.add.at(cell_eff, cells, farm_eff)
     land_share = np.where(cell_eff[cells] > 0, farm_eff / np.maximum(cell_eff[cells], 1e-12), 0.0)
     from . import technology
-    per_worker, per_field = technology.farm_multipliers(w, ids, cells, animal_part)   # M4a techniques
-    grown = np.minimum(farm_eff / P.FORAGE_RATE * P.FARM_RATE * vals * per_worker, caps * per_field * land_share)
-    herd = grown * animal_part
-    crop = grown - herd
+    cw, cf, hw_, hf = technology.farm_multipliers(w, ids, cells)       # M4a: crops and herds separately (review 010)
+    base = farm_eff / P.FORAGE_RATE * P.FARM_RATE * vals
+    room = caps * land_share
+    herd = np.minimum(base * animal_part * hw_, room * animal_part * hf)
+    crop = np.minimum(base * (1 - animal_part) * cw, room * (1 - animal_part) * cf)
+    grown = herd + crop
     w.crop_store[ids] += crop
     food = herd
     if w.quarter == P.HARVEST_QUARTER:

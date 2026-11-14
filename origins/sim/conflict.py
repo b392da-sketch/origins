@@ -348,8 +348,10 @@ def _fight(w, rng, s, mem, b, t, d, sc, cd, share, g, att, dfd, is_pol, pol, siz
 def _room_for(w, b, t, ts, is_pol, pol, cd, sizes) -> bool:
     """Would the conqueror still be within its capacity after taking t (and, if t is a polity's seat, the whole
     polity, which it would rule through t)? A village that conquers becomes a polity with no institutions."""
+    from . import polity
     return _conquest_load(w, b, t, ts, is_pol, pol, sizes) + (pol.load if is_pol else 0.0) <= \
-        P.CONQUEST_ROOM * (pol.cap if is_pol else P.POLITY_CAPACITY)
+        P.CONQUEST_ROOM * (pol.cap if is_pol else polity.capacity(polity.Polity(-1, b.id, w.t, ""), w))
+    # (a village's founding conquest counts its tallies and writing, as the polity it founds would: review 010)
 
 
 def _conquest_load(w, b, t, ts, is_pol, pol, sizes) -> float:

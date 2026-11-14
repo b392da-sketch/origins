@@ -169,6 +169,7 @@ def ensure(w, band_id: int, parent: int):
         w.tech = _grow(w.tech, band_id)
         w.tech_record = _grow(w.tech_record, band_id)
     w.tech[band_id] = w.tech[parent] if parent >= 0 else 0.0            # a daughter knows what her mother knew
+    w._tech_eff = None                                                    # effects judged afresh (review 010)
     w.tech_record[band_id] = w.tech_record[parent] if parent >= 0 else 0.0   # and keeps her records
 
 
@@ -405,6 +406,13 @@ def _adults(w, live, ids) -> np.ndarray:
     return out
 
 
+def skilled(w, live, ids) -> np.ndarray:
+    """Skilled practitioners a band can supply: TECH_PRACTISE_SHARE of its adults who are not specialists, plus every
+    specialist, each person counted once (Ben, 14 November 2026)."""
+    spec = np.asarray(w.spec[ids], dtype=float) if hasattr(w, "spec") else np.zeros(len(ids))
+    return P.TECH_PRACTISE_SHARE * np.maximum(_adults(w, live, ids) - spec, 0.0) + spec
+
+
 def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
     """Stage 3: keeping, refining and losing (Henrich 2004), teaching (specialists and writing), recovery from
     records. Stage 4: spreading by contact. See the module docstring; each change of state is recorded."""
@@ -418,12 +426,12 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
     # the Polar Inuit lost kayaks and bows when an epidemic carried off the knowledgeable adults: Boyd, Richerson
     # & Henrich 2011)
     spec = np.asarray(w.spec[ids], dtype=float) if hasattr(w, "spec") else np.zeros(len(ids))
-    skilled_people = P.TECH_PRACTISE_SHARE * _adults(w, live, ids) + spec
+    skilled_people = skilled(w, live, ids)
     pract_cell = np.zeros((n_cells, K))
     np.add.at(pract_cell, cells, practised * skilled_people[:, None])
     practitioners = _reach(w, cells, pract_cell)                     # skilled practitioners within reach
     best_cell = np.zeros((n_cells, K))
-    np.maximum.at(best_cell, cells, np.where(practised, lvl, 0.0))
+    np.maximum.at(best_cell, cells, np.where(practised & (skilled_people[:, None] > 0), lvl, 0.0))
     best = _reach(w, cells, best_cell, how="max")                      # the best practitioner within reach
     # teaching: specialists make copying more faithful (Ben, decision 2; craft specialists from M2's surplus)
     craft = np.clip(spec / np.maximum(sizes, 1.0) / P.TECH_CRAFT_REF, 0, 1)
@@ -475,11 +483,14 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
     # stage 4: teachers and prerequisites are judged after this year's keeping and losing, and a people never
     # learns from itself (Codex review 008, findings 2 and 3)
     practising_now = (new > 0) & possible_now
+    # teachers are skilled practitioners, counted as in keeping (Codex review 010, finding 1: children taught)
     teach_cell = np.zeros((n_cells, K))
-    np.add.at(teach_cell, cells, practising_now * sizes[:, None])
-    teachers = _reach(w, cells, teach_cell) - practising_now * sizes[:, None]
+    np.add.at(teach_cell, cells, practising_now * skilled_people[:, None])
+    teachers = _reach(w, cells, teach_cell) - practising_now * skilled_people[:, None]
+    skilled_cell = np.bincount(cells, weights=skilled_people, minlength=n_cells)
+    skilled_reach = _reach(w, cells, skilled_cell[:, None])[:, 0]          # everyone who could be a practitioner
     can = possible_now & (new <= 0) & (teachers > 0.5)
-    share = teachers / np.maximum(connected[:, None], 1.0)
+    share = teachers / np.maximum(skilled_reach[:, None], 1.0)
     chance = P.TECH_SPREAD * np.clip(share, 0, 1)
     if need is not None:
         chance = chance * (P.TECH_NEED_FLOOR + need)
@@ -499,10 +510,10 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
         # a teacher, drawn in proportion to the practitioners each band has (so the expected closeness is the
         # practitioners' average); the lesson takes with chance = cultural closeness (M4 spec 3.4; Ben, decision 5)
         cand = [j for c in r2[b.cell] if c >= 0 for j in by_cell.get(int(c), ())
-                if j != i and practising_now[j, k]]
+                if j != i and practising_now[j, k] and skilled_people[j] > 0]
         if not cand:
             continue
-        wts = sizes[cand] / sizes[cand].sum()
+        wts = skilled_people[cand] / skilled_people[cand].sum()
         j = cand[int(rng.choice(len(cand), p=wts))]
         src = live[j]
         la, lb = w.languages.get(b.language), w.languages.get(src.language)
@@ -515,7 +526,7 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
             continue                                                  # too crude a lesson to take hold
         new[i, k] = level
         why = (f"{w.band_name(b)} learned {t.name} from {w.band_name(src)} ({same:.0%} of words shared); "
-               f"{teachers[i, k]:,.0f} of the {connected[i]:,.0f} people within reach practised it")
+               f"{teachers[i, k]:,.0f} of the {skilled_reach[i]:,.0f} skilled people within reach practised it")
         w.event("technique_adopted", cell=b.cell, band=b.id, technique=t.key,
                 causes=[{"band": src.id}, {"note": why}], source=src.id, route="contact",
                 level=round(level, 3), closeness=round(close, 3))
@@ -580,6 +591,11 @@ def practised_quality(w) -> np.ndarray:
     return eff
 
 
+def refresh(w):
+    """Judge effects afresh (after anything that changes what can be practised within a phase)."""
+    w._tech_eff = None
+
+
 def _q(w, ids, key):
     return practised_quality(w)[ids, INDEX[key]].astype(float)
 
@@ -603,22 +619,21 @@ def forage_multiplier(w, ids, cells) -> np.ndarray:
     return m * np.ones(len(ids))
 
 
-def farm_multipliers(w, ids, cells, animal_part):
-    """(output per worker, output per field) multipliers for farming bands."""
+def farm_multipliers(w, ids, cells, animal_part=None):
+    """(crop per worker, crop per field, herd per worker, herd per field) multipliers for farming bands: crop
+    techniques change crops only, milking changes herds only (Codex review 010, finding 2)."""
     ids = np.asarray(ids)
     one = np.ones(len(ids))
     if not getattr(P, "TECHNOLOGY", False) or not len(ids):
-        return one, one
+        return one, one, one, one
     land = _cell_terrain(w)[cells]
-    plant = 1.0 - np.clip(animal_part, 0, 1)
-    irr = _e("irrigation") * _q(w, ids, "irrigation") * land[:, TERRAIN.index("water")] * plant
-    ter = _e("terracing") * _q(w, ids, "terracing") * land[:, TERRAIN.index("hills")] * plant
-    plough = _e("plough") * np.minimum(_q(w, ids, "plough"), _q(w, ids, "draft_animals")) * plant
-    milk = _e("milking") * _q(w, ids, "milking") * np.clip(animal_part, 0, 1)
-    tools = _e("copper_working") * _q(w, ids, "copper_working")
-    per_worker = (1 + irr) * (1 + plough) * (1 + milk) * (1 + tools)
-    per_field = (1 + irr) * (1 + ter) * (1 + milk)
-    return per_worker * one, per_field * one
+    irr = _e("irrigation") * _q(w, ids, "irrigation") * land[:, TERRAIN.index("water")]
+    ter = _e("terracing") * _q(w, ids, "terracing") * land[:, TERRAIN.index("hills")]
+    plough = _e("plough") * np.minimum(_q(w, ids, "plough"), _q(w, ids, "draft_animals"))
+    milk = _e("milking") * _q(w, ids, "milking")
+    tools = 1 + _e("copper_working") * _q(w, ids, "copper_working")
+    return ((1 + irr) * (1 + plough) * tools * one, (1 + irr) * (1 + ter) * one,
+            (1 + milk) * tools * one, (1 + milk) * one)
 
 
 def spoil_multiplier(w, ids) -> np.ndarray:

@@ -40,8 +40,11 @@ class TechniquesAsData(unittest.TestCase):
 
 class _Zero:
     """Stands in for the technology stream: every draw succeeds."""
-    def random(self, shape):
-        return np.zeros(shape)
+    def random(self, shape=None):
+        return np.zeros(shape) if shape is not None else 0.0
+
+    def choice(self, n, p=None):
+        return 0
 
 
 def _shrink(w, x, n):
@@ -370,6 +373,65 @@ class Effects(unittest.TestCase):
         w._tech_eff = None
         self.assertAlmostEqual(T.capacity_multiplier(w, a.id),
                                1 + P.TECH_EFFECT["tallies"] + P.TECH_EFFECT["writing"], places=5)
+
+
+
+def _ages(w, x, age, n, sex=0):
+    G = w.groups
+    G.F[x.group] = 0
+    G.M[x.group] = 0
+    G.preg[x.group] = 0
+    (G.F if sex == 0 else G.M)[x.group][age] = n
+
+
+class Review010(unittest.TestCase):
+    """Codex review 010: findings reproduced, then fixed."""
+
+    def test_children_teach_nothing(self):
+        w, a, b = _two_bands()
+        b.cell = a.cell
+        _ages(w, a, 10, 20)                       # 20 children, cordage 0.8
+        _ages(w, b, 25, 40)                       # 40 adults, no cordage
+        w.spec[a.id] = w.spec[b.id] = 0
+        w.tech[a.id, T.INDEX["cordage"]] = 0.8
+        Review008._phase(self, w, [a, b])
+        self.assertEqual(float(w.tech[b.id, T.INDEX["cordage"]]), 0.0)
+
+    def test_crop_bonus_stays_with_crops(self):
+        from origins.sim import farming
+        w, a, b = _two_bands()
+        b.alive = False
+        w.bands_changed()
+        ids, cells = np.array([a.id]), np.array([a.cell])
+        w.tech[a.id, T.INDEX["plough"]] = w.tech[a.id, T.INDEX["draft_animals"]] = 1.0
+        w._tech_eff = None
+        m = T.farm_multipliers(w, ids, cells, np.array([0.5]))
+        self.assertEqual(len(m), 4)                # per worker and per field, for crops and for herds
+
+    def test_effects_follow_new_daughters(self):
+        w, a, b = _two_bands()
+        w.tech[a.id, T.INDEX["tallies"]] = w.tech[a.id, T.INDEX["writing"]] = 1.0
+        w._tech_eff = None
+        T.capacity_multiplier(w, a.id)            # warm the cache
+        d = w.new_band(a.cell, parent=a.id)
+        self.assertAlmostEqual(T.capacity_multiplier(w, d.id), T.capacity_multiplier(w, a.id), places=5)
+
+    def test_founding_conquest_counts_technology(self):
+        from origins.sim import conflict, polity
+        w, a, b = _two_bands()
+        w.tech[a.id, T.INDEX["tallies"]] = w.tech[a.id, T.INDEX["writing"]] = 1.0
+        w._tech_eff = None
+        probe = polity.Polity(-1, a.id, w.t, "")
+        self.assertGreater(polity.capacity(probe, w), P.POLITY_CAPACITY)
+        import inspect
+        self.assertIn("capacity(", inspect.getsource(conflict._room_for))
+
+
+    def test_specialists_counted_once(self):
+        w, a, b = _two_bands()
+        _ages(w, a, 30, 15)
+        w.spec[a.id] = 3
+        self.assertAlmostEqual(float(T.skilled(w, [a], np.array([a.id]))[0]), 0.25 * 12 + 3, places=6)
 
 
 if __name__ == "__main__":
