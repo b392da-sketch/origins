@@ -14,8 +14,8 @@ M4a's technique effects showed this trigger is fragile. Anything that makes fora
 | technology on, all effects off | 12 (identical history) | year 6,794 |
 | all effects on | 0 | none by year 10,000 |
 | foraging gear off (broad-spectrum food at zero) | 0 | none by year 10,000 |
-| foraging gear off, storage effects off | 12 (identical to technology off) | (run continuing) |
-| foraging gear off, canoe crossings off, storage on | 0 | (run continuing) |
+| foraging gear off, storage effects off | 12 (as technology off) | year 6,744 |
+| foraging gear off, canoe crossings off, storage on | 0 | none by year 7,000 |
 | broad-spectrum food as good as wild food | 0 | none by year 10,000 |
 | broad-spectrum food at 0.3 of the return | 0 | none by year 10,000 |
 
