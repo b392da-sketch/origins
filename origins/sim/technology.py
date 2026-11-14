@@ -485,6 +485,7 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
         chance = chance * (P.TECH_NEED_FLOOR + need)
     draw = rng.random(chance.shape)
     hits = np.argwhere(can & (draw < chance)).tolist()
+    w._tech_eff = None
     if not hits:
         return
     from .language import ring2, shared_roots
@@ -519,6 +520,7 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
                 causes=[{"band": src.id}, {"note": why}], source=src.id, route="contact",
                 level=round(level, 3), closeness=round(close, 3))
     w.tech[ids] = new.astype(np.float32)
+    w._tech_eff = None                                  # effects are judged afresh after the year's changes
 
 
 def combine(w, src, dst, route: str, carriers: float | None = None):
@@ -540,6 +542,7 @@ def combine(w, src, dst, route: str, carriers: float | None = None):
     d = w.tech[dst.id].astype(float)
     gained = (a > 0) & (d <= 0)
     w.tech[dst.id] = np.maximum(a, d).astype(np.float32)
+    w._tech_eff = None
     if getattr(w, "tech_record", None) is not None:
         w.tech_record[dst.id] = np.maximum(w.tech_record[dst.id], w.tech_record[src.id])
     for k in np.nonzero(gained)[0].tolist():
@@ -550,3 +553,101 @@ def combine(w, src, dst, route: str, carriers: float | None = None):
         why = f"{w.band_name(dst)} {how} {w.band_name(src)}, who knew {t.name}"
         w.event("technique_adopted", cell=dst.cell, band=dst.id, technique=t.key,
                 causes=[{"band": src.id}, {"note": why}], source=src.id, route=route, level=round(float(a[k]), 3))
+
+
+# --- stage 5: what techniques change (Ben, 14 November 2026: starting values, open to revision) ---------------------
+#
+# Every effect scales with the quality of a PRACTISED technique (0 if unknown or not practised): a crude technique
+# gives a fraction of the full effect. Full effects are in params.TECH_EFFECT. None creates food from nothing:
+# foraging gains take more of a cell's wild stock for the same work; farming gains are more output per worker or
+# per field within the land's capacity; terracing makes slopes farmable.
+
+def practised_quality(w) -> np.ndarray:
+    """bands x K: the quality of each technique each band practises now (0 where unknown or not practised).
+    Judged once per season, at first use (cached by tick)."""
+    c = getattr(w, "_tech_eff", None)
+    if c is not None and c[0] == w.t and len(c[1]) == len(w.tech):
+        return c[1]
+    eff = np.zeros_like(w.tech)
+    if getattr(P, "TECHNOLOGY", False):
+        live = w.living_bands()
+        if live:
+            ids = np.asarray(w.live_index()[0])
+            cells = np.array([b.cell for b in live])
+            lvl = w.tech[ids]
+            eff[ids] = np.where((lvl > 0) & _possible(w, ids, cells, lvl), lvl, 0.0)
+    w._tech_eff = (w.t, eff)
+    return eff
+
+
+def _q(w, ids, key):
+    return practised_quality(w)[ids, INDEX[key]].astype(float)
+
+
+def _e(key):
+    return float(P.TECH_EFFECT.get(key, 0.0))
+
+
+def forage_multiplier(w, ids, cells) -> np.ndarray:
+    """Foraging work goes further with better tools: hunting gear everywhere, fishing gear by water."""
+    ids = np.asarray(ids)
+    if not getattr(P, "TECHNOLOGY", False) or not len(ids):
+        return np.ones(len(ids))
+    pl = w.planet
+    water = (pl.coast[cells] | pl.lake[cells] | pl.river[cells]).astype(float)
+    m = 1.0
+    for k in ("fire_hardening", "cordage", "bow", "copper_working"):
+        m = m + _e(k) * _q(w, ids, k)
+    for k in ("fish_traps", "canoes"):
+        m = m + water * _e(k) * _q(w, ids, k)
+    return m * np.ones(len(ids))
+
+
+def farm_multipliers(w, ids, cells, animal_part):
+    """(output per worker, output per field) multipliers for farming bands."""
+    ids = np.asarray(ids)
+    one = np.ones(len(ids))
+    if not getattr(P, "TECHNOLOGY", False) or not len(ids):
+        return one, one
+    land = _cell_terrain(w)[cells]
+    plant = 1.0 - np.clip(animal_part, 0, 1)
+    irr = _e("irrigation") * _q(w, ids, "irrigation") * land[:, TERRAIN.index("water")] * plant
+    ter = _e("terracing") * _q(w, ids, "terracing") * land[:, TERRAIN.index("hills")] * plant
+    plough = _e("plough") * np.minimum(_q(w, ids, "plough"), _q(w, ids, "draft_animals")) * plant
+    milk = _e("milking") * _q(w, ids, "milking") * np.clip(animal_part, 0, 1)
+    tools = _e("copper_working") * _q(w, ids, "copper_working")
+    per_worker = (1 + irr) * (1 + plough) * (1 + milk) * (1 + tools)
+    per_field = (1 + irr) * (1 + ter) * (1 + milk)
+    return per_worker * one, per_field * one
+
+
+def spoil_multiplier(w, ids) -> np.ndarray:
+    """Containers and buildings slow the spoiling of stored perishable food."""
+    ids = np.asarray(ids)
+    if not getattr(P, "TECHNOLOGY", False) or not len(ids):
+        return np.ones(len(ids))
+    pot = _e("pottery") * _q(w, ids, "pottery") * (1 + _e("kilns") * _q(w, ids, "kilns"))
+    m = (1 - _e("baskets") * _q(w, ids, "baskets")) * (1 - np.clip(pot, 0, 0.9)) * (1 - _e("mud_brick") * _q(w, ids, "mud_brick"))
+    return np.clip(m, 0.05, 1.0)
+
+
+def band_quality(w, band_id: int, key: str) -> float:
+    if not getattr(P, "TECHNOLOGY", False) or band_id < 0 or band_id >= len(w.tech):
+        return 0.0
+    return float(practised_quality(w)[band_id, INDEX[key]])
+
+
+def crossing_multiplier(w, band_id: int) -> float:
+    """Canoes make putting to sea likelier."""
+    return 1.0 + _e("canoes_crossing") * band_quality(w, band_id, "canoes")
+
+
+def land_advantage_multiplier(w, band_id: int) -> float:
+    """The plough with draft animals lets larger households work more land (Kohler et al. 2017)."""
+    q = min(band_quality(w, band_id, "plough"), band_quality(w, band_id, "draft_animals"))
+    return 1.0 + _e("plough_land") * q
+
+
+def capacity_multiplier(w, seat_id: int) -> float:
+    """Tallies and writing at the seat let officials manage more (M3 capacity)."""
+    return 1.0 + _e("tallies") * band_quality(w, seat_id, "tallies") + _e("writing") * band_quality(w, seat_id, "writing")

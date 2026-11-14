@@ -130,7 +130,9 @@ def yearly(w):
         rel = hw / max(float(hw.mean()), 1e-12) - 1
         # the land advantage applies to fields; on pasture it is scaled by LAND_HERDS (1: as fields; 0: pasture held
         # in common, so crowding gives the richer no extra land). Under calibration, 13 November 2026.
-        land = P.LAND_ADVANTAGE * crowd * np.clip(rel, -1, 3) * (1 - animals * (1 - P.LAND_HERDS))
+        from . import technology
+        land = (P.LAND_ADVANTAGE * technology.land_advantage_multiplier(w, b.id)      # the plough (M4a)
+                * crowd * np.clip(rel, -1, 3) * (1 - animals * (1 - P.LAND_HERDS)))
         land -= float((hw * land).sum() / max(hw.sum(), 1e-12))     # land changes hands: what some gain, others lose
         # herds breed for households with enough animals; below a threshold a household eats into its breeding
         # stock and its herd shrinks: a poverty trap with two paths (Lybbert et al. 2004, Boran pastoralists).

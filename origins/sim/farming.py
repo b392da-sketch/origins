@@ -263,6 +263,8 @@ def yearly(w):
     # work choice: compare food per day of work
     bid = np.array([b.id for b in bands])
     KP, VP, KA, VA = best_all(w, bid, np.array([b.cell for b in bands]))
+    from . import technology
+    TPW, _ = technology.farm_multipliers(w, bid, np.array([b.cell for b in bands]), (VA > VP).astype(float))
     for n, b in enumerate(bands):
         kp, vp, ka, va = int(KP[n]), float(VP[n]), int(KA[n]), float(VA[n])
         v = max(vp, va)
@@ -270,7 +272,7 @@ def yearly(w):
             target = 0.0
             w.farm_share[b.id] = 0.0                 # nothing here can be farmed: back to foraging at once
         else:
-            farm_rr = P.FARM_RATE * v * P.FARM_RISK
+            farm_rr = P.FARM_RATE * v * P.FARM_RISK * float(TPW[n])
             ratio = farm_rr / max(w.forage_rr[b.id], 1e-6)
             target = float(np.clip((ratio - 0.8) / 0.6, 0, 1))
         s = w.farm_share[b.id]
@@ -342,7 +344,9 @@ def season_food_live(w, ids, cells, effort):
     cell_eff = np.zeros(w.planet.n)
     np.add.at(cell_eff, cells, farm_eff)
     land_share = np.where(cell_eff[cells] > 0, farm_eff / np.maximum(cell_eff[cells], 1e-12), 0.0)
-    grown = np.minimum(farm_eff / P.FORAGE_RATE * P.FARM_RATE * vals, caps * land_share)
+    from . import technology
+    per_worker, per_field = technology.farm_multipliers(w, ids, cells, animal_part)   # M4a techniques
+    grown = np.minimum(farm_eff / P.FORAGE_RATE * P.FARM_RATE * vals * per_worker, caps * per_field * land_share)
     herd = grown * animal_part
     crop = grown - herd
     w.crop_store[ids] += crop

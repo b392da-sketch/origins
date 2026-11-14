@@ -225,9 +225,13 @@ def unit_load(w, p, seat, b, size, depth, conquest=True) -> tuple:
     return float(u), d, cd
 
 
-def capacity(p) -> float:
+def capacity(p, w=None) -> float:
     c = P.POLITY_CAPACITY * (1 + sum(P.INSTITUTION_GAIN[k] for k in range(len(INSTITUTIONS)) if p.inst[k] and k != OFFICIALS))
-    return c * (P.OFFICIALS_MULTIPLIER if p.inst[OFFICIALS] else 1.0)
+    c *= P.OFFICIALS_MULTIPLIER if p.inst[OFFICIALS] else 1.0
+    if w is not None:
+        from . import technology
+        c *= technology.capacity_multiplier(w, p.seat)      # tallies and writing at the seat (M4a)
+    return c
 
 
 def tier_of(p, depth, n_settlements) -> int:
@@ -253,7 +257,7 @@ def _new_polity(w, seat, causes, parent=-1, why="") -> Polity:
     w.next_polity += 1
     p = Polity(pid, seat.id, w.t, _name(w, seat), parent=parent)
     p.led_since = w.t
-    p.cap = capacity(p)
+    p.cap = capacity(p, w)
     p.leader = seat.leader if seat.mode == "individual" and seat.leader >= 0 and w.people.alive[seat.leader] \
         and int(w.people.band[seat.leader]) == seat.id else _successor(w, seat, -1, 2)[0]
     w.polities[pid] = p
@@ -453,7 +457,7 @@ def yearly(w):
             unit[b.id] = (u, d, cd)
             load += u
         p.load = load
-        p.cap = capacity(p)
+        p.cap = capacity(p, w)
         n = len(mem)
         staff = float(w.spec[p.seat])
         # institutions: add one when the load presses on capacity and the seat's specialists can staff it;
@@ -464,7 +468,7 @@ def yearly(w):
             w.event("institution_lost", cell=seat.cell, band=seat.id, polity=pid, institution=INSTITUTIONS[k],
                     causes=[{"note": f"{p.name} could keep {staff:.0f} specialists; its institutions needed "
                                      f"{staff_needed(p, n) + 0:.0f}"}])
-            p.cap = capacity(p)
+            p.cap = capacity(p, w)
         elif P.INSTITUTIONS and load > P.INSTITUTION_PRESSURE * p.cap:
             # an institution is a new way of doing things: under pressure, a polity finds one only now and then,
             # much sooner where a neighbouring polity already has it to copy
@@ -483,7 +487,7 @@ def yearly(w):
                                                                      if example is not None else []) + [
                                     {"note": f"{p.name} held {n} settlements: load {load:.1f} against capacity "
                                              f"{p.cap:.1f}; {staff:.0f} specialists at the seat could staff it"}])
-                    p.cap = capacity(p)
+                    p.cap = capacity(p, w)
                 else:
                     p.inst[k] = 0
                 break
@@ -609,7 +613,7 @@ def yearly(w):
         q.load += unit_load(w, q, w.bands[q.seat], b, size_of.get(b.id, 0),
                             1 if best.id == q.seat else depth_of(w, best.id, q.seat) + 1)[0]
         if q.cap <= 0:
-            q.cap = capacity(q)
+            q.cap = capacity(q, w)
         w.event("polity_joined", cell=b.cell, band=b.id, polity=pid, causes=[{"note": why}],
                 through=best.id)
 

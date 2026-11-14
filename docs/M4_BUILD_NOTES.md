@@ -232,3 +232,17 @@ This history differs from trials 1–5 (first village in year 8,963, not 9,172):
 - Read, D. (2006). Tasmanian knowledge and skill: Maladaptive imitation or adequate technology? *American Antiquity*, 71(1).
 - Roux, V., & Corbetta, D. (1989). *The Potter's Wheel: Craft Specialization and Technical Competence*. Oxford & IBH.
 - Walls, M., Knudsen, P., & Larsen, F. (2015). Inughuit open water hunting before the nineteenth century. *American Antiquity*, 80(3), 602–609.
+
+### Stage 5: effects (Ben, 14 November 2026: starting values, open to revision)
+
+Each effect scales with the quality of a technique the band practises now (0 if unknown or only remembered). Full effects are in `params.TECH_EFFECT`. Wired in:
+
+- **Foraging** (`foraging.py`): the work a band spends foraging counts for more (fire-hardened points +5%, cordage +10%, bow +10%, copper tools +5%; fish traps +15% and canoes +10% on cells with coast, lake or river). Food still comes only from the cell's wild stock, so a better-equipped band takes more of the same stock. The recorded return per worker-day uses the real days worked, so better gear also makes foraging more attractive against farming.
+- **Farming** (`farming.season_food_live` and the yearly work choice): output per worker rises with irrigation (+50% on river or lake land, crops), the plough with draft animals (+50%, crops), milking (+30%, herds) and copper tools (+5%). Output per field (the land's capacity) rises with irrigation, terracing (+30% on hilly land, crops) and milking.
+- **Storage** (`foraging.py`): spoiling of perishable stores x (1 − 0.15 baskets)(1 − 0.30 pottery x (1 + 0.25 kilns))(1 − 0.15 mud brick). Grain spoilage is unchanged: basket granaries already lose little (Golob, Malawi survey 1978: 2–3% in 10 months).
+- **Crossings** (`hazards.crossings`): canoes double the chance of putting to sea; with sail, land across two sea cells is within reach. The crossing's cause names the boats.
+- **Land advantage** (`surplus.py`): the plough with draft animals raises the yearly advantage of larger households by up to 50% (Kohler et al. 2017).
+- **Polity capacity** (`polity.capacity`): tallies (+10%) and writing (+50%) at the seat.
+- **Waiting for their systems:** trade (wool, pack animals, carts, sail's trade role), the land answering back (manuring, irrigation's salting), M4b (fortification, bronze and iron weapons, stone building).
+
+Practised quality is judged once per season at first use and refreshed whenever knowledge changes.

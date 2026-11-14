@@ -327,5 +327,50 @@ class LiteratureChanges14Nov(unittest.TestCase):
         self.assertAlmostEqual(float(w.tech[a.id, k]) - 0.9, P.TECH_REFINE * 0.1, places=5)
 
 
+
+class Effects(unittest.TestCase):
+    """Stage 5: effects scale with the quality of practised techniques (Ben, 14 November 2026)."""
+
+    def _band(self):
+        w, a, b = _two_bands()
+        pl = w.planet
+        dry = np.nonzero(pl.land & ~pl.coast & ~pl.lake & ~pl.river)[0]
+        a.cell = int(dry[0])
+        w.bands_changed()
+        return w, a
+
+    def test_hunting_gear_raises_foraging(self):
+        w, a = self._band()
+        w.tech[a.id, T.INDEX["bow"]] = 1.0
+        w.tech[a.id, T.INDEX["cordage"]] = 1.0
+        w._tech_eff = None
+        m = T.forage_multiplier(w, np.array([a.id]), np.array([a.cell]))[0]
+        self.assertAlmostEqual(m, 1 + P.TECH_EFFECT["bow"] + P.TECH_EFFECT["cordage"], places=5)
+
+    def test_a_crude_technique_gives_part_of_its_effect(self):
+        w, a = self._band()
+        w.tech[a.id, T.INDEX["pottery"]] = 0.5
+        a.cell = int(np.nonzero(T._cell_materials(w)[:, T.MATERIALS.index("clay")])[0][0])
+        w.bands_changed()
+        w._tech_eff = None
+        m = T.spoil_multiplier(w, np.array([a.id]))[0]
+        self.assertAlmostEqual(m, 1 - P.TECH_EFFECT["pottery"] * 0.5, places=5)
+
+    def test_unpractised_technique_has_no_effect(self):
+        w, a = self._band()
+        w.tech[a.id, T.INDEX["bow"]] = 1.0         # no cordage: the bow is remembered, not practised
+        w._tech_eff = None
+        m = T.forage_multiplier(w, np.array([a.id]), np.array([a.cell]))[0]
+        self.assertAlmostEqual(m, 1.0, places=6)
+
+    def test_writing_raises_capacity_at_the_seat(self):
+        w, a = self._band()
+        w.tech[a.id, T.INDEX["tallies"]] = 1.0
+        w.tech[a.id, T.INDEX["writing"]] = 1.0
+        w._tech_eff = None
+        self.assertAlmostEqual(T.capacity_multiplier(w, a.id),
+                               1 + P.TECH_EFFECT["tallies"] + P.TECH_EFFECT["writing"], places=5)
+
+
 if __name__ == "__main__":
     unittest.main()

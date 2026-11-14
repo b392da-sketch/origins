@@ -262,10 +262,18 @@ def crossings(w):
         for x in nb[b.cell]:
             if x >= 0 and not pl.land[x]:
                 far.update(int(y) for y in nb[x] if y >= 0 and pl.land[y] and y not in occ and y != b.cell)
+        from . import technology
+        sail = technology.band_quality(w, b.id, "sail") > 0 and P.TECH_EFFECT.get("sail", 0) > 0
+        if sail:                                      # with sail (M4a), land across two sea cells is within reach
+            sea1 = [int(x) for x in nb[b.cell] if x >= 0 and not pl.land[x]]
+            for x in sea1:
+                for y in nb[x]:
+                    if y >= 0 and not pl.land[y]:
+                        far.update(int(z) for z in nb[y] if z >= 0 and pl.land[z] and z not in occ and z != b.cell)
         far -= set(land_nb)
         # reachable but only by sea: not connected on foot within two steps
         far = [c for c in sorted(far) if c not in _ring(nb, [b.cell], 2) or not _walkable(pl, nb, b.cell, c)]
-        if not far or rng.random() >= P.CROSSING_RATE:
+        if not far or rng.random() >= P.CROSSING_RATE * technology.crossing_multiplier(w, b.id):   # canoes (M4a)
             continue
         target = max(far, key=lambda c: (w.stock[c], -c))
         src = b.cell
@@ -276,8 +284,16 @@ def crossings(w):
         w.event("sea_crossing", cell=target, band=b.id,
                 causes=[{"note": f"{w.band_name(b)} received only {b.last_ratio:.0%} of its food needs on a crowded "
                                  f"coast with no better land within reach on foot; land was visible across about "
-                                 f"50 km of sea"}], origin=src, size=int(sizes[b.id]))
+                                 f"50 km of sea" + _boats(w, b, sail)}], origin=src, size=int(sizes[b.id]))
         occ.setdefault(target, []).append(b)
+
+
+def _boats(w, b, sail) -> str:
+    """The boats a crossing used, for its cause (M4a technology)."""
+    from . import technology
+    q = technology.band_quality(w, b.id, "canoes")
+    out = f"; it had dugout canoes (quality {q:.2f})" if q > 0 else ""
+    return out + ("; with sail, land two sea cells away was within reach" if sail else "")
 
 
 def _walkable(pl, nb, a, c):

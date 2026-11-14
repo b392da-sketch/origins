@@ -83,6 +83,9 @@ def forage_and_eat(w):
     from . import farming, surplus
     effort *= surplus.work_share(w, ids, w.live_sizes())   # specialists eat but do not produce food
     effort, farm_food = farming.season_food_live(w, ids, cells, effort)
+    from . import technology
+    raw_effort = effort                                     # worker-days spent foraging (for the return per day)
+    effort = effort * technology.forage_multiplier(w, ids, cells)   # better gear: the same work takes more (M4a)
     cell_effort = np.zeros(w.planet.n)
     np.add.at(cell_effort, cells, effort)
     used = np.nonzero(cell_effort)[0]
@@ -96,7 +99,7 @@ def forage_and_eat(w):
     w.ledger["harvest"] += float(h.sum())
 
     store = np.fromiter((b.store for b in bands), dtype=float, count=L)
-    farming.record_forage_return_live(w, ids, effort, band_h)
+    farming.record_forage_return_live(w, ids, raw_effort, band_h)
     avail = store + band_h + farm_food
     give_c = np.minimum(avail, need_child)
     give_r = np.minimum(avail - give_c, need_rest)
@@ -110,10 +113,10 @@ def forage_and_eat(w):
         # farmers store grain (granaries, pits, pots): more room and slower spoilage, in proportion to farming
         grain = np.minimum(1.0, 2 * fs)          # a band farming half its work or more stores mostly grain
         cap = (P.STORE_DAYS + grain * P.GRANARY_DAYS) * total_need / P.SEASON_DAYS
-        spoil = P.STORE_SPOIL * (1 - grain) + P.GRAIN_SPOIL * grain
+        spoil = P.STORE_SPOIL * technology.spoil_multiplier(w, ids) * (1 - grain) + P.GRAIN_SPOIL * grain
     else:
         cap = P.STORE_DAYS * total_need / P.SEASON_DAYS
-        spoil = P.STORE_SPOIL
+        spoil = P.STORE_SPOIL * technology.spoil_multiplier(w, ids)
     kept = np.minimum(left, cap) * (1 - spoil)
     spoiled = left - kept
     # food security: farmers must make what they hold last until the next harvest, so their margin is measured

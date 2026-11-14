@@ -238,5 +238,20 @@ TECH_CRAFT_GAIN = 1.0              # at that share: practitioners needed halved,
 TECH_WRITING_HOLD = 0.5            # share of copying losses that writing of quality 1 prevents
 TECH_RECOVER = 0.002               # yearly chance, x writing quality, of recovering a lost technique from records
 TECH_HILL_RELIEF = 300.0           # metres of relief to a neighbouring cell that make land hilly (terracing)
+# M4a stage 5 (Ben, 14 November 2026: starting values, open to revision): full effect of each technique at quality 1
+TECH_EFFECT = {
+    "fire_hardening": 0.05, "cordage": 0.10, "bow": 0.10,       # foraging returns (Tomka 2013: the bow suits medium game)
+    "fish_traps": 0.15, "canoes": 0.10,                          # foraging returns by water
+    "canoes_crossing": 1.0,                                      # chance of crossing the sea: x (1 + this)
+    "sail": 1.0,                                                 # 1: with sail, land two sea cells away can be reached
+    "baskets": 0.15, "pottery": 0.30, "mud_brick": 0.15,         # spoiling of stored perishable food: x (1 - this)
+    "kilns": 0.25,                                               # pottery's effect x (1 + this)
+    "irrigation": 0.50,                                          # crop yields on river or lake land
+    "terracing": 0.30,                                           # farmable land on hilly cells
+    "plough": 0.50, "plough_land": 0.50,                         # with draft animals: output per worker; land advantage (Kohler et al. 2017)
+    "milking": 0.30,                                             # food from herds
+    "copper_working": 0.05,                                      # tools: farming and foraging returns
+    "tallies": 0.10, "writing": 0.50,                            # polity capacity
+}
 TECH_FARMING = 0.2                 # farm (or herd) share a people needs before farming techniques apply to them
 
