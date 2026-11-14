@@ -342,7 +342,21 @@ class Effects(unittest.TestCase):
         w.bands_changed()
         return w, a
 
+    def test_forage_gear_is_off(self):
+        """Ben, 14 November 2026: foraging gear's food effect is switched off until farming's trigger is recalibrated."""
+        self.assertFalse(P.TECH_FORAGE_GEAR)
+        w, a = self._band()
+        self.assertEqual(float(w.stock_broad.sum()), 0.0)
+
     def test_hunting_gear_raises_foraging(self):
+        old = P.TECH_FORAGE_GEAR
+        P.TECH_FORAGE_GEAR = True
+        try:
+            self._gear_case()
+        finally:
+            P.TECH_FORAGE_GEAR = old
+
+    def _gear_case(self):
         w, a = self._band()
         w.tech[a.id, T.INDEX["bow"]] = 1.0
         w.tech[a.id, T.INDEX["cordage"]] = 1.0

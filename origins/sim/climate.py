@@ -24,6 +24,8 @@ def broad_share(w) -> np.ndarray:
     gear can take, as a share of the ordinary wild food (M4a; Ben, 14 November 2026). It is the sum of the full
     effects of the foraging gear usable there: hunting gear everywhere, fishing gear by water."""
     p = w.planet
+    if not getattr(P, "TECH_FORAGE_GEAR", False):       # switched off (Ben, 14 November 2026): see M4 build notes
+        return np.zeros(p.n)
     E = getattr(P, "TECH_EFFECT", {}) if getattr(P, "TECHNOLOGY", False) else {}
     land = sum(E.get(k, 0.0) for k in ("fire_hardening", "cordage", "bow", "copper_working"))
     water = sum(E.get(k, 0.0) for k in ("fish_traps", "canoes"))
