@@ -271,3 +271,19 @@ Mud brick, stone building and fortification now need a settled people: one farmi
 ### Source (added)
 
 - Saunders, J. W., et al. (1997). A mound complex in Louisiana at 5400–5000 years before the present. *Science*, 277(5333), 1796–1799.
+
+### Negative result: technique effects stop farming on planet 3 (14 November 2026)
+
+The preliminary benchmark (Claude Code, cloud container, `local/results/2026-11-14-benchmark-prelim.md`) ran planet 3, history 1, from the first people for 10,000 years with all of M4a: **no farming village formed.** Two diagnostic histories from the same start, on the current code:
+
+| Run | First village | Population at year 6,500 |
+|---|---|---|
+| technology switched off | year 6,794 | 129,339 |
+| technology on, effects switched off (`TECH_EFFECT = {}`) | year 6,794 (identical history) | 129,339 |
+| technology and effects on (benchmark) | none by year 10,000 | about 130,000–145,000 |
+
+Knowledge without effects changes nothing, as it should (its own random stream only). **The effects are the cause.** The likely mechanism: foraging gear raises the return per day of foraging (up to +40% with cordage, fire-hardened points, bow and copper, and +25% more by water), and bands choose farming by comparing its return with foraging's. The foraging rate was tuned through gates G0 and G2 on a world without technology, so it already stands for foragers with an ordinary toolkit: the gear bonuses count that toolkit twice.
+
+The literature points the same way. The broad spectrum revolution (Flannery 1969; Stiner 2001) widened foragers' diets to small game, fish and birds under population pressure: more food from the same land, not richer returns per hour. And early cereal farming was probably less productive per hour than foraging (Bowles 2011, about three fifths of the food foraging yielded).
+
+To put to Ben: change how foraging gear works.
