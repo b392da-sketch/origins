@@ -68,7 +68,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
         "env": environment(),
         "language": language.to_json(w), "hazards": w.hazards,
         "farming": farming.to_json(w), "surplus": surplus.to_json(w), "polity": polity.to_json(w),
-        "conflict": conflict.to_json(w), "timing": w.timing, "first_herders": getattr(w, "first_herders", None), "tech_firsts": getattr(w, "tech_firsts", {}), "log_strides": w.log_strides,
+        "conflict": conflict.to_json(w), "timing": w.timing, "first_herders": getattr(w, "first_herders", None), "tech_firsts": getattr(w, "tech_firsts", {}), "goods_ledger": getattr(w, "goods_ledger", None), "log_strides": w.log_strides,
     }
     arrays = {"stock": w.stock, "stock_broad": w.stock_broad, "known": w.known, "discovered_by": w.discovered_by,
               "discovered_at": w.discovered_at, "food_modifier": w.food_modifier,
@@ -78,7 +78,8 @@ def to_file(w: World, f, fast: bool = False) -> None:
               "skill": w.skill, "farm_share": w.farm_share, "crop_store": w.crop_store,
               "still_years": w.still_years, "forage_rr": w.forage_rr, "spec": w.spec,
               "polity_of": w.polity_of, "polity_via": w.polity_via, "conquered_at": w.conquered_at,
-              "herder_since": w.herder_since, "tech": w.tech, "tech_record": w.tech_record}
+              "herder_since": w.herder_since, "tech": w.tech, "tech_record": w.tech_record,
+              "goods": w.goods}
     arrays.update({"p_" + k: v for k, v in w.people.arrays().items()})
     arrays.update({"g_" + k: v for k, v in w.groups.arrays().items()})
     arrays.update({"b_" + k: v for k, v in w.bands.arrays().items()})
@@ -186,6 +187,16 @@ def from_bytes(data: bytes, planet=None) -> World:
         w.herder_since = h
     w.first_herders = meta.get("first_herders")
     w.tech_firsts = dict(meta.get("tech_firsts", {}))
+    from .sim import trade as _trade                  # goods (M4a trade); saves from before have none
+    g = arrays.get("goods")
+    led = meta.get("goods_ledger")
+    _trade.init(w)
+    if g is not None and g.shape[1] == _trade.G:
+        w.goods = np.array(g, dtype=np.float64)        # exactly as saved (replay digest)
+    else:
+        _trade.ensure(w, len(w.farm_share) - 1, -1)
+    if led:
+        w.goods_ledger = {k: dict(v) for k, v in led.items()}
     from .sim import customs as _customs
     if w.customs.shape[1] < len(_customs.NAMES):          # saves from before a custom was added: it starts at variant 0
         c = np.zeros((len(w.customs), len(_customs.NAMES)), dtype=w.customs.dtype)
@@ -251,12 +262,12 @@ def digest(w: World) -> str:
         h.update(np.ascontiguousarray(v).tobytes())
     for arr in (w.stock, w.stock_broad, w.known, w.region_z, w.customs, w.neutral, w.hazard_food, w.immune, w.skill, w.farm_share,
                 w.crop_store, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since, w.tech,
-                w.tech_record):
+                w.tech_record, w.goods):
         h.update(np.ascontiguousarray(arr).tobytes())
     for k, v in sorted(w.bands.arrays().items()):
         h.update(k.encode())
         h.update(np.ascontiguousarray(v).tobytes())
-    small = {"t": w.t, "counts": w.counts, "ledger": w.ledger,
+    small = {"t": w.t, "counts": w.counts, "ledger": w.ledger, "goods_ledger": getattr(w, "goods_ledger", None),
              "bands": [dataclasses.asdict(b) for b in w.bands.live.values()], "band_strings": w.bands.strings,
              "rng": {k: g.bit_generator.state for k, g in w.rng.items()}, "n_events": len(w.events),
              "last_event": w.events[-1] if w.events else None,

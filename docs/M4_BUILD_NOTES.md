@@ -351,3 +351,19 @@ Code with skilled practitioners and refinement slowing near mastery, but **befor
 - Renfrew, C., Dixon, J. E., & Cann, J. R. (1968). Further analysis of Near Eastern obsidians. *Proceedings of the Prehistoric Society*, 34, 319–331.
 - Stewart, B. A., et al. (2020). Ostrich eggshell bead strontium isotopes reveal persistent macroscale social networking across late Quaternary southern Africa. *PNAS*, 117(12), 6453–6462.
 - Wiessner, P. (1982). Risk, reciprocity and social influences on !Kung San economics. In E. Leacock & R. Lee (eds.), *Politics and History in Band Societies* (pp. 61–84).
+
+### Trade decisions (Ben, 15 November 2026)
+
+1. **Imported materials count for techniques:** a people holding imported tin and copper can practise bronze without the ores nearby; when the trade is cut, the technique stops being practised, with the cause recorded.
+2. **Goods that change something:** fine stone (tools), salt (preserves stores), metals (their techniques), prestige goods (rulers' wealth). Textiles and pottery are trade goods only, for now.
+3. **Partnerships are links between bands,** not between individuals, sized from the hxaro partner counts.
+4. **Sharing in a bad year:** a starting value, tuned so a bad year at one band costs it far less than alone.
+5. **No money until M6;** wealth is counted in goods.
+
+Build in stages, each reviewed by Codex: (1) goods and ledgers; (2) gift partnerships; (3) down-the-line exchange; (4) directed trade; (5) effects.
+
+### Trade stage 1: goods and ledgers (15 November 2026)
+
+New module `origins/sim/trade.py`, phase "trade" once a year after technology. Nine goods, each with a source on the band's own cell: salt (salt deposits or coast), fine stone (flint), copper (copper and copper working practised), tin (tin and smelting), iron (iron and iron working), gold (gold and copper working), textiles (wool practised), pottery (pottery practised), shell (coast). Yearly yield per skilled practitioner times the technique's quality; yearly wear per good (`GOOD_YIELD`, `GOOD_WEAR`: starting values). Goods move with people when bands split, migrate, merge or combine (`trade.move_share`), and are lost when a band ends. A ledger per good (produced, worn, lost, moved) is checked every season in `observe.py`. Saves keep goods and ledgers; the replay digest includes them. Livestock already moves as herds (surplus.py); production takes no food time yet (a simplification).
+
+Trial: planet 3 forager world (year 8,500 save), 100 years: no ledger failures. Salt, fine stone and shell produced at their sources; no metals, pottery or textiles (no one practises their techniques). Shell, which lasts, ended up held by 861 of 894 bands, carried by people as bands split and moved; salt, used up quickly, by 256.

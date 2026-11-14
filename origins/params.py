@@ -261,5 +261,15 @@ TECH_EFFECT = {
 TECH_FORAGE_GEAR = True            # foraging gear's food effect (broad-spectrum food): back on with the new farming trigger (Ben, 14 Nov 2026); was off while both versions stopped farming
 TECH_BROAD_RETURN = 0.3            # food per unit of work from broad-spectrum food, against ordinary wild food (lower-ranked resources)
 TECH_SETTLED_YEARS = 20           # years in one place that make a foraging people settled (building techniques)
+# M4a trade (Ben, 15 November 2026; starting values, open to revision)
+TRADE = True
+GOOD_YIELD = {   # units a skilled practitioner at a source produces in a year (x the quality of the technique needed)
+    "salt": 1.0, "fine_stone": 1.0, "copper": 0.2, "tin": 0.1, "iron": 0.2, "gold": 0.02,
+    "textiles": 0.5, "pottery": 0.5, "shell": 0.5,
+}
+GOOD_WEAR = {    # share of each stock used up or worn out each year
+    "salt": 0.5, "fine_stone": 0.2, "copper": 0.05, "tin": 0.05, "iron": 0.05, "gold": 0.01,
+    "textiles": 0.25, "pottery": 0.2, "shell": 0.02,
+}
 TECH_FARMING = 0.2                 # farm (or herd) share a people needs before farming techniques apply to them
 

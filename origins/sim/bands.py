@@ -8,6 +8,7 @@ from __future__ import annotations
 import numpy as np
 
 from .. import params as P
+from . import trade
 
 
 def _households(w, members):
@@ -60,7 +61,7 @@ def _best_cell(w, cell, size, occupied):
 
 
 def fission_and_merge(w):
-    from . import groups
+    from . import groups, trade
     p = w.people
     rng = w.rng["fission"]
     live = w.living_bands()
@@ -123,6 +124,7 @@ def fission_and_merge(w):
                 crop = w.crop_store[b.id] * frac
                 w.crop_store[dst.id] += crop
                 w.crop_store[b.id] -= crop
+                trade.move_share(w, b.id, dst.id, frac)        # and their share of goods
                 occupied[b.cell] -= count
                 occupied[target] = occupied.get(target, 0) + count
                 w.counts["group_splits"] = w.counts.get("group_splits", 0) + 1
@@ -155,6 +157,7 @@ def fission_and_merge(w):
         crop = w.crop_store[b.id] * frac               # the standing crop is shared with the people
         w.crop_store[nb_.id] += crop
         w.crop_store[b.id] -= crop
+        trade.move_share(w, b.id, nb_.id, frac)            # and their share of goods
         nb_.last_ratio = b.last_ratio
         occupied[b.cell] -= count
         occupied[target] = occupied.get(target, 0) + count
@@ -199,6 +202,7 @@ def fission_and_merge(w):
         else:
             groups.merge_into(w, b, o)
         carry(w, b, o, "merge", s)                    # the people who join bring what they know
+        trade.move_share(w, b.id, o.id, 1.0)          # and all they have
         sizes[o.id] += s
         sizes[b.id] = 0
         o.store += b.store
@@ -255,6 +259,7 @@ def consolidate_groups(w):
         n = w.groups.total(b.group)
         groups.merge_into(w, b, o)
         carry(w, b, o, "combined", n)                # one people now: it keeps what either part knew
+        trade.move_share(w, b.id, o.id, 1.0)
         o.store += b.store
         b.store = 0.0
         w.crop_store[o.id] += w.crop_store[b.id]     # the standing crop goes with the people
@@ -306,6 +311,7 @@ def end_band(w, b, why, log=True):
     del b.trail[:-3]                  # ended bands keep only their last steps (memory)
     w.bands_changed()
     b.ended = w.t
+    trade.band_ended(w, b.id)
     if b.store:
         w.ledger["spoiled"] += b.store
         b.store = 0.0

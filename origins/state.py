@@ -419,6 +419,8 @@ class World:
         polity.init(self)
         conflict.init(self)
         technology.init(self)
+        from .sim import trade
+        trade.init(self)
         self.people.languages = self.languages
         self.hazards: list = []                    # active hazards (sim/hazards.py)
         self.hazard_food = np.ones(n)              # hazard effect on wild food, recovering over years
@@ -473,6 +475,8 @@ class World:
         polity.ensure(self, b.id, parent)
         conflict.ensure(self, b.id, parent)
         technology.ensure(self, b.id, parent)
+        from .sim import trade
+        trade.ensure(self, b.id, parent)
         self.bands[b.id] = b
         if self._pool is not None:
             self._pool[b.id] = b
