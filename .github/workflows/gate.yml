@@ -58,12 +58,14 @@ jobs:
       - name: run
         run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} "${{ matrix.jobs }}"
       - uses: actions/upload-artifact@v4
+        if: always()                                  # keep finished siblings' results even if one history failed
         with:
           name: ${{ matrix.name }}
           path: out/
           if-no-files-found: ignore
           retention-days: 30
       - uses: actions/upload-artifact@v4            # a history that ran out of time carries on in the next stage
+        if: always()
         with:
           name: ckpt-${{ matrix.name }}
           path: /tmp/ckpt/
@@ -101,14 +103,14 @@ jobs:
         if: steps.need.outputs.go == '1'
         run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} "${{ matrix.jobs }}"
       - uses: actions/upload-artifact@v4
-        if: steps.need.outputs.go == '1'
+        if: always() && steps.need.outputs.go == '1'
         with:
           name: more-${{ matrix.name }}
           path: out/
           if-no-files-found: ignore
           retention-days: 30
       - uses: actions/upload-artifact@v4
-        if: steps.need.outputs.go == '1'
+        if: always() && steps.need.outputs.go == '1'
         with:
           name: ckpt2-${{ matrix.name }}
           path: /tmp/ckpt/
@@ -146,14 +148,14 @@ jobs:
         if: steps.need.outputs.go == '1'
         run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} "${{ matrix.jobs }}"
       - uses: actions/upload-artifact@v4
-        if: steps.need.outputs.go == '1'
+        if: always() && steps.need.outputs.go == '1'
         with:
           name: last-${{ matrix.name }}
           path: out/
           if-no-files-found: ignore
           retention-days: 30
       - uses: actions/upload-artifact@v4
-        if: steps.need.outputs.go == '1'
+        if: always() && steps.need.outputs.go == '1'
         with:
           name: ckpt3-${{ matrix.name }}
           path: /tmp/ckpt/
@@ -191,14 +193,14 @@ jobs:
         if: steps.need.outputs.go == '1'
         run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} "${{ matrix.jobs }}"
       - uses: actions/upload-artifact@v4
-        if: steps.need.outputs.go == '1'
+        if: always() && steps.need.outputs.go == '1'
         with:
           name: stage4-${{ matrix.name }}
           path: out/
           if-no-files-found: ignore
           retention-days: 30
       - uses: actions/upload-artifact@v4
-        if: steps.need.outputs.go == '1'
+        if: always() && steps.need.outputs.go == '1'
         with:
           name: ckpt4-${{ matrix.name }}
           path: /tmp/ckpt/

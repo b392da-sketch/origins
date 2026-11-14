@@ -3,6 +3,7 @@
 # (one process each: the machine has 4 CPUs), or one experiment.
 # Usage: gates/run_job.sh REQUEST KIND JOBS      JOBS = "planet:seed[,planet:seed...]"
 set -e
+FAIL=0
 REQ=$1; KIND=$2; JOBS=$3
 WS=${JOBS%%:*}
 export ORIGINS_PARAMS=$(python3 -c "import json;print(json.dumps(json.load(open('$REQ')).get('params',{})))")
@@ -35,7 +36,7 @@ case "$KIND" in
     FAIL=0
     for P in $PIDS; do wait $P || FAIL=1; done
     for J in ${JOBS//,/ }; do echo "== history $J"; tail -n 30 "log_$J.txt"; done
-    [ $FAIL = 0 ] || { echo "a history failed"; exit 1; } ;;
+    ;;   # a failed history is reported at the end, after its siblings' results and checkpoints are kept (review 011)
   *)           python -m gates.$GATE $KIND --worlds $WS ;;
 esac
 mkdir -p out
@@ -52,3 +53,4 @@ for J in ${JOBS//,/ }; do
   fi
 done
 case "$KIND" in run*) ;; *) rm -rf "$CKPT"/* ;; esac
+if [ "${FAIL:-0}" != 0 ]; then echo "a history failed: see its log above"; exit 1; fi
