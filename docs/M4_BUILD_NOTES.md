@@ -320,3 +320,18 @@ Built as in `docs/FARMING_TRIGGER_PROPOSAL.md`. Pressure is the larger of hunger
 | (old trigger, technology off, for reference) | by year 6,000 (12 bands) | year 6,794 |
 
 With all effects on, population reaches about 165,000–175,000 before farming (gear feeds more foragers), so crowding builds sooner. The technology-off history farmed later than the old trigger's history although the new pressure is never lower for any band: on the planet-3 forager world at year 8,500, the expected number of first tendings is about 0.0004 a year under the new trigger against 0.0002 under the old. **First tending is so rare under either trigger (one every 2,500–5,000 years across the planet) that its timing in one history is mostly chance.** Only many histories show the average; gate G4a will. Open question for the gate: whether first tending should be less rare, so that farming's timing depends more on conditions than on luck.
+
+### GitHub isolation trial (run 43543673766, code at main `0d554e4`): four of five histories
+
+Code with skilled practitioners and refinement slowing near mastery, but **before** the stage-5 effects changes, the review-010 fixes and the new farming trigger (foraging gear then raised returns per day, which delayed farming). 2,000 years after each first village. Planet 4's history was still running.
+
+| History | First village | Inventions | Adoptions | Lost for want of skill | Forgotten | People within reach at those losses (10th / median / 90th percentile) | Cause chains |
+|---|---|---|---|---|---|---|---|
+| planet 1, history 5 | 13,414 | 29 | 63,256 | 990 | 43,667 | 10 / 24 / 1,366 | 400 / 400 |
+| planet 2, history 1 | 8,117 | 44 | 81,179 | 2,284 | 38,348 | 11 / 17 / 42 | 400 / 400 |
+| planet 5, history 7 | 15,848 | 68 | 140,828 | 12,248 | 60,326 | 15 / 49 / 137 | 400 / 400 |
+| planet 6, history 1 | 14,441 | 65 | 120,519 | 1,619 | 64,034 | 11 / 17 / 45 | 400 / 400 |
+
+- **Isolation causes loss (gate check 5, first look):** half of all losses for want of skill happened where 17–49 people were within reach, against hundreds of thousands in the connected parts of each world. The losses are of the right kinds: the bow, fish traps, stone building, pottery, tallies and writing, in small or cut-off peoples.
+- **Not yet shown:** the rate of loss per band at each level of contact (this needs the number of bands at each level, not only the losses). The G4a report must measure it.
+- **Forgetting is very common** (38,000–64,000 per history), mostly farming techniques carried by migrants and marriages to peoples or land where they cannot be practised. They fade and are recorded as forgotten. Not wrong, but the gate should report the two kinds of loss separately.
