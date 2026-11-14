@@ -47,3 +47,12 @@ Read `CLAUDE.md` first: the project's rules apply to you too.
 - anything odd: errors, a run that died, numbers that look impossible.
 
 Do not interpret beyond that; the chat does.
+
+## Benchmarks (Ben, 14 November 2026: run in Claude Code, on Ben's laptop)
+
+Ben wants room to make the simulator more complex, with benchmark tests as it grows. They run here, on the laptop at full strength (i5-13420H, 12 threads, 16 GB, RTX 3050 6 GB). The cloud session reaches the laptop only through a 2-core, 3 GB sandbox, which cannot measure it.
+
+1. **A fixed benchmark set:** three saved worlds at different stages, kept in `local/bench/` (not committed if large): an early forager world; a farming world of about 100,000 people; a world of polities of about half a million. Make them once from fixed seeds and record the commit they were made with.
+2. **Measure:** seconds per simulated year, phase by phase (extend `gates/time_run.py` to start from a save), and peak memory, over a fixed number of years (for example 200) from each world.
+3. **Record** each run in `docs/BENCHMARKS.md`: date, commit, machine, world, years, seconds per year, the slowest phases, peak memory. Run after each build step and before each gate, so a slowdown is traced to the step that caused it.
+4. **Budget:** a gate history must finish within GitHub's job limits; the observatory must keep up with its clock. A step that breaks the budget is optimised, or its heavy array work moves to the optional graphics-card fast mode (agreed 9 November 2026), before its code goes into a gate run.
