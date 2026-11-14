@@ -36,3 +36,4 @@
 | 2026-11-14 | Claude | responses/009-technology-decisions-claude.md | All four findings confirmed and fixed; Ben: prerequisites must be practised |
 | 2026-11-14 | Ben | — | A prerequisite counts only when practised |
 | 2026-11-14 | Ben | — | Skilled adults keep techniques; refinement slows near mastery (literature check) |
+| 2026-11-14 | Claude | requests/010-technology-fixes-and-effects.md | Check the review 009 fixes, skilled practitioners, refinement near mastery, and the effects (stage 5) |
