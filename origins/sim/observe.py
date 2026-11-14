@@ -11,7 +11,8 @@ from .. import params as P
 
 
 def food_total(w) -> float:
-    return float(w.stock.sum() + sum(b.store for b in w.living_bands()))
+    broad = float(w.stock_broad.sum()) if getattr(w, "stock_broad", None) is not None else 0.0
+    return float(w.stock.sum() + broad + sum(b.store for b in w.living_bands()))
 
 
 def begin_tick(w):
@@ -47,7 +48,7 @@ def end_tick(w):
              - (w.ledger["spoiled"] - c["spoiled"]))
     if abs(d_food - flows) > 1e-6 * max(1.0, abs(c["food"])):
         w.invariant_failures.append(f"t={w.t}: food change {d_food:.3f} vs flows {flows:.3f}")
-    if (w.stock < -1e-9).any():
+    if (w.stock < -1e-9).any() or (getattr(w, "stock_broad", None) is not None and (w.stock_broad < -1e-9).any()):
         w.invariant_failures.append(f"t={w.t}: negative wild food")
     if any(b.store < -1e-6 for b in w.living_bands()):
         w.invariant_failures.append(f"t={w.t}: negative food store")

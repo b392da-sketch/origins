@@ -618,19 +618,22 @@ def _e(key):
     return float(P.TECH_EFFECT.get(key, 0.0))
 
 
-def forage_multiplier(w, ids, cells) -> np.ndarray:
-    """Foraging work goes further with better tools: hunting gear everywhere, fishing gear by water."""
+def forage_access(w, ids, cells) -> np.ndarray:
+    """Each band's reach into its cell's broad-spectrum food (0..1): the full effects of the gear it practises,
+    weighted by quality, over the full effects of all gear usable there (climate.broad_share)."""
     ids = np.asarray(ids)
     if not getattr(P, "TECHNOLOGY", False) or not len(ids):
-        return np.ones(len(ids))
+        return np.zeros(len(ids))
+    from .climate import broad_share
     pl = w.planet
     water = (pl.coast[cells] | pl.lake[cells] | pl.river[cells]).astype(float)
-    m = 1.0
+    got = np.zeros(len(ids))
     for k in ("fire_hardening", "cordage", "bow", "copper_working"):
-        m = m + _e(k) * _q(w, ids, k)
+        got = got + _e(k) * _q(w, ids, k)
     for k in ("fish_traps", "canoes"):
-        m = m + water * _e(k) * _q(w, ids, k)
-    return m * np.ones(len(ids))
+        got = got + water * _e(k) * _q(w, ids, k)
+    full = broad_share(w)[cells]
+    return np.where(full > 0, np.clip(got / np.maximum(full, 1e-12), 0, 1), 0.0)
 
 
 def farm_multipliers(w, ids, cells, animal_part=None):

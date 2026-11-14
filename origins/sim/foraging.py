@@ -83,20 +83,37 @@ def forage_and_eat(w):
     from . import farming, surplus
     effort *= surplus.work_share(w, ids, w.live_sizes())   # specialists eat but do not produce food
     effort, farm_food = farming.season_food_live(w, ids, cells, effort)
+    # Wild food: the ordinary stock, plus broad-spectrum food (small game, birds, fish, marginal plants) that only
+    # foragers with the right gear can take (M4a; Ben, 14 November 2026: gear lets the land yield more to foragers,
+    # not a richer return per day; the broad spectrum revolution, Flannery 1969, Stiner 2001). Each band's share of
+    # the broad pool follows the quality of the gear it practises (technology.forage_access, 0..1).
     from . import technology
-    raw_effort = effort                                     # worker-days spent foraging (for the return per day)
-    effort = effort * technology.forage_multiplier(w, ids, cells)   # better gear: the same work takes more (M4a)
+    raw_effort = effort
+    access = technology.forage_access(w, ids, cells)
     cell_effort = np.zeros(w.planet.n)
     np.add.at(cell_effort, cells, effort)
+    cell_reach = np.zeros(w.planet.n)
+    np.add.at(cell_reach, cells, effort * access)
     used = np.nonzero(cell_effort)[0]
-    a = w.stock[used]
     e = cell_effort[used]
-    h = np.where(a > 1e-9, a * (1 - np.exp(-e / np.maximum(a, 1e-9))), 0.0)
-    w.stock[used] = a - h
-    cell_h = np.zeros(w.planet.n)
-    cell_h[used] = h
-    band_h = np.where(cell_effort[cells] > 0, cell_h[cells] * effort / np.maximum(cell_effort[cells], 1e-12), 0.0)
-    w.ledger["harvest"] += float(h.sum())
+    am = w.stock[used]
+    broad = getattr(w, "stock_broad", None)
+    ab_all = broad[used] if broad is not None else np.zeros(len(used))
+    ab = ab_all * np.clip(cell_reach[used] / np.maximum(e, 1e-12), 0, 1)     # the part this cell's foragers can reach
+    A = am + ab
+    H = np.where(A > 1e-9, A * (1 - np.exp(-e / np.maximum(A, 1e-9))), 0.0)
+    hm = np.where(A > 1e-9, H * am / np.maximum(A, 1e-9), 0.0)
+    hb = H - hm
+    w.stock[used] = am - hm
+    if broad is not None:
+        broad[used] = ab_all - hb
+    cell_hm = np.zeros(w.planet.n)
+    cell_hb = np.zeros(w.planet.n)
+    cell_hm[used] = hm
+    cell_hb[used] = hb
+    band_h = (np.where(cell_effort[cells] > 0, cell_hm[cells] * effort / np.maximum(cell_effort[cells], 1e-12), 0.0)
+              + np.where(cell_reach[cells] > 0, cell_hb[cells] * effort * access / np.maximum(cell_reach[cells], 1e-12), 0.0))
+    w.ledger["harvest"] += float(H.sum())
 
     store = np.fromiter((b.store for b in bands), dtype=float, count=L)
     farming.record_forage_return_live(w, ids, raw_effort, band_h)
@@ -142,4 +159,4 @@ def forage_and_eat(w):
                  np.maximum(0.0, c - P.CONDITION_LOSS * (1 - ratio)))
     p.condition[idx] = c
     w.season_stats = {"ratio": float(eaten.sum() / max(total_need.sum(), 1e-9)),
-                      "harvest": float(h.sum()), "need": float(total_need.sum())}
+                      "harvest": float(H.sum()), "need": float(total_need.sum())}

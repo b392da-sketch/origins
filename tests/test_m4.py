@@ -347,8 +347,9 @@ class Effects(unittest.TestCase):
         w.tech[a.id, T.INDEX["bow"]] = 1.0
         w.tech[a.id, T.INDEX["cordage"]] = 1.0
         w._tech_eff = None
-        m = T.forage_multiplier(w, np.array([a.id]), np.array([a.cell]))[0]
-        self.assertAlmostEqual(m, 1 + P.TECH_EFFECT["bow"] + P.TECH_EFFECT["cordage"], places=5)
+        m = T.forage_access(w, np.array([a.id]), np.array([a.cell]))[0]
+        full = sum(P.TECH_EFFECT[k] for k in ("fire_hardening", "cordage", "bow", "copper_working"))
+        self.assertAlmostEqual(m, (P.TECH_EFFECT["bow"] + P.TECH_EFFECT["cordage"]) / full, places=5)
 
     def test_a_crude_technique_gives_part_of_its_effect(self):
         w, a = self._band()
@@ -363,8 +364,8 @@ class Effects(unittest.TestCase):
         w, a = self._band()
         w.tech[a.id, T.INDEX["bow"]] = 1.0         # no cordage: the bow is remembered, not practised
         w._tech_eff = None
-        m = T.forage_multiplier(w, np.array([a.id]), np.array([a.cell]))[0]
-        self.assertAlmostEqual(m, 1.0, places=6)
+        m = T.forage_access(w, np.array([a.id]), np.array([a.cell]))[0]
+        self.assertAlmostEqual(m, 0.0, places=6)
 
     def test_writing_raises_capacity_at_the_seat(self):
         w, a = self._band()
@@ -448,6 +449,33 @@ class Settled14Nov(unittest.TestCase):
         w.still_years[a.id] = P.TECH_SETTLED_YEARS          # sedentary foragers can build
         self.assertTrue(T.prerequisites_met(w, a, st)[0])
         self.assertTrue(T._possible(w, np.array([a.id]), np.array([a.cell]))[0, T.INDEX["stone_building"]])
+
+
+
+class BroadSpectrum14Nov(unittest.TestCase):
+    """Gear lets the land yield more to foragers, not a richer return per day (Ben, 14 November 2026)."""
+
+    def test_plenty_pays_the_same_with_or_without_gear(self):
+        from origins.sim import foraging
+        res = []
+        for gear in (0.0, 1.0):
+            w = World.new(1, 1, generate(1))
+            for b in w.living_bands():
+                for k in ("fire_hardening", "cordage", "bow"):
+                    w.tech[b.id, T.INDEX[k]] = gear
+            w._tech_eff = None
+            s0 = w.stock.sum() + w.stock_broad.sum()
+            h0 = w.ledger["harvest"]
+            foraging.forage_and_eat(w)
+            res.append(w.ledger["harvest"] - h0)
+        self.assertAlmostEqual(res[0], res[1], delta=0.02 * res[0])   # 90 people on fresh land: effort, not food, limits
+
+    def test_food_is_conserved(self):
+        w = World.new(1, 1, generate(1))
+        for b in w.living_bands():
+            w.tech[b.id, T.INDEX["cordage"]] = 1.0
+        engine.step(w, 40)
+        self.assertEqual(w.invariant_failures, [])
 
 
 if __name__ == "__main__":

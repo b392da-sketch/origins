@@ -16,6 +16,23 @@ def init(w):
     w.region_z = rng.normal(size=w.planet.n_regions)
     w.region_factor = _factor(w.region_z)
     w.stock = seasonal_max(w).copy()
+    w.stock_broad = broad_max(w).copy()
+
+
+def broad_share(w) -> np.ndarray:
+    """Per cell: the broad-spectrum food (small game, birds, fish, marginal plants) that only foragers with the right
+    gear can take, as a share of the ordinary wild food (M4a; Ben, 14 November 2026). It is the sum of the full
+    effects of the foraging gear usable there: hunting gear everywhere, fishing gear by water."""
+    p = w.planet
+    E = getattr(P, "TECH_EFFECT", {}) if getattr(P, "TECHNOLOGY", False) else {}
+    land = sum(E.get(k, 0.0) for k in ("fire_hardening", "cordage", "bow", "copper_working"))
+    water = sum(E.get(k, 0.0) for k in ("fish_traps", "canoes"))
+    wet = (p.coast | p.lake | p.river).astype(float)
+    return land + water * wet
+
+
+def broad_max(w, quarter=None):
+    return seasonal_max(w, quarter) * broad_share(w)
 
 
 def _factor(z):
@@ -51,3 +68,8 @@ def regrow(w):
     w.stock += P.REGROWTH * (target - w.stock)
     np.maximum(w.stock, 0.0, out=w.stock)
     w.ledger["regrowth"] += float(w.stock.sum() - before)
+    if getattr(w, "stock_broad", None) is not None:
+        before = w.stock_broad.sum()
+        w.stock_broad += P.REGROWTH * (target * broad_share(w) - w.stock_broad)
+        np.maximum(w.stock_broad, 0.0, out=w.stock_broad)
+        w.ledger["regrowth"] += float(w.stock_broad.sum() - before)

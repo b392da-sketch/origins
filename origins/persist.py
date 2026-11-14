@@ -70,7 +70,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
         "farming": farming.to_json(w), "surplus": surplus.to_json(w), "polity": polity.to_json(w),
         "conflict": conflict.to_json(w), "timing": w.timing, "first_herders": getattr(w, "first_herders", None), "tech_firsts": getattr(w, "tech_firsts", {}), "log_strides": w.log_strides,
     }
-    arrays = {"stock": w.stock, "known": w.known, "discovered_by": w.discovered_by,
+    arrays = {"stock": w.stock, "stock_broad": w.stock_broad, "known": w.known, "discovered_by": w.discovered_by,
               "discovered_at": w.discovered_at, "food_modifier": w.food_modifier,
               "intervention_event": w.intervention_event, "cell_hunger": w.cell_hunger, "cell_births": w.cell_births,
               "customs": w.customs, "neutral": w.neutral, "hazard_food": w.hazard_food,
@@ -161,9 +161,12 @@ def from_bytes(data: bytes, planet=None) -> World:
     for k in ("stock", "known", "discovered_by", "discovered_at", "food_modifier", "intervention_event",
               "cell_hunger", "cell_births", "customs", "neutral", "hazard_food", "hazard_event", "immune",
               "skill", "farm_share", "crop_store", "still_years", "forage_rr", "spec", "polity_of", "polity_via", "conquered_at",
-              "herder_since"):
+              "herder_since", "stock_broad"):
         if k in arrays:                      # older saves of this schema may lack optional arrays
             setattr(w, k, arrays[k])
+    if getattr(w, "stock_broad", None) is None or len(w.stock_broad) != len(w.stock):
+        from .sim import climate as _climate            # saves from before the broad-spectrum pool (14 Nov 2026)
+        w.stock_broad = _climate.broad_max(w).copy()
     from .sim import technology as _tech
     if "tech" in arrays:
         w.tech = arrays["tech"]
@@ -246,7 +249,7 @@ def digest(w: World) -> str:
     for k, v in sorted(w.groups.arrays().items()):
         h.update(k.encode())
         h.update(np.ascontiguousarray(v).tobytes())
-    for arr in (w.stock, w.known, w.region_z, w.customs, w.neutral, w.hazard_food, w.immune, w.skill, w.farm_share,
+    for arr in (w.stock, w.stock_broad, w.known, w.region_z, w.customs, w.neutral, w.hazard_food, w.immune, w.skill, w.farm_share,
                 w.crop_store, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since, w.tech,
                 w.tech_record):
         h.update(np.ascontiguousarray(arr).tobytes())
