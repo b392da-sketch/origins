@@ -321,6 +321,9 @@ def _fight(w, rng, s, mem, b, t, d, sc, cd, share, g, att, dfd, is_pol, pol, siz
         t.store -= took
         b.store += took
         caps = _captives(w, t, b, P.CAPTIVE_SHARE, rng)
+        if caps:
+            from . import technology
+            technology.combine(w, t, b, "capture", caps)   # captives bring what they know (M4 spec 3.4)
         # conquest: a polity or village of farmers may take a farming village (and with its seat, a polity)
         # (a conqueror without the capacity to rule more only plunders: annexing needs room under its capacity)
         room = _room_for(w, b, t, ts, is_pol, pol, cd, sizes)

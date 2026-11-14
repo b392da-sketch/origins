@@ -71,9 +71,13 @@ def fission_and_merge(w):
     for k, b in enumerate(live):
         occupied[b.cell] = occupied.get(b.cell, 0) + float(sz[k])
     group_at = {}
+    from .farming import land_tables
+    tables = land_tables(w)
     for k, b in enumerate(live):
-        key = (b.cell, fsv[k])
-        if b.mode == "group" and key not in group_at:
+        if b.mode != "group":
+            continue
+        key = group_key(w, b, tables=tables)
+        if key not in group_at:
             group_at[key] = b
     for k, b in enumerate(live):
         s = sz[k]
@@ -103,13 +107,16 @@ def fission_and_merge(w):
             continue          # a local population splitting within its own land would only be recombined at once
         if b.mode == "group":
             now = w.groups.total(b.group)          # current size: this group may already have taken people in this season
-            dst = group_at.get((target, fsv[k]))
+            dst = group_at.get(group_key(w, b, cell=target, tables=tables))   # only into the same kind of people
+            # (until 14 Nov 2026 by (cell, farming) alone, so people moved into another polity or way of life
+            # without a record: Codex, review 006)
             if dst is not None and dst.alive and dst.id != b.id:
                 # people moving into a neighbouring local population join it directly (the same result as
                 # splitting off a new group that then combines with it, without creating a band record)
                 count = groups.transfer(w, b, dst, rng)
                 if count == 0:
                     continue
+                carry(w, b, dst, "migration", count)     # movers bring their skills
                 frac = min(1.0, count / max(now, 1e-9))
                 share = b.store * frac
                 dst.store, b.store = dst.store + share, b.store - share
@@ -124,7 +131,7 @@ def fission_and_merge(w):
             if res is None:
                 continue
             nb_, count = res
-            group_at[(target, fsv[k])] = nb_
+            group_at[group_key(w, nb_, tables=tables)] = nb_   # same key as lookups (Codex, review 007)
         else:
             mem = w.members(b.id)
             units = _households(w, mem)
@@ -191,6 +198,7 @@ def fission_and_merge(w):
             w.people_changed()
         else:
             groups.merge_into(w, b, o)
+        carry(w, b, o, "merge", s)                    # the people who join bring what they know
         sizes[o.id] += s
         sizes[b.id] = 0
         o.store += b.store
@@ -203,27 +211,50 @@ def fission_and_merge(w):
     w.people_changed()
 
 
+def group_key(w, b, cell=None, tables=None) -> tuple:
+    """Which local population a group belongs to: groups with the same key in a cell are one population; groups with
+    different keys stay separate peoples. The key is (cell, farming, herding now, polity). (Farming since M2; herding
+    and polity from 13-14 November 2026: Codex reviews 005 and 006. Herding is the current way of life, not the
+    historical marker herder_since.)"""
+    from . import pastoral
+    farming = bool(w.farm_share[b.id] >= 0.5)
+    herder = farming and pastoral.is_herder(w, b, *(tables or (None, None)), cell=cell)   # at the cell asked about
+    pol = int(w.polity_of[b.id]) if hasattr(w, "polity_of") and b.id < len(w.polity_of) else -1
+    return (b.cell if cell is None else cell, farming, herder, pol)
+
+
+def carry(w, src, dst, route, carriers):
+    """People joining another band bring what they know: techniques (technology.combine, at a quality that depends
+    on how many bring it) and domestication skills (the better of the two, as farming's learning from neighbours
+    already does without an event per band; Ben, 14 November 2026, decision 6: until then merges dropped them)."""
+    from . import technology
+    technology.combine(w, src, dst, route, carriers)
+    if hasattr(w, "skill"):
+        w.skill[dst.id] = np.maximum(w.skill[dst.id], w.skill[src.id])
+        cache = getattr(w, "_herder_cache", None)       # dst's way of life may have changed (Codex review 009, finding 2)
+        if cache is not None:
+            for key in [k for k in cache[1] if k[0] == dst.id]:
+                del cache[1][key]
+
+
 def consolidate_groups(w):
     """Groups sharing a cell become one local population (a change of representation, not a social event)."""
     from . import groups
     first: dict[tuple, object] = {}
+    from . import farming as _farming
+    tables = _farming.land_tables(w) if hasattr(w, "farm_share") else None
     for b in w.living_bands():
         if b.mode != "group":
             continue
         # villages and foragers sharing land stay separate peoples (different ways of life, different stores)
-        # (and, from 13 November 2026, herders and crop farmers, and members of different polities, stay separate
-        # too: a seasonal pasture move must not dissolve a herding people or move its people between polities.
-        # Found by Codex, review 005)
-        farming = bool(w.farm_share[b.id] >= 0.5)
-        hs = getattr(w, "herder_since", None)
-        herder = farming and hs is not None and b.id < len(hs) and hs[b.id] >= 0
-        pol = int(w.polity_of[b.id]) if hasattr(w, "polity_of") and b.id < len(w.polity_of) else -1
-        key = (b.cell, farming, herder, pol)
+        key = group_key(w, b, tables=tables)
         o = first.get(key)
         if o is None:
             first[key] = b
             continue
+        n = w.groups.total(b.group)
         groups.merge_into(w, b, o)
+        carry(w, b, o, "combined", n)                # one people now: it keeps what either part knew
         o.store += b.store
         b.store = 0.0
         w.crop_store[o.id] += w.crop_store[b.id]     # the standing crop goes with the people

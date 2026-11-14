@@ -141,6 +141,17 @@ def _event_title(w, e) -> str:
         return f"{d.get('name')} divided into {', '.join(d.get('names', [])) or 'daughter languages'}"
     if k == "language_extinct":
         return f"The last speakers of {d.get('name')} are gone"
+    if k == "invention":
+        from .sim.technology import TECHNIQUES, INDEX
+        t = TECHNIQUES[INDEX[d["technique"]]]
+        return f"{bn} invented {t.name}"
+    if k in ("technique_lost", "technique_adopted"):
+        from .sim.technology import TECHNIQUES, INDEX
+        t = TECHNIQUES[INDEX[d["technique"]]]
+        return f"{bn} {'lost' if k == 'technique_lost' else 'learned'} {t.name}"
+    if k == "technique_recovered":
+        from .sim.technology import TECHNIQUES, INDEX
+        return f"{bn} recovered {TECHNIQUES[INDEX[d['technique']]].name} from records"
     if k == "took_up_herding":
         return f"{bn} took up a herding life, moving its herds to new pasture"
     if k == "sea_crossing":
@@ -203,12 +214,40 @@ def chain(w, ref: dict, depth: int = 5) -> dict:
     return node
 
 
-def resolvable(w, ref: dict, depth: int = 6) -> bool:
-    """True if every reference in the chain points at something that exists."""
+def resolvable(w, ref: dict, depth: int | None = None, max_nodes: int = 200_000) -> bool:
+    """True if every reference in the whole chain points at something that exists.
+
+    The whole chain is followed (each reference once), not to a fixed depth: until 14 November 2026 only six
+    steps were followed (Codex review 004; lifted in M4a). A chain larger than max_nodes counts as unresolved, so a
+    gate never passes on a chain it did not finish. depth, if given, still limits the search (for quick looks).
+    """
     p = w.people
+    stack = [(ref, 0)]
+    seen = set()
     try:
-        if "event" in ref and not (0 <= int(ref["event"]) < len(w.events)):
-            return False
+        while stack:
+            r, d = stack.pop()
+            key = tuple(sorted((k, str(v)) for k, v in r.items() if k in ("event", "death", "birth", "partnership", "person", "band", "note")))
+            if key in seen:
+                continue
+            seen.add(key)
+            if len(seen) > max_nodes:
+                return False
+            if "event" in r and not (0 <= int(r["event"]) < len(w.events)):
+                return False
+            for k in ("death", "birth", "partnership"):
+                if k in r and not (0 <= int(r[k]) < p.n):
+                    return False
+            if "death" in r and p.death[int(r["death"])] < 0:
+                return False
+            if depth is not None and d >= depth:
+                continue
+            node = describe(w, r)
+            for c in node.get("causes", []):
+                stack.append((c, d + 1))
+        return True
+    except (KeyError, IndexError, ValueError):
+        return False
         for key in ("death", "birth", "partnership"):
             if key in ref and not (0 <= int(ref[key]) < p.n):
                 return False

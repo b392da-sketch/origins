@@ -175,11 +175,16 @@ def partnerships(w):
         if p.band[i] != p.band[j]:
             if rng.random() < customs.residence_share(w, int(p.band[j])):   # the husband's people's custom
                 kids = idx[(p.mother[idx] == i) & (age < 12)]
+                src, dst = int(p.band[i]), int(p.band[j])
                 p.band[i] = p.band[j]
                 p.band[kids] = p.band[j]
                 p.lang[kids] = w.bands[int(p.band[j])].language     # young children grow up speaking it
             else:
+                src, dst = int(p.band[j]), int(p.band[i])
                 p.band[j] = p.band[i]
+            # the one who moves brings what they know, at the level one person can carry (Codex review 009, finding 3)
+            from . import technology
+            technology.combine(w, w.bands[src], w.bands[dst], "marriage", 1)
 
 
 def births(w):

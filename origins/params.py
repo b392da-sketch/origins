@@ -136,8 +136,8 @@ VILLAGE_OUTBREAK = 2.0             # ... for villages (crowded, settled, near an
 INHERITANCE_BY_CUSTOM = True         # M3 (Ben, 11 Nov 2026, check 9 option a): holdings pass by the succession custom (one heir), not always in equal shares
 LAND_ADVANTAGE = 0.03              # M3: yearly growth of a household's holdings per unit of its size above the village mean, in full villages
 LAND_SCARCE = 0.5                  # M3: a village's land counts as scarce from this share of what its farmland can feed
-HERD_GROWTH = 0.02                 # M3: yearly growth of holdings in animals (herds breed), before losses
-LAND_HERDS = 1.0                   # M4a (13 Nov 2026): share of the land advantage that applies to herds (1: as fields; 0: common pasture)
+HERD_GROWTH = 0.005                 # (0.02 until 14 Nov 2026; with common pasture, herding societies' Gini 0.49-0.50 against 0.42 for pastoralists in Borgerhoff Mulder et al. 2009) M3: yearly growth of holdings in animals (herds breed), before losses
+LAND_HERDS = 0.0                   # M4a (Ben, 14 Nov 2026): pasture is held in common, herds privately (Fratkin & Mearns 2003): crowding gives the richer no extra pasture
 HERD_THRESHOLD = 0.5               # M3 (12 Nov 2026): below this share of the village mean, a household's herd shrinks instead of breeding (Lybbert et al. 2004)
 HERD_RISK = 1.0                    # M3: herds' extra spread of luck (disease, drought, raids), as a share of the harvest's
 
@@ -212,3 +212,31 @@ def work(age, nursing):
     w = np.select([age < 6, age < 12, age < 16, age < 56, age < 66],
                   [0.0, 0.25, 0.6, 1.0, 0.7], default=0.35)
     return w * np.where(nursing, 0.7, 1.0)
+
+# --- M4a: the technology network (M4 specification section 3; starting values to be tuned) ---
+TECHNOLOGY = True
+TECH_WORKING = 0.5                 # quality at which a technique is held well enough to build on (prerequisites; records)
+TECH_INVENT = 5e-6                 # yearly chance a band invents a technique it could hold, at reference population and no pressure ...
+TECH_NEED_FLOOR = 0.2              # ... times (this + the pressure behind it, 0..1) ...
+TECH_POP_REF = 1000                # ... times (people within two rings / this) ...
+TECH_POP_EXPONENT = 1.0            # ... to this power (0: the knock-out with no population effect, specification check 6)
+TECH_EASY_KEEP = 5                 # ... times (this / the technique's keep) ...
+TECH_DIFFICULTY = 2.0              # ... to this power (first trial: independent inventions far too common, e.g. writing 21 times in 400 years)
+TECH_INVENT_LEVEL = 0.25           # quality of a new invention: crude at first (Ben, 14 Nov 2026, decision 1)
+TECH_STORE_REF = 90                # stores per person (days) below which the need for containers rises
+TECH_LEARN = 0.02                  # yearly drift of a held skill: x ln(skilled people within reach / keep) (Henrich 2004)
+TECH_LOST = 0.15                   # below this skill level a technique is lost
+TECH_SPREAD = 0.05                 # yearly chance of adopting a technique, x (skilled people within reach / everyone within reach)
+TECH_ADOPT_SHARE = 0.6             # learners start at this share of their teacher's quality
+TECH_PRACTISE_SHARE = 0.25         # share of a band's adults who practise a technique skilfully (with all specialists)
+TECH_REFINE = 0.005                # most a technique can improve in a year by practice (easiest techniques; x sqrt(TECH_EASY_KEEP/keep) x (1 - quality))
+TECH_CATCHUP = 0.05                # yearly share of the gap to the best practitioner within reach that a people closes
+TECH_FORGET = 0.005                # yearly fading of a technique remembered but not practised (decision 3)
+TECH_FOREIGN = 0.2                 # chance a lesson takes between peoples with no words in common (1 for one language; decision 5)
+TECH_CRAFT_REF = 0.05              # specialist share of a band at which teaching is most faithful (decision 2)
+TECH_CRAFT_GAIN = 1.0              # at that share: practitioners needed halved, refinement doubled
+TECH_WRITING_HOLD = 0.5            # share of copying losses that writing of quality 1 prevents
+TECH_RECOVER = 0.002               # yearly chance, x writing quality, of recovering a lost technique from records
+TECH_HILL_RELIEF = 300.0           # metres of relief to a neighbouring cell that make land hilly (terracing)
+TECH_FARMING = 0.2                 # farm (or herd) share a people needs before farming techniques apply to them
+

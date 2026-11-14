@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from . import interventions
 from . import params as P
-from .sim import bands, climate, customs, demography, farming, foraging, groups, conflict, hazards, language, observe, pastoral, polity, surplus
+from .sim import bands, climate, customs, demography, farming, foraging, groups, conflict, hazards, language, observe, pastoral, polity, surplus, technology
 
 PHASES = [
     ("interventions", interventions.restore_due),
@@ -27,6 +27,7 @@ PHASES = [
     ("surplus", lambda w: surplus.yearly(w) if w.quarter == P.HARVEST_QUARTER else None),
     ("polity", lambda w: polity.yearly(w) if w.quarter == P.HARVEST_QUARTER else None),
     ("conflict", lambda w: conflict.yearly(w) if w.quarter == P.HARVEST_QUARTER else None),
+    ("technology", lambda w: technology.yearly(w) if w.quarter == P.HARVEST_QUARTER else None),
     ("customs", lambda w: customs.yearly(w) if w.quarter == 1 else None),
     ("language", lambda w: language.check(w)
      if w.quarter == 2 and w.year % P.LANGUAGE_CHECK_YEARS == 0 and w.t > 0 else None),

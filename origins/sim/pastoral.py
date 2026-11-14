@@ -27,6 +27,29 @@ def _animal_value(w, b, c, wild, suit):
     return float(val[farming.ANIMALS].max()), float(val[farming.PLANTS].max())
 
 
+def is_herder(w, b, wild=None, suit=None, cell=None) -> bool:
+    """A herding people now: farming at least half its work, with at least PASTORAL_SHARE of its farming value in
+    animals at its current cell, or at `cell` if given (where it would be after a move). herder_since only records
+    that it once took up herding. Results are cached within a tick (the land tables and skills do not change
+    within the phases that ask)."""
+    if w.farm_share[b.id] < 0.5:
+        return False
+    c = b.cell if cell is None else int(cell)
+    cache = getattr(w, "_herder_cache", None)
+    if cache is None or cache[0] != w.t:
+        cache = (w.t, {})
+        w._herder_cache = cache
+    hit = cache[1].get((b.id, c))
+    if hit is not None:
+        return hit
+    if wild is None:
+        wild, suit = farming.land_tables(w)
+    va, vp = _animal_value(w, b, c, wild, suit)
+    out = bool(va > 0 and va >= P.PASTORAL_SHARE * (va + vp))
+    cache[1][(b.id, c)] = out
+    return out
+
+
 def move(w):
     if not getattr(P, "PASTORALISM", False):
         return
