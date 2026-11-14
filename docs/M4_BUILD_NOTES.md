@@ -310,3 +310,13 @@ To put to Ben: change how foraging gear works.
 ### The new farming trigger (Ben, 14 November 2026: "build it as proposed")
 
 Built as in `docs/FARMING_TRIGGER_PROPOSAL.md`. Pressure is the larger of hunger (M2's food margin) and crowding: people on a band's cell and its neighbours per unit of the wild food those cells give unaided (`farming.crowding`), from `CROWD_START` 0.55 to full pressure at 0.85. In the planet-3 forager world at year 8,500 (older code), crowding had a median of 0.64, 90th percentile 0.76 and 99th 0.88; two thirds of bands were below M2's hunger line there. A people settled `ABUNDANCE_YEARS` (20) on land where a wild species grows well (`ABUNDANCE_SUIT` 0.5) tends and sows it at `ABUNDANCE_FLOOR` (0.1) pressure. The first tending of each species names its route. Foraging gear's food effect is back on. Trials on planet 3 (all effects on; technology off) are running; the full test suite runs after them.
+
+**Trials of the new trigger** (planet 3, history 1, from the first people; starting-value parameters):
+
+| Run | First bands farming | First village |
+|---|---|---|
+| all effects on, foraging gear included | by year 5,000 (76 bands) | year 5,337 |
+| technology off | by year 9,000 (527 bands) | year 9,000 |
+| (old trigger, technology off, for reference) | by year 6,000 (12 bands) | year 6,794 |
+
+With all effects on, population reaches about 165,000–175,000 before farming (gear feeds more foragers), so crowding builds sooner. The technology-off history farmed later than the old trigger's history although the new pressure is never lower for any band: on the planet-3 forager world at year 8,500, the expected number of first tendings is about 0.0004 a year under the new trigger against 0.0002 under the old. **First tending is so rare under either trigger (one every 2,500–5,000 years across the planet) that its timing in one history is mostly chance.** Only many histories show the average; gate G4a will. Open question for the gate: whether first tending should be less rare, so that farming's timing depends more on conditions than on luck.
