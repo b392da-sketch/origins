@@ -1,0 +1,10 @@
+{
+  "what": "Preliminary benchmark: how fast the current code runs on Ben's laptop, phase by phase, from foragers through farming to early polities.",
+  "commit": "main",
+  "start": "fresh",
+  "runs": [
+    {"label": "P3", "planet": 3, "seed": 1, "years": 10000, "save_at": 8500}
+  ],
+  "script": "python local/scripts/bench.py 3 1 10000 local/results/2026-11-14-benchmark-prelim/p3.json 8500 local/bench/p3s1_8500.zip",
+  "report": ["seconds per simulated year in each 500-year block", "the three slowest phases in the last block", "population and bands at each block", "peak memory", "total time", "machine: CPU, cores, memory, Python and NumPy versions"]
+}
