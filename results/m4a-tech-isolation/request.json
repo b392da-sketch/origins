@@ -1,0 +1,1 @@
+{"gate": "g3", "label": "m4a-tech-isolation", "jobs": ["1:5", "2:1", "4:10", "5:7", "6:1"], "after_first": 2000, "params": {}, "note": "M4a technology trial: losses by isolation (skilled adults keep techniques; refinement slows near mastery). Code at main 0d554e4."}
