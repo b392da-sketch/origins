@@ -179,6 +179,7 @@ class Decisions14Nov(unittest.TestCase):
     def test_wool_needs_sheep(self):
         from origins.sim.farming import SPECIES
         w, a, b = _two_bands()
+        a.cell = _cell_where(w, "wild_sheep")
         w.farm_share[a.id] = 0.6
         w.tech[a.id, T.INDEX["cordage"]] = 0.8
         w.skill[a.id][:] = 0
@@ -205,6 +206,97 @@ class Decisions14Nov(unittest.TestCase):
         self.assertAlmostEqual(float(w.tech_record[b.id, k]), 0.7, places=5)
         d = w.new_band(b.cell, parent=b.id)
         self.assertAlmostEqual(float(w.tech_record[d.id, k]), 0.7, places=5)
+
+
+
+def _cell_where(w, good, bad=None):
+    """A cell where species `good` can live (and `bad` cannot, if given)."""
+    from origins.sim.farming import SPECIES, land_tables
+    suit = land_tables(w)[1]
+    ok = suit[:, SPECIES.index(good)] > 0
+    if bad:
+        ok &= suit[:, SPECIES.index(bad)] == 0
+    return int(np.nonzero(ok)[0][0])
+
+
+class Review009(unittest.TestCase):
+    """Codex review 009: findings reproduced, then fixed."""
+
+    def test_remembered_writing_keeps_no_records(self):
+        w, a, b = _two_bands()
+        b.alive = False
+        w.bands_changed()
+        _shrink(w, a, 200)
+        W, F, C = T.INDEX["writing"], T.INDEX["fire_hardening"], T.INDEX["cordage"]
+        w.tech[a.id, W] = 0.8                     # no tallies: writing remembered, not practised
+        w.tech[a.id, C] = 0.8
+        w.tech_record[a.id, F] = 0.8
+        Review008._phase(self, w, [a])
+        self.assertEqual(float(w.tech[a.id, F]), 0.0)
+        self.assertEqual(float(w.tech_record[a.id, C]), 0.0)
+
+    def test_carrying_animals_refreshes_the_herder_test(self):
+        from origins.sim import bands, pastoral
+        from origins.sim.farming import SPECIES
+        w, a, b = _two_bands()
+        c = _cell_where(w, "wild_pig", "wild_grain")
+        a.cell = b.cell = c
+        w.farm_share[a.id] = w.farm_share[b.id] = 1.0
+        w.skill[a.id][:] = 0
+        w.skill[a.id][SPECIES.index("wild_pig")] = 3
+        w.skill[b.id][:] = 0
+        w.skill[b.id][SPECIES.index("wild_grain")] = 3
+        self.assertFalse(pastoral.is_herder(w, b))
+        bands.carry(w, a, b, "merge", 5)
+        self.assertTrue(pastoral.is_herder(w, b))
+
+    def test_marriage_carries_knowledge(self):
+        from origins.sim import demography
+        w = World.new(1, 1, generate(1))
+        a = w.living_bands()[0]
+        b = w.new_band(a.cell, parent=a.id)
+        p = w.people
+        mem = w.members(a.id)
+        C = T.INDEX["cordage"]
+        w.tech[:] = 0
+        w.tech[a.id, C] = 1.0
+        men = mem[(p.sex[mem] == 1) & (w.ages(mem) > 18)]
+        p.band[men] = b.id
+        p.partner[mem] = -1
+        w.people_changed()
+        for _ in range(40):
+            demography.partnerships(w)
+        if (p.sex[w.members(b.id)] == 0).any():   # someone married into b
+            self.assertAlmostEqual(float(w.tech[b.id, C]), 0.2, places=5)   # one carrier of 5 needed
+
+    def test_animals_must_be_able_to_live_here(self):
+        from origins.sim.farming import SPECIES
+        w, a, b = _two_bands()
+        a.cell = _cell_where(w, "wild_pig", "wild_sheep")
+        w.farm_share[a.id] = 1.0
+        w.skill[a.id][:] = 0
+        w.skill[a.id][SPECIES.index("wild_sheep")] = 3
+        w.tech[a.id, T.INDEX["cordage"]] = 0.8
+        wool = T.TECHNIQUES[T.INDEX["wool"]]
+        self.assertFalse(T.prerequisites_met(w, a, wool)[0])
+        self.assertFalse(T._possible(w, np.array([a.id]), np.array([a.cell]))[0, T.INDEX["wool"]])
+
+
+    def test_a_remembered_prerequisite_unlocks_nothing(self):
+        """Ben, 14 November 2026: a prerequisite counts only when practised."""
+        w, a, b = _two_bands()
+        a.cell = int(np.nonzero(T._cell_materials(w)[:, T.MATERIALS.index("copper")]
+                                & T._cell_materials(w)[:, T.MATERIALS.index("forest")]
+                                & T._cell_materials(w)[:, T.MATERIALS.index("clay")])[0][0])
+        for key in ("kilns", "copper_working"):
+            w.tech[a.id, T.INDEX[key]] = 0.8      # kilns without pottery: remembered, not practised
+        smelt = T.TECHNIQUES[T.INDEX["smelting"]]
+        ok, missing = T.prerequisites_met(w, a, smelt)
+        self.assertFalse(ok)
+        self.assertIn("needs kilns practised", missing)
+        self.assertFalse(T._possible(w, np.array([a.id]), np.array([a.cell]))[0, T.INDEX["smelting"]])
+        w.tech[a.id, T.INDEX["pottery"]] = 0.8
+        self.assertTrue(T.prerequisites_met(w, a, smelt)[0])
 
 
 if __name__ == "__main__":

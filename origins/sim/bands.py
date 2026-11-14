@@ -231,6 +231,10 @@ def carry(w, src, dst, route, carriers):
     technology.combine(w, src, dst, route, carriers)
     if hasattr(w, "skill"):
         w.skill[dst.id] = np.maximum(w.skill[dst.id], w.skill[src.id])
+        cache = getattr(w, "_herder_cache", None)       # dst's way of life may have changed (Codex review 009, finding 2)
+        if cache is not None:
+            for key in [k for k in cache[1] if k[0] == dst.id]:
+                del cache[1][key]
 
 
 def consolidate_groups(w):

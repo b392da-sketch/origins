@@ -41,7 +41,7 @@ class Technique:
     key: str
     name: str
     group: str
-    needs: tuple = ()                 # techniques that must be held well (at TECH_WORKING)
+    needs: tuple = ()                 # techniques that must be held well (at TECH_WORKING) and practised
     crop: bool = False                # a domesticated crop must be held, by a people that farms
     animals: tuple = ()               # one of these domesticated animals must be held, by a people that farms or herds
     materials: tuple = ()             # any-of groups: each inner tuple needs one of its materials within reach
@@ -192,15 +192,19 @@ def prerequisites_met(w, b, t: Technique, near: set | None = None) -> tuple[bool
     """Whether a band could practise technique t now, and what is missing (for causes)."""
     from . import farming
     missing = []
-    for n in t.needs:
+    for n in t.needs:      # a prerequisite counts only if held well AND practised (Ben, 14 November 2026)
         if not held(w, b.id, n):
             missing.append(f"needs {TECHNIQUES[INDEX[n]].name} held well")
+        elif not prerequisites_met(w, b, TECHNIQUES[INDEX[n]], near)[0]:
+            missing.append(f"needs {TECHNIQUES[INDEX[n]].name} practised")
     sk = w.skill[b.id]
+    here = farming.land_tables(w)[1][b.cell] > 0                    # species that can live on this land
     farms = float(w.farm_share[b.id]) >= P.TECH_FARMING
-    if t.crop and not (sk[farming.PLANTS] >= 3).any():
-        missing.append("needs a domesticated crop")
-    if t.animals and not (sk[_species(t.animals)] >= 3).any():
-        missing.append("needs " + " or ".join(a.removeprefix("wild_") for a in t.animals) + " domesticated")
+    if t.crop and not ((sk[farming.PLANTS] >= 3) & here[farming.PLANTS]).any():
+        missing.append("needs a domesticated crop that grows here")
+    if t.animals and not ((sk[_species(t.animals)] >= 3) & here[_species(t.animals)]).any():
+        missing.append("needs " + " or ".join(a.removeprefix("wild_") for a in t.animals)
+                       + " domesticated, on land where they can live")
     if (t.crop or t.animals) and not farms:
         missing.append("needs a people who farm or herd")
     if t.materials:
@@ -257,19 +261,20 @@ def _possible(w, ids, cells, lvl=None) -> np.ndarray:
     from . import farming
     lvl = w.tech[ids] if lvl is None else lvl
     held_ = lvl >= P.TECH_WORKING
-    sk = w.skill[ids]
+    here = farming.land_tables(w)[1][cells] > 0                     # species that can live on each band's land
+    sk = (w.skill[ids] >= 3) & here                                   # domesticated AND able to live here (review 009)
     farms = np.clip(w.farm_share[ids], 0, 1) >= P.TECH_FARMING
-    crop = (sk[:, farming.PLANTS] >= 3).any(axis=1)
+    crop = sk[:, farming.PLANTS].any(axis=1)
     mats = _cell_materials(w)[cells]
     land = _cell_terrain(w)[cells]
     ok = np.ones((len(ids), K), dtype=bool)
     for k, t in enumerate(TECHNIQUES):
-        for n in t.needs:
-            ok[:, k] &= held_[:, INDEX[n]]
+        for n in t.needs:                    # held well AND practised (prerequisites come earlier in the list)
+            ok[:, k] &= held_[:, INDEX[n]] & ok[:, INDEX[n]]
         if t.crop:
             ok[:, k] &= crop
         if t.animals:
-            ok[:, k] &= (sk[:, _species(t.animals)] >= 3).any(axis=1)
+            ok[:, k] &= sk[:, _species(t.animals)].any(axis=1)
         if t.crop or t.animals:
             ok[:, k] &= farms
         for group in t.materials:
@@ -426,11 +431,13 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
         w.event("technique_lost", cell=b.cell, band=b.id, technique=t.key, causes=[{"note": why}],
                 skilled=int(practitioners[i, k]), practised=bool(practised[i, k]))
     # records: a people that writes keeps a record of what it practises; a lost technique can come back from it
-    writes = new[:, WRITING] >= P.TECH_WORKING
+    possible_now = _possible(w, ids, cells, new)
+    # only a people that PRACTISES writing keeps records or reads them (Codex review 009, finding 1: remembered
+    # writing still kept and used records)
+    writes = (new[:, WRITING] >= P.TECH_WORKING) & possible_now[:, WRITING]
     rec = w.tech_record[ids].astype(float)
     rec = np.where(writes[:, None] & practised & (new > 0), np.maximum(rec, new), rec)
     w.tech[ids] = new.astype(np.float32)
-    possible_now = _possible(w, ids, cells, new)
     back = (new <= 0) & (rec > 0) & writes[:, None] & possible_now
     chance = P.TECH_RECOVER * new[:, WRITING][:, None]
     draw = rng.random(back.shape)
@@ -514,7 +521,7 @@ def combine(w, src, dst, route: str, carriers: float | None = None):
         w.tech_record[dst.id] = np.maximum(w.tech_record[dst.id], w.tech_record[src.id])
     for k in np.nonzero(gained)[0].tolist():
         t = TECHNIQUES[k]
-        how = {"combined": "combined with", "merge": "took in the remnant of",
+        how = {"combined": "combined with", "merge": "took in the remnant of", "marriage": "took in by marriage someone from",
                "capture": f"took {carriers:,.0f} captives from" if carriers else "took captives from"}.get(
             route, f"took in {carriers:,.0f} people from" if carriers else "took in people from")
         why = f"{w.band_name(dst)} {how} {w.band_name(src)}, who knew {t.name}"

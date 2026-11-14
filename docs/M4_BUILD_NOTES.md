@@ -197,3 +197,8 @@ All numbers are tunable starting values in `params.py`.
 - **Cultural closeness (5).** For each adoption, a teacher is drawn in proportion to the practitioners each band within reach has, and the lesson takes with chance `TECH_FOREIGN` + (1 - `TECH_FOREIGN`) x (share of words the two languages share, from M1). This gives the closeness-weighted chance in expectation, without comparing every pair of peoples.
 - **Domestication skills (6)** are combined as the better of the two in every merge and migration (`bands.carry`). Like farming's learning from neighbours, this records no event per band.
 - **Captives** carry techniques (route `capture`), scaled by their number.
+
+### After Codex review 009 (14 November 2026)
+
+- **Decision (Ben): a prerequisite counts only when practised,** not merely remembered at a working level. Checked down the whole chain.
+- **Fixes:** only a people that practises writing keeps or reads records; a domesticate counts only where it can live (crops and animals); marriage moves carry knowledge (one carrier); carrying domestication skills refreshes the herder test.
