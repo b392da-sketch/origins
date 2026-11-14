@@ -287,3 +287,18 @@ Knowledge without effects changes nothing, as it should (its own random stream o
 The literature points the same way. The broad spectrum revolution (Flannery 1969; Stiner 2001) widened foragers' diets to small game, fish and birds under population pressure: more food from the same land, not richer returns per hour. And early cereal farming was probably less productive per hour than foraging (Bowles 2011, about three fifths of the food foraging yielded).
 
 To put to Ben: change how foraging gear works.
+
+### Broad-spectrum food (Ben, 14 November 2026)
+
+**Design chosen:** foraging gear opens a second wild pool in each cell (`w.stock_broad`): small game, birds, fish and marginal plants, sized at the approved gear effects (+30% of ordinary wild food on land, +55% by water). A band reaches it in proportion to the quality of the gear it practises (`technology.forage_access`). It regrows like ordinary wild food and is counted in the food balance. Gear no longer multiplies foraging effort.
+
+**First version failed** (planet 3, fresh): with the pool as good as ordinary food, population rose to about 175,000 by year 7,000 (against about 130,000 without technology), and no band farmed at all. Farming starts from pressure (a band's food margin below `PRESSURE_MARGIN`), and the pool kept margins comfortable.
+
+**Second version:** ordinary food is taken first; broad-spectrum food only with the effort left over, at `TECH_BROAD_RETURN` (0.3) of the return per unit of work. Lower-ranked resources cost more work per calorie: small seeds and other costly plant foods rank low against large animals, and geophyte returns range from about 50 to 4,000 kcal per hour (Louderback 2022, from Simms 1987, Kelly 1995 and others). So as foragers turn to them, returns per day fall, and the pressure that leads to farming remains, as in the broad spectrum revolution. 0.3 is a starting value, not a measured ratio.
+
+### Sources (added)
+
+- Bowles, S. (2011). Cultivation of cereals by the first farmers was not more productive than foraging. *PNAS*, 108(12), 4760–4765.
+- Flannery, K. V. (1969). Origins and ecological effects of early domestication in Iran and the Near East. In P. J. Ucko & G. W. Dimbleby (eds.), *The Domestication and Exploitation of Plants and Animals* (pp. 73–100).
+- Louderback, L. A. (2022). Climate-driven dietary change on the Colorado Plateau, USA, and implications for gender-specific foraging patterns. *American Antiquity*, 87(1), 1–17.
+- Stiner, M. C. (2001). Thirty years on the "Broad Spectrum Revolution" and Paleolithic demography. *PNAS*, 98(13), 6993–6996.

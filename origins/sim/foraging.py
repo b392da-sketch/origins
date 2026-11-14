@@ -99,11 +99,14 @@ def forage_and_eat(w):
     am = w.stock[used]
     broad = getattr(w, "stock_broad", None)
     ab_all = broad[used] if broad is not None else np.zeros(len(used))
-    ab = ab_all * np.clip(cell_reach[used] / np.maximum(e, 1e-12), 0, 1)     # the part this cell's foragers can reach
-    A = am + ab
-    H = np.where(A > 1e-9, A * (1 - np.exp(-e / np.maximum(A, 1e-9))), 0.0)
-    hm = np.where(A > 1e-9, H * am / np.maximum(A, 1e-9), 0.0)
-    hb = H - hm
+    # ordinary food first (higher-ranked); broad-spectrum food only with the effort left over, at a lower return per
+    # unit of work (lower-ranked resources: the diet-breadth model; Kelly 1995; Louderback 2022): returns per day fall
+    # as foragers turn to it, so the pressure that leads to farming remains (Ben, 14 November 2026)
+    hm = np.where(am > 1e-9, am * (1 - np.exp(-e / np.maximum(am, 1e-9))), 0.0)
+    left = np.maximum(e - hm, 0.0) * np.clip(cell_reach[used] / np.maximum(e, 1e-12), 0, 1)
+    eb = left * P.TECH_BROAD_RETURN
+    hb = np.where(ab_all > 1e-9, ab_all * (1 - np.exp(-eb / np.maximum(ab_all, 1e-9))), 0.0)
+    H = hm + hb
     w.stock[used] = am - hm
     if broad is not None:
         broad[used] = ab_all - hb
