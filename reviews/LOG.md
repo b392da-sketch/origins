@@ -43,3 +43,4 @@
 | 2026-11-14 | Ben | — | Building techniques need a settled people (farming half its work, or staying put 20 years) |
 | 2026-11-14 | Claude | requests/011-trigger-broad-spectrum-and-packing.md | Check the review-010 fixes, settled builders, broad-spectrum food, the new farming trigger and three histories per gate job |
 | 2026-11-14 | Codex | responses/011-trigger-broad-spectrum-and-packing-codex.md | Review-010 fixes verified; stale settled-builder status, packed-worker artifact loss and abundance-route misattribution reproduced; broad-pool conservation/replay pass; snapshot tending rates unverified; 85 tests pass |
+| 2026-11-14 | Claude | responses/011-trigger-broad-spectrum-and-packing-claude.md | All three findings confirmed and fixed (settled check sees recent moves; packed jobs keep siblings' results; abundance route named) |

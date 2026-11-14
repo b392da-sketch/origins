@@ -508,5 +508,41 @@ class FarmingTrigger14Nov(unittest.TestCase):
         self.assertAlmostEqual(float(c[b.cell]), pop / pl.capacity[cells].sum(), places=6)
 
 
+
+class Review011(unittest.TestCase):
+    """Codex review 011: findings reproduced, then fixed."""
+
+    def test_a_forager_that_just_moved_is_not_settled(self):
+        from origins.sim import foraging
+        w = World.new(1, 1, generate(1))
+        b = w.living_bands()[0]
+        for o in w.living_bands()[1:]:
+            o.alive = False
+        w.bands_changed()
+        w.t = 100                                         # founded long ago: the founding entry in the trail is old
+        w.farm_share[b.id] = 0.0
+        w.still_years[b.id] = 20
+        self.assertTrue(T._settled(w, np.array([b.id]))[0])
+        nb = [int(x) for x in w.planet.grid.neighbours[b.cell] if x >= 0 and w.planet.land[x]]
+        w.stock[b.cell] = 1.0
+        w.stock[nb[0]] = 1e6
+        foraging.move(w)
+        self.assertFalse(T._settled(w, np.array([b.id]))[0])
+
+    def test_tending_below_the_abundance_floor_is_recorded_as_abundance(self):
+        from origins.sim import farming
+        w = World.new(1, 1, generate(1))
+        b = w.living_bands()[0]
+        wild, suit = farming.land_tables(w)
+        k = farming.SPECIES.index("wild_grain")
+        cells = np.nonzero(wild[:, k] & (suit[:, k] >= P.ABUNDANCE_SUIT))[0]
+        b.cell = int(cells[0])
+        w.still_years[b.id] = P.ABUNDANCE_YEARS
+        w._press_why = {b.id: (0.01, 0.4, 0.0)}           # weak hunger, below the floor
+        farming._first(w, b, k, "tending")
+        e = w.events[len(w.events) - 1]
+        self.assertIn("without being pressed", e["causes"][-1]["note"])
+
+
 if __name__ == "__main__":
     unittest.main()

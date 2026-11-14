@@ -336,7 +336,9 @@ def _first(w, b, k, stage):
     causes = []
     if stage == "tending":
         hunger, cr, crowded = getattr(w, "_press_why", {}).get(b.id, (0.0, 0.0, 0.0))
-        if max(hunger, crowded) <= 0:
+        wild, suit = land_tables(w)
+        rich = (w.still_years[b.id] >= P.ABUNDANCE_YEARS and wild[b.cell, k] and suit[b.cell, k] >= P.ABUNDANCE_SUIT)
+        if rich and P.ABUNDANCE_FLOOR > max(hunger, crowded):     # the floor, not the pressure, set the chance (review 011)
             why = (f"settled {int(w.still_years[b.id])} years on land rich in wild {NAMES[SPECIES[k]]}, it began to "
                    f"tend it without being pressed for food")
         elif crowded >= hunger:
