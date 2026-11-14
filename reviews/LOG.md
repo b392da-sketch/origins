@@ -40,3 +40,4 @@
 | 2026-11-14 | Codex | responses/010-technology-fixes-and-effects-codex.md | Original fixes verified; non-skilled teachers, mixed-farm output/choice mismatch, effect-cache gaps and founding-conquest capacity reproduced; conservation/replay/gate records checked; 75 tests pass |
 | 2026-11-14 | Claude | responses/010-technology-fixes-and-effects-claude.md | All five findings confirmed and fixed |
 | 2026-11-14 | Ben | — | Sail reach scales with quality; specialists counted once |
+| 2026-11-14 | Ben | — | Building techniques need a settled people (farming half its work, or staying put 20 years) |

@@ -47,6 +47,7 @@ class Technique:
     animals: tuple = ()               # one of these domesticated animals must be held, by a people that farms or herds
     materials: tuple = ()             # any-of groups: each inner tuple needs one of its materials within reach
     terrain: str = ""                 # land the band's own cell must have: "hills" or "water" (river or lake)
+    settled: bool = False             # a settled people: farming half its work, or staying put (Ben, 14 Nov 2026)
     keep: int = 10                    # practitioners needed to keep the skill alive (starting values)
     need: str = ""                    # the pressure that leads towards it
     effect: str = ""                  # what it changes (stage 5)
@@ -89,11 +90,11 @@ TECHNIQUES: list[Technique] = [
     T("wool", "wool and weaving", "farming", needs=("cordage",), animals=("wild_sheep",), keep=30, need="trade",
       effect="a good to trade (section 4)"),
     # building
-    T("mud_brick", "mud-brick building", "building", materials=(("clay",),), keep=20, need="crowding",
+    T("mud_brick", "mud-brick building", "building", materials=(("clay",),), settled=True, keep=20, need="crowding",
       effect="lasting villages; storage improves"),
-    T("stone_building", "stone building", "building", keep=40, need="power",
+    T("stone_building", "stone building", "building", settled=True, keep=40, need="power",
       effect="monuments and lasting seats"),
-    T("fortification", "fortification", "building", needs=("mud_brick",), keep=40, need="war",
+    T("fortification", "fortification", "building", needs=("mud_brick",), settled=True, keep=40, need="war",
       effect="defence in war (M4b)"),
     # metals
     T("copper_working", "copper working", "metals", materials=(("copper",),), keep=30, need="trade",
@@ -216,7 +217,17 @@ def prerequisites_met(w, b, t: Technique, near: set | None = None) -> tuple[bool
                 missing.append("needs " + " or ".join(group) + " within reach")
     if t.terrain and not _cell_terrain(w)[b.cell, TERRAIN.index(t.terrain)]:
         missing.append("needs hilly land" if t.terrain == "hills" else "needs a river or lake")
+    if t.settled and not _settled(w, np.array([b.id]))[0]:
+        missing.append("needs a settled people")
     return (not missing), missing
+
+
+def _settled(w, ids) -> np.ndarray:
+    """Settled: farming half its work or more, or staying in one place for TECH_SETTLED_YEARS (sedentary foragers
+    built too: Watson Brake's mounds, Saunders et al. 1997; Gobekli Tepe's houses and enclosures before domestic
+    grain)."""
+    still = w.still_years[ids] if hasattr(w, "still_years") else np.zeros(len(ids))
+    return (np.clip(w.farm_share[ids], 0, 1) >= 0.5) | (still >= P.TECH_SETTLED_YEARS)
 
 
 def _cell_materials(w) -> np.ndarray:
@@ -269,6 +280,7 @@ def _possible(w, ids, cells, lvl=None) -> np.ndarray:
     crop = sk[:, farming.PLANTS].any(axis=1)
     mats = _cell_materials(w)[cells]
     land = _cell_terrain(w)[cells]
+    settled = _settled(w, ids)
     ok = np.ones((len(ids), K), dtype=bool)
     for k, t in enumerate(TECHNIQUES):
         for n in t.needs:                    # held well AND practised (prerequisites come earlier in the list)
@@ -283,6 +295,8 @@ def _possible(w, ids, cells, lvl=None) -> np.ndarray:
             ok[:, k] &= mats[:, [MATERIALS.index(x) for x in group]].any(axis=1)
         if t.terrain:
             ok[:, k] &= land[:, TERRAIN.index(t.terrain)]
+        if t.settled:
+            ok[:, k] &= settled
     return ok
 
 

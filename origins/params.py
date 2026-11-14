@@ -253,5 +253,6 @@ TECH_EFFECT = {
     "copper_working": 0.05,                                      # tools: farming and foraging returns
     "tallies": 0.10, "writing": 0.50,                            # polity capacity
 }
+TECH_SETTLED_YEARS = 20           # years in one place that make a foraging people settled (building techniques)
 TECH_FARMING = 0.2                 # farm (or herd) share a people needs before farming techniques apply to them
 

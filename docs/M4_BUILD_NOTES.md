@@ -259,3 +259,15 @@ Planet 3, years 8,500–10,000; 1,393 s. First village 9,086; population at the 
 - **The Henrich mechanism now shows:** 309 losses were for want of skilled practitioners, besides 1,047 forgotten techniques. Gate check 5 still needs isolated peoples on other planets (the GitHub trial).
 - **Quality no longer saturates for newer techniques:** terracing median 0.52, sail 0.41, stone building 0.74. Old foraging techniques are at or near 1.
 - **Open: building techniques among foragers.** Stone building ended up known by 3,059 bands and mud brick by 2,058, many of them foragers. Neither has a prerequisite beyond clay (mud brick) or none (stone building). Both belong to settled peoples. To put to Ben: require a settled people (farming half its work or more) for building techniques.
+
+### Building techniques need a settled people (Ben, 14 November 2026)
+
+Mud brick, stone building and fortification now need a settled people: one farming half its work or more, or one that has stayed in the same place for `TECH_SETTLED_YEARS` (20) years. The literature ties building to settling down rather than to farming as such:
+
+- **Watson Brake, Louisiana:** an earthen mound complex built around 5,400–5,000 years ago by hunter-gatherers (Saunders et al. 1997).
+- **Göbekli Tepe:** monumental stone enclosures from around 9000 BCE, with no domestic grain found. Newer excavations found houses, a cistern and a channel for rainwater, a "full settlement" (Clare, Kinzel; reported in *Archaeology*, 2021). Whether its builders were foragers or early cultivators is debated.
+- **The Pre-Pottery Neolithic A (about 10,000–8,800 BCE):** round houses on stone foundations with mud-brick upper walls, and Jericho's stone wall and tower, built by cultivators of not yet domesticated grain.
+
+### Source (added)
+
+- Saunders, J. W., et al. (1997). A mound complex in Louisiana at 5400–5000 years before the present. *Science*, 277(5333), 1796–1799.

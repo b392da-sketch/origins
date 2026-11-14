@@ -434,5 +434,21 @@ class Review010(unittest.TestCase):
         self.assertAlmostEqual(float(T.skilled(w, [a], np.array([a.id]))[0]), 0.25 * 12 + 3, places=6)
 
 
+
+class Settled14Nov(unittest.TestCase):
+    """Building techniques belong to settled peoples (Ben, 14 November 2026)."""
+
+    def test_wandering_foragers_do_not_build(self):
+        w, a, b = _two_bands()
+        st = T.TECHNIQUES[T.INDEX["stone_building"]]
+        w.farm_share[a.id] = 0.0
+        w.still_years[a.id] = 0
+        ok, missing = T.prerequisites_met(w, a, st)
+        self.assertIn("needs a settled people", missing)
+        w.still_years[a.id] = P.TECH_SETTLED_YEARS          # sedentary foragers can build
+        self.assertTrue(T.prerequisites_met(w, a, st)[0])
+        self.assertTrue(T._possible(w, np.array([a.id]), np.array([a.cell]))[0, T.INDEX["stone_building"]])
+
+
 if __name__ == "__main__":
     unittest.main()
