@@ -202,3 +202,15 @@ All numbers are tunable starting values in `params.py`.
 
 - **Decision (Ben): a prerequisite counts only when practised,** not merely remembered at a working level. Checked down the whole chain.
 - **Fixes:** only a people that practises writing keeps or reads records; a domesticate counts only where it can live (crops and animals); marriage moves carry knowledge (one carrier); carrying domestication skills refreshes the herder test.
+
+### Trial 7: all decisions and review-009 fixes (planet 3, years 8,500–10,000)
+
+This history differs from trials 1–5 (first village in year 8,963, not 9,172): the new rules draw from the technology stream differently. 33 inventions; 22,829 adoptions; 1,080 losses; cause chains 300 of 300; 2,966 of 3,796 bands farm or herd. 1,619 s, with the test suite running alongside.
+
+- **Routes of adoption:** contact 8,744; migration 8,529; combining populations 4,429; small-band merges 953; captives 140; marriage 34. People moving now carry knowledge about as often as contact spreads it.
+- **Spread:**
+  - Foraging techniques reached almost every band: the bow 3,639 of 3,796, fish traps 3,586, tallies 3,750. Tally marks are ancient and widespread among foragers, so near-universal tallies are not implausible.
+  - Pottery reached 1,595 bands, terracing 1,741, sail 823. Irrigation was known by 59 bands but held well by none (best 0.46). Mud brick was invented once and died with its band.
+- **Quality saturates.** Most techniques reach 1.0 within a few centuries: refinement plus catching up with the best practitioner. Only recent or hard techniques stay below (sail median 0.85, irrigation 0.42). Once effects scale with quality, nearly everyone would get the full effect. **Open:** whether `TECH_REFINE` and `TECH_CATCHUP` are too high.
+- **Every loss was forgetting, not the Henrich mechanism.** All 1,080 losses were techniques remembered but no longer practised: terracing 792 (after farming was given up, or carried to unsuitable land), canoes 157, pottery 82, sail 48. No technique was lost for want of practitioners: this world is densely connected. **Open, and needed for gate check 5** (isolation causes loss): whether isolated peoples lose techniques on other planets.
+- No technique was recovered from records: writing was never invented.
