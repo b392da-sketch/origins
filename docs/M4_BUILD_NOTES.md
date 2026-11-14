@@ -323,7 +323,7 @@ With all effects on, population reaches about 165,000–175,000 before farming (
 
 ### GitHub isolation trial (run 43543673766, code at main `0d554e4`): four of five histories
 
-Code with skilled practitioners and refinement slowing near mastery, but **before** the stage-5 effects changes, the review-010 fixes and the new farming trigger (foraging gear then raised returns per day, which delayed farming). 2,000 years after each first village. Planet 4's history was still running.
+Code with skilled practitioners and refinement slowing near mastery, but **before** the stage-5 effects changes, the review-010 fixes and the new farming trigger (foraging gear then raised returns per day, which delayed farming). 2,000 years after each first village. Planet 4's history needed five stages: its population reached about 2.6 million after farming, at about 20 seconds per simulated year and 6 GB of memory.
 
 | History | First village | Inventions | Adoptions | Lost for want of skill | Forgotten | People within reach at those losses (10th / median / 90th percentile) | Cause chains |
 |---|---|---|---|---|---|---|---|
@@ -331,6 +331,7 @@ Code with skilled practitioners and refinement slowing near mastery, but **befor
 | planet 2, history 1 | 8,117 | 44 | 81,179 | 2,284 | 38,348 | 11 / 17 / 42 | 400 / 400 |
 | planet 5, history 7 | 15,848 | 68 | 140,828 | 12,248 | 60,326 | 15 / 49 / 137 | 400 / 400 |
 | planet 6, history 1 | 14,441 | 65 | 120,519 | 1,619 | 64,034 | 11 / 17 / 45 | 400 / 400 |
+| planet 4, history 10 | 9,089 | 96 | 223,139 | 11,239 | 121,467 | 14 / 48 / 153 | 400 / 400 |
 
 - **Isolation causes loss (gate check 5, first look):** half of all losses for want of skill happened where 17–49 people were within reach, against hundreds of thousands in the connected parts of each world. The losses are of the right kinds: the bow, fish traps, stone building, pottery, tallies and writing, in small or cut-off peoples.
 - **Not yet shown:** the rate of loss per band at each level of contact (this needs the number of bands at each level, not only the losses). The G4a report must measure it.
