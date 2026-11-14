@@ -1,6 +1,6 @@
 name: gate
 
-# Runs a milestone gate on GitHub's machines, one history per job, many at once.
+# Runs a milestone gate on GitHub's machines, up to three histories per job side by side (gates/plan.py), many jobs at once.
 # Start it by pushing a request file to gates/requests/ on the "gate" branch
 # (or with "Run workflow" on the Actions page, naming the request file).
 # Results and the report are committed to the "gate-results" branch under results/<label>/.
@@ -56,7 +56,7 @@ jobs:
           python-version: "3.13"
       - run: pip install -r requirements.txt
       - name: run
-        run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} ${{ matrix.ws }} ${{ matrix.rs }}
+        run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} "${{ matrix.jobs }}"
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
@@ -99,7 +99,7 @@ jobs:
         run: pip install -r requirements.txt
       - name: continue
         if: steps.need.outputs.go == '1'
-        run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} ${{ matrix.ws }} ${{ matrix.rs }}
+        run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} "${{ matrix.jobs }}"
       - uses: actions/upload-artifact@v4
         if: steps.need.outputs.go == '1'
         with:
@@ -144,7 +144,7 @@ jobs:
         run: pip install -r requirements.txt
       - name: continue
         if: steps.need.outputs.go == '1'
-        run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} ${{ matrix.ws }} ${{ matrix.rs }}
+        run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} "${{ matrix.jobs }}"
       - uses: actions/upload-artifact@v4
         if: steps.need.outputs.go == '1'
         with:
@@ -189,7 +189,7 @@ jobs:
         run: pip install -r requirements.txt
       - name: continue
         if: steps.need.outputs.go == '1'
-        run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} ${{ matrix.ws }} ${{ matrix.rs }}
+        run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} "${{ matrix.jobs }}"
       - uses: actions/upload-artifact@v4
         if: steps.need.outputs.go == '1'
         with:
@@ -234,7 +234,7 @@ jobs:
         run: pip install -r requirements.txt
       - name: continue
         if: steps.need.outputs.go == '1'
-        run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} ${{ matrix.ws }} ${{ matrix.rs }}
+        run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} "${{ matrix.jobs }}"
       - uses: actions/upload-artifact@v4
         if: steps.need.outputs.go == '1'
         with:
