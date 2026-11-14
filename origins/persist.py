@@ -78,7 +78,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
               "skill": w.skill, "farm_share": w.farm_share, "crop_store": w.crop_store,
               "still_years": w.still_years, "forage_rr": w.forage_rr, "spec": w.spec,
               "polity_of": w.polity_of, "polity_via": w.polity_via, "conquered_at": w.conquered_at,
-              "herder_since": w.herder_since, "tech": w.tech}
+              "herder_since": w.herder_since, "tech": w.tech, "tech_record": w.tech_record}
     arrays.update({"p_" + k: v for k, v in w.people.arrays().items()})
     arrays.update({"g_" + k: v for k, v in w.groups.arrays().items()})
     arrays.update({"b_" + k: v for k, v in w.bands.arrays().items()})
@@ -173,6 +173,10 @@ def from_bytes(data: bytes, planet=None) -> World:
         if old is not None and old.shape[1] == _tech.K:
             t[:len(old)] = old
         w.tech = t
+    rec = arrays.get("tech_record")                  # saves from before written records (14 Nov 2026): none kept
+    w.tech_record = np.zeros_like(w.tech)
+    if rec is not None and rec.shape[1] == _tech.K:
+        w.tech_record[:min(len(rec), len(w.tech))] = rec[:len(w.tech)]
     if len(getattr(w, "herder_since", ())) < len(w.farm_share):    # saves from before pastoralism (M4a)
         h = np.full(len(w.farm_share), -1.0)
         h[:len(getattr(w, "herder_since", ()))] = getattr(w, "herder_since", np.zeros(0))
@@ -243,7 +247,8 @@ def digest(w: World) -> str:
         h.update(k.encode())
         h.update(np.ascontiguousarray(v).tobytes())
     for arr in (w.stock, w.known, w.region_z, w.customs, w.neutral, w.hazard_food, w.immune, w.skill, w.farm_share,
-                w.crop_store, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since, w.tech):
+                w.crop_store, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since, w.tech,
+                w.tech_record):
         h.update(np.ascontiguousarray(arr).tobytes())
     for k, v in sorted(w.bands.arrays().items()):
         h.update(k.encode())

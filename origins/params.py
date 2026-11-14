@@ -215,19 +215,27 @@ def work(age, nursing):
 
 # --- M4a: the technology network (M4 specification section 3; starting values to be tuned) ---
 TECHNOLOGY = True
-TECH_WORKING = 0.5                 # skill level at which a technique counts as held (prerequisites, diffusion)
+TECH_WORKING = 0.5                 # quality at which a technique is held well enough to build on (prerequisites; records)
 TECH_INVENT = 5e-6                 # yearly chance a band invents a technique it could hold, at reference population and no pressure ...
 TECH_NEED_FLOOR = 0.2              # ... times (this + the pressure behind it, 0..1) ...
 TECH_POP_REF = 1000                # ... times (people within two rings / this) ...
 TECH_POP_EXPONENT = 1.0            # ... to this power (0: the knock-out with no population effect, specification check 6)
 TECH_EASY_KEEP = 5                 # ... times (this / the technique's keep) ...
 TECH_DIFFICULTY = 2.0              # ... to this power (first trial: independent inventions far too common, e.g. writing 21 times in 400 years)
-TECH_INVENT_LEVEL = 0.6            # skill level of a new invention
+TECH_INVENT_LEVEL = 0.25           # quality of a new invention: crude at first (Ben, 14 Nov 2026, decision 1)
 TECH_STORE_REF = 90                # stores per person (days) below which the need for containers rises
 TECH_LEARN = 0.02                  # yearly drift of a held skill: x ln(skilled people within reach / keep) (Henrich 2004)
 TECH_LOST = 0.15                   # below this skill level a technique is lost
 TECH_SPREAD = 0.05                 # yearly chance of adopting a technique, x (skilled people within reach / everyone within reach)
-TECH_ADOPT_LEVEL = 0.5             # skill level of an adopted technique
+TECH_ADOPT_SHARE = 0.6             # learners start at this share of their teacher's quality
+TECH_REFINE = 0.005                # most a technique can improve in a year by practice (easiest techniques; x sqrt(TECH_EASY_KEEP/keep))
+TECH_CATCHUP = 0.05                # yearly share of the gap to the best practitioner within reach that a people closes
+TECH_FORGET = 0.005                # yearly fading of a technique remembered but not practised (decision 3)
+TECH_FOREIGN = 0.2                 # chance a lesson takes between peoples with no words in common (1 for one language; decision 5)
+TECH_CRAFT_REF = 0.05              # specialist share of a band at which teaching is most faithful (decision 2)
+TECH_CRAFT_GAIN = 1.0              # at that share: practitioners needed halved, refinement doubled
+TECH_WRITING_HOLD = 0.5            # share of copying losses that writing of quality 1 prevents
+TECH_RECOVER = 0.002               # yearly chance, x writing quality, of recovering a lost technique from records
 TECH_HILL_RELIEF = 300.0           # metres of relief to a neighbouring cell that make land hilly (terracing)
 TECH_FARMING = 0.2                 # farm (or herd) share a people needs before farming techniques apply to them
 

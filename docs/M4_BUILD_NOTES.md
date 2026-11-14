@@ -175,3 +175,25 @@ The cause-chain check in the trial script was cut off at the time limit: it chec
 - Foraging, container and building techniques as in trial 4.
 - **No terracing or irrigation was invented in this history.** Villages began in year 9,172, so farmers had about 800 years. One history cannot tell whether that is too rare. Terraces and canals came long after the first farming in the archaeological record, so their absence here is not implausible, but the gate's many histories must show them appearing somewhere.
 - **Trial 4 showed 2,775 bands holding terracing when only about 2,500 farmed:** a band keeps a technique after it stops farming, because keeping does not check prerequisites. Asked of Codex in request 008, question 3.
+
+## Decisions (Ben, 14 November 2026), after Codex review 008
+
+1. **Quality of techniques: agreed.** Inventions start crude and improve slowly with practice, harder techniques more slowly. Learners start at a share of their teacher's level. Effects (stage 5) grow with quality. Prerequisites need a technique held well (for example, smelting needs good kilns). Migrants and captives carry a level that depends on how many of them bring it.
+2. **Teaching and writing: agreed.** Craft specialists and writing make copying more faithful. A technique lost by a people with writing can, rarely, be recovered from records, coming back crude.
+3. **A technique whose prerequisite has gone: remembered, not deleted.** It is not practised, gives no benefit, does not count its holders as practitioners, and fades over generations unless the conditions return.
+4. **Animals per technique: agreed.** Milking: goat, sheep, cattle, horse. Wool: sheep. Draft animals: cattle, horse. Pack animals: horse, cattle. Manuring: any domesticated animal.
+5. **Spreading weighted by cultural closeness: agreed** (M4 specification section 3.4), using language distance from M1.
+6. **Domestication skills combined on merge: agreed**, with the M2 and M3 checks confirmed in the G4a gate run.
+7. **Confirmed:** farming techniques need a people that farms or herds; adoption is weighted by need; terracing needs hills and irrigation a river or lake.
+
+### How the decisions are built (14 November 2026)
+
+All numbers are tunable starting values in `params.py`.
+
+- **Quality (1).** A new invention starts at `TECH_INVENT_LEVEL` 0.25. A technique practised by more people than it needs improves by at most `TECH_REFINE` (0.005) a year, times sqrt(5 / keep), so an easy technique can go from crude to mastered in about 150 years and the hardest (keep 80) in about 600. A people also closes `TECH_CATCHUP` (5%) a year of the gap to the best practitioner within reach. Learners start at `TECH_ADOPT_SHARE` (0.6) of their teacher's level; a lesson below `TECH_LOST` does not take. Prerequisites need a technique held at `TECH_WORKING` (0.5), so a crude technique is not yet a foundation. People who join or are taken carry a level scaled by (carriers / people the technique needs), capped at 1.
+- **Teaching (2).** Specialists (M2's surplus-fed specialists, all kinds counted, as a proxy for craft specialists) make copying more faithful: at a specialist share of `TECH_CRAFT_REF` (5%) or more, the people a technique needs are halved and refinement doubles (`TECH_CRAFT_GAIN` 1). A people practising writing loses `TECH_WRITING_HOLD` x writing's quality (up to half) less in copying, and keeps a record (`w.tech_record`) of each technique it practises. A lost technique still on record can come back, crude, with yearly chance `TECH_RECOVER` (0.002) x writing's quality.
+- **Remembered, not practised (3).** A known technique whose prerequisites are gone is not practised: its holders are not counted as practitioners and it fades by `TECH_FORGET` (0.005) a year, from 0.5 to the loss line in about 70 years (some three generations), unless its conditions return. Its loss is recorded as forgotten, naming what was missing.
+- **Animals (4)** as decided, in each technique's `animals`.
+- **Cultural closeness (5).** For each adoption, a teacher is drawn in proportion to the practitioners each band within reach has, and the lesson takes with chance `TECH_FOREIGN` + (1 - `TECH_FOREIGN`) x (share of words the two languages share, from M1). This gives the closeness-weighted chance in expectation, without comparing every pair of peoples.
+- **Domestication skills (6)** are combined as the better of the two in every merge and migration (`bands.carry`). Like farming's learning from neighbours, this records no event per band.
+- **Captives** carry techniques (route `capture`), scaled by their number.

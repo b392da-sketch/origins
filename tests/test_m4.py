@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from origins import engine, persist
+from origins import engine, persist, params as P
 from origins.sim import technology as T
 from origins.state import World
 from origins.worldgen import generate
@@ -34,7 +34,7 @@ class TechniquesAsData(unittest.TestCase):
         b = w.living_bands()[0]
         ok, missing = T.prerequisites_met(w, b, T.TECHNIQUES[T.INDEX["writing"]])
         self.assertFalse(ok)
-        self.assertIn("needs tallies and tokens", missing)
+        self.assertIn("needs tallies and tokens held well", missing)
 
 
 
@@ -73,6 +73,8 @@ class Review008(unittest.TestCase):
         from origins.sim import bands
         w, a, b = _two_bands()
         b.cell = a.cell
+        _shrink(w, a, 30)
+        _shrink(w, b, 30)
         w.farm_share[a.id] = w.farm_share[b.id] = 0.0
         w.tech[b.id, T.INDEX["pottery"]] = 0.8
         w.bands_changed()
@@ -84,11 +86,12 @@ class Review008(unittest.TestCase):
     def test_migrants_carry_knowledge(self):
         from origins.sim import groups
         w, a, b = _two_bands()
+        _shrink(w, a, 40)
         w.tech[a.id, T.INDEX["cordage"]] = 0.7
         n0 = len(w.events)
         moved = groups.transfer(w, a, b, np.random.default_rng(0))
         self.assertGreater(moved, 0)
-        T.combine(w, a, b, "migration", moved=moved)      # as bands.fission_and_merge does after a transfer
+        T.combine(w, a, b, "migration", moved)      # as bands.fission_and_merge does after a transfer
         technology_carry = float(w.tech[b.id, T.INDEX["cordage"]])
         self.assertAlmostEqual(technology_carry, 0.7, places=5)
         ev = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "technique_adopted"]
@@ -100,9 +103,8 @@ class Review008(unittest.TestCase):
         cells = np.array([x.cell for x in live])
         sizes = w.band_sizes()[ids]
         connected = T._reach(w, cells, np.bincount(cells, weights=sizes, minlength=w.planet.n)[:, None])[:, 0]
-        possible = T._possible(w, ids, cells)
         w.rng["technology"] = _Zero()
-        T.keep_and_spread(w, live, ids, cells, sizes, connected, possible, np.ones((len(live), T.K)))
+        T.keep_and_spread(w, live, ids, cells, sizes, connected, np.ones((len(live), T.K)))
 
     def test_a_people_does_not_learn_from_itself(self):
         w, a, b = _two_bands()
@@ -143,6 +145,66 @@ class Review008(unittest.TestCase):
             self.assertEqual(ok, bool(vec))
         finally:
             P.TECH_WORKING = old
+
+
+
+class Decisions14Nov(unittest.TestCase):
+    """Ben's technology decisions of 14 November 2026."""
+
+    def _phase(self, w, live):
+        Review008._phase(self, w, live)
+
+    def test_refinement_is_slow(self):
+        w, a, b = _two_bands()
+        b.alive = False
+        w.bands_changed()
+        _shrink(w, a, 5000)                              # far more practitioners than needed
+        k = T.INDEX["cordage"]
+        w.tech[a.id, k] = 0.25
+        self._phase(w, [a])
+        self.assertLessEqual(float(w.tech[a.id, k]) - 0.25, P.TECH_REFINE * (1 + P.TECH_CRAFT_GAIN) + 1e-6)
+        self.assertGreater(float(w.tech[a.id, k]), 0.25)
+
+    def test_unpractised_knowledge_fades_not_deleted(self):
+        w, a, b = _two_bands()
+        b.alive = False
+        w.bands_changed()
+        _shrink(w, a, 200)
+        w.farm_share[a.id] = 0.0                         # no longer farms: terracing cannot be practised
+        k = T.INDEX["terracing"]
+        w.tech[a.id, k] = 0.6
+        self._phase(w, [a])
+        self.assertAlmostEqual(float(w.tech[a.id, k]), 0.6 - P.TECH_FORGET, places=5)
+
+    def test_wool_needs_sheep(self):
+        from origins.sim.farming import SPECIES
+        w, a, b = _two_bands()
+        w.farm_share[a.id] = 0.6
+        w.tech[a.id, T.INDEX["cordage"]] = 0.8
+        w.skill[a.id][:] = 0
+        w.skill[a.id][SPECIES.index("wild_pig")] = 3
+        wool = T.TECHNIQUES[T.INDEX["wool"]]
+        self.assertFalse(T.prerequisites_met(w, a, wool)[0])
+        w.skill[a.id][SPECIES.index("wild_sheep")] = 3
+        self.assertTrue(T.prerequisites_met(w, a, wool)[0])
+
+    def test_few_captives_carry_a_cruder_skill(self):
+        w, a, b = _two_bands()
+        k = T.INDEX["writing"]                          # needs 60 practitioners
+        w.tech[a.id, k] = 0.9
+        T.combine(w, a, b, "capture", 30)
+        self.assertAlmostEqual(float(w.tech[b.id, k]), 0.45, places=5)
+        T.combine(w, a, b, "capture", 3)                # too few to carry anything usable: nothing changes
+        self.assertAlmostEqual(float(w.tech[b.id, k]), 0.45, places=5)
+
+    def test_records_survive_combining_and_daughters(self):
+        w, a, b = _two_bands()
+        k = T.INDEX["pottery"]
+        w.tech_record[a.id, k] = 0.7
+        T.combine(w, a, b, "combined", 100)
+        self.assertAlmostEqual(float(w.tech_record[b.id, k]), 0.7, places=5)
+        d = w.new_band(b.cell, parent=b.id)
+        self.assertAlmostEqual(float(w.tech_record[d.id, k]), 0.7, places=5)
 
 
 if __name__ == "__main__":

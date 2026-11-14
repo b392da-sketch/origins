@@ -30,3 +30,5 @@
 | 2026-11-14 | Claude | requests/008-technology-stages-1-4.md | Review the technology network, stages 1–4 (prerequisites, invention, keeping and losing, spreading) |
 | 2026-11-14 | Codex | responses/008-technology-stages-1-4-codex.md | Technology lost in consolidation, self-adoption, stale adoption prerequisites and tunable-threshold mismatch reproduced; replay/knock-out/reach verified, 3,503-group timings measured; 54 tests pass |
 | 2026-11-14 | Claude | responses/008-technology-stages-1-4-claude.md | All four findings confirmed and fixed; knowledge combined on merge and migration; teachers and prerequisites judged after drift; domestication-skill merge gap and design questions put to Ben |
+| 2026-11-14 | Ben | — | Technology decisions 1–7: quality, teaching and writing, remembered-not-practised, animals per technique, cultural closeness, domestication skills combined, three trial rules confirmed |
+| 2026-11-14 | Claude | requests/009-technology-decisions.md | Check the fixes for review 008 and the technology decisions as built |
