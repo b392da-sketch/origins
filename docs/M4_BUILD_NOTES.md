@@ -302,3 +302,5 @@ To put to Ben: change how foraging gear works.
 - Flannery, K. V. (1969). Origins and ecological effects of early domestication in Iran and the Near East. In P. J. Ucko & G. W. Dimbleby (eds.), *The Domestication and Exploitation of Plants and Animals* (pp. 73–100).
 - Louderback, L. A. (2022). Climate-driven dietary change on the Colorado Plateau, USA, and implications for gender-specific foraging patterns. *American Antiquity*, 87(1), 1–17.
 - Stiner, M. C. (2001). Thirty years on the "Broad Spectrum Revolution" and Paleolithic demography. *PNAS*, 98(13), 6993–6996.
+
+**Second version also failed** (planet 3, fresh, 10,000 years): population about 170,000–180,000 from year 3,000 on; no band tended, sowed or farmed anything. Even at 0.3 of the return, broad-spectrum food keeps food margins above the pressure line. It works like famine food: it buffers the bad years whose pressure starts farming in M2's model. Two attempts have now failed for the same reason: any extra food for foragers removes the pressure that M2's farming needs.
