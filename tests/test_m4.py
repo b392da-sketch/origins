@@ -460,6 +460,7 @@ class Settled14Nov(unittest.TestCase):
         w.still_years[a.id] = 0
         ok, missing = T.prerequisites_met(w, a, st)
         self.assertIn("needs a settled people", missing)
+        w.t = 100                                            # founded long ago: no recent move in the trail
         w.still_years[a.id] = P.TECH_SETTLED_YEARS          # sedentary foragers can build
         self.assertTrue(T.prerequisites_met(w, a, st)[0])
         self.assertTrue(T._possible(w, np.array([a.id]), np.array([a.cell]))[0, T.INDEX["stone_building"]])
