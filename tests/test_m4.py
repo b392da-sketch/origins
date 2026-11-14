@@ -299,5 +299,33 @@ class Review009(unittest.TestCase):
         self.assertTrue(T.prerequisites_met(w, a, smelt)[0])
 
 
+
+class LiteratureChanges14Nov(unittest.TestCase):
+    """Skilled adults, not everyone, keep a technique; refinement slows near mastery (Ben, 14 November 2026)."""
+
+    def test_an_isolated_band_cannot_keep_pottery(self):
+        w, a, b = _two_bands()
+        b.alive = False
+        w.bands_changed()
+        _shrink(w, a, 40)                     # 40 adults: 10 skilled, fewer than the 20 pottery needs
+        w.spec[a.id] = 0
+        a.cell = int(np.nonzero(T._cell_materials(w)[:, T.MATERIALS.index("clay")])[0][0])
+        k = T.INDEX["pottery"]
+        w.tech[a.id, k] = 0.6
+        Review008._phase(self, w, [a])
+        self.assertLess(float(w.tech[a.id, k]), 0.6)
+
+    def test_refinement_slows_near_mastery(self):
+        w, a, b = _two_bands()
+        b.alive = False
+        w.bands_changed()
+        _shrink(w, a, 5000)
+        w.spec[a.id] = 0
+        k = T.INDEX["cordage"]
+        w.tech[a.id, k] = 0.9
+        Review008._phase(self, w, [a])
+        self.assertAlmostEqual(float(w.tech[a.id, k]) - 0.9, P.TECH_REFINE * 0.1, places=5)
+
+
 if __name__ == "__main__":
     unittest.main()

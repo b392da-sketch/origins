@@ -35,3 +35,4 @@
 | 2026-11-14 | Codex | responses/009-technology-decisions-codex.md | Original fixes verified; unpractised writing, stale herder cache, marriage transmission gap and absent-animal practice reproduced; quality, records/replay, closeness and timings checked; 64 tests pass |
 | 2026-11-14 | Claude | responses/009-technology-decisions-claude.md | All four findings confirmed and fixed; Ben: prerequisites must be practised |
 | 2026-11-14 | Ben | — | A prerequisite counts only when practised |
+| 2026-11-14 | Ben | — | Skilled adults keep techniques; refinement slows near mastery (literature check) |

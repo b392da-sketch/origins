@@ -11,8 +11,9 @@ mother's techniques and records.
 
 - Invention (stage 2) is rare and gives a crude technique (TECH_INVENT_LEVEL).
 - Keeping (stage 3; Henrich 2004): a technique is PRACTISED when its prerequisites are met. Practised, its quality
-  drifts with ln(practitioners within reach / people it needs): above the line it improves, but only slowly
-  (TECH_REFINE a year at most, less for harder techniques), and a people also closes part of the gap to the best
+  drifts with ln(skilled practitioners within reach / people it needs): practitioners are TECH_PRACTISE_SHARE of
+  the adults plus the specialists. Above the line it improves, but only slowly (at most TECH_REFINE a year, less for
+  harder techniques, and less the nearer it is to mastery: Mesoudi 2011), and a people also closes part of the gap to the best
   practitioner within reach (TECH_CATCHUP). Below the line, imperfect copying wears it down. A technique that is
   REMEMBERED but not practised (its prerequisites gone) fades by TECH_FORGET a year. Below TECH_LOST it is lost.
 - Teaching (Ben, 14 November 2026): specialists make copying more faithful (fewer people needed, faster
@@ -388,6 +389,22 @@ def _reach(w, cells, values, how="sum"):
     return out[inv]
 
 
+def _adults(w, live, ids) -> np.ndarray:
+    """Adults (15 to 59) per living band, people followed one by one plus group counts."""
+    out = np.zeros(len(ids))
+    idx = w.alive_idx()
+    if len(idx):
+        a = w.ages(idx)
+        ad = idx[(a >= 15) & (a < 60)]
+        out += np.bincount(w.people.band[ad], minlength=int(max(ids.max() + 1, 1)))[ids]
+    G = getattr(w, "groups", None)
+    if G is not None:
+        for i, b in enumerate(live):
+            if b.mode == "group" and b.group is not None and b.group >= 0:
+                out[i] += float(G.F[b.group][15:60].sum() + G.M[b.group][15:60].sum())
+    return out
+
+
 def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
     """Stage 3: keeping, refining and losing (Henrich 2004), teaching (specialists and writing), recovery from
     records. Stage 4: spreading by contact. See the module docstring; each change of state is recorded."""
@@ -397,18 +414,24 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
     keep = np.array([t.keep for t in TECHNIQUES], dtype=float)
     known = lvl > 0
     practised = known & _possible(w, ids, cells, lvl)
+    # skilled practitioners, not everyone: a share of the adults, plus the specialists (Ben, 14 November 2026;
+    # the Polar Inuit lost kayaks and bows when an epidemic carried off the knowledgeable adults: Boyd, Richerson
+    # & Henrich 2011)
+    spec = np.asarray(w.spec[ids], dtype=float) if hasattr(w, "spec") else np.zeros(len(ids))
+    skilled_people = P.TECH_PRACTISE_SHARE * _adults(w, live, ids) + spec
     pract_cell = np.zeros((n_cells, K))
-    np.add.at(pract_cell, cells, practised * sizes[:, None])
-    practitioners = _reach(w, cells, pract_cell)                     # people practising each technique within reach
+    np.add.at(pract_cell, cells, practised * skilled_people[:, None])
+    practitioners = _reach(w, cells, pract_cell)                     # skilled practitioners within reach
     best_cell = np.zeros((n_cells, K))
     np.maximum.at(best_cell, cells, np.where(practised, lvl, 0.0))
     best = _reach(w, cells, best_cell, how="max")                      # the best practitioner within reach
     # teaching: specialists make copying more faithful (Ben, decision 2; craft specialists from M2's surplus)
-    spec = np.asarray(w.spec[ids], dtype=float) if hasattr(w, "spec") else np.zeros(len(ids))
     craft = np.clip(spec / np.maximum(sizes, 1.0) / P.TECH_CRAFT_REF, 0, 1)
     gain = 1.0 + P.TECH_CRAFT_GAIN * craft[:, None]
     drift = P.TECH_LEARN * np.log(np.maximum(practitioners, 1.0) * gain / keep[None, :])
-    cap = P.TECH_REFINE * np.sqrt(P.TECH_EASY_KEEP / keep)[None, :] * gain
+    # refinement slows as a technique nears mastery: learning what is already known takes more of a life (Mesoudi
+    # 2011), so the yearly gain shrinks with the distance still to go (Ben, 14 November 2026)
+    cap = P.TECH_REFINE * np.sqrt(P.TECH_EASY_KEEP / keep)[None, :] * gain * np.clip(1.0 - lvl, 0.0, 1.0)
     # writing: records hold part of what is lost in copying, in proportion to writing's own quality
     wq = np.where(practised[:, WRITING], lvl[:, WRITING], 0.0)
     hold = 1.0 - P.TECH_WRITING_HOLD * wq[:, None]
@@ -422,14 +445,14 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
         b = live[i]
         t = TECHNIQUES[k]
         if practised[i, k]:
-            why = (f"{w.band_name(b)} lost {t.name}: only {practitioners[i, k]:,.0f} people within reach practised "
+            why = (f"{w.band_name(b)} lost {t.name}: only {practitioners[i, k]:,.0f} skilled people within reach practised "
                    f"it, fewer than the {t.keep} it takes to keep it alive, so each generation learned it less well")
         else:
             _ok, missing = prerequisites_met(w, b, t)
             why = (f"{w.band_name(b)} forgot {t.name}: it was no longer practised ("
                    + "; ".join(missing or ["its conditions were gone"]) + ")")
         w.event("technique_lost", cell=b.cell, band=b.id, technique=t.key, causes=[{"note": why}],
-                skilled=int(practitioners[i, k]), practised=bool(practised[i, k]))
+                skilled=int(practitioners[i, k]), practised=bool(practised[i, k]), connected=int(connected[i]))
     # records: a people that writes keeps a record of what it practises; a lost technique can come back from it
     possible_now = _possible(w, ids, cells, new)
     # only a people that PRACTISES writing keeps records or reads them (Codex review 009, finding 1: remembered

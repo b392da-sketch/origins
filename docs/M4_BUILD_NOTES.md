@@ -214,3 +214,21 @@ This history differs from trials 1–5 (first village in year 8,963, not 9,172):
 - **Quality saturates.** Most techniques reach 1.0 within a few centuries: refinement plus catching up with the best practitioner. Only recent or hard techniques stay below (sail median 0.85, irrigation 0.42). Once effects scale with quality, nearly everyone would get the full effect. **Open:** whether `TECH_REFINE` and `TECH_CATCHUP` are too high.
 - **Every loss was forgetting, not the Henrich mechanism.** All 1,080 losses were techniques remembered but no longer practised: terracing 792 (after farming was given up, or carried to unsuitable land), canoes 157, pottery 82, sail 48. No technique was lost for want of practitioners: this world is densely connected. **Open, and needed for gate check 5** (isolation causes loss): whether isolated peoples lose techniques on other planets.
 - No technique was recovered from records: writing was never invented.
+
+### After the literature check (Ben, 14 November 2026: "go ahead")
+
+- **Skilled practitioners, not everyone.** A technique is kept by `TECH_PRACTISE_SHARE` (0.25) of a band's adults (15–59) plus its specialists, not by every member. A band of 40 adults has 10 skilled people, too few for pottery (20). An epidemic that kills adults now weakens skills, as when the Polar Inuit lost kayaks, leisters and bows after the knowledgeable older members died in the 1820s and regained them from Baffin Island migrants around 1862 (Boyd, Richerson & Henrich 2011; the dating is debated: Walls, Knudsen & Larsen 2015).
+- **Refinement slows near mastery:** the yearly gain is capped at `TECH_REFINE` x sqrt(5 / keep) x (1 − quality). From crude (0.25), an easy technique takes about 400 years to reach 0.9. This follows Mesoudi (2011): learning what is already known takes more of a lifetime as a technique grows, so improvement levels off. Henrich's (2004) model itself has no ceiling.
+- **Forgetting unpractised techniques is kept,** matching Read's (2006) view that peoples drop what no longer suits them.
+- **For the gate:** report the population-versus-risk check separately for foragers and farmers. Population predicted toolkit complexity among 40 farming and herding societies (Collard, Ruttle, Buchanan & O'Brien 2013) but not among 20 hunter-gatherer groups, where risk did (Collard, Kemery & Banks 2005).
+- **Gate record:** `gates/g3.py` now records technology (inventions, adoptions by route, losses with skilled practitioners and people within reach, what is held, cause chains). `herders_alive` now counts peoples herding now (`ever_herded_alive` keeps the old count).
+
+### Sources (added)
+
+- Boyd, R., Richerson, P. J., & Henrich, J. (2011). The cultural niche: Why social learning is essential for human adaptation. *PNAS*, 108(Suppl 2), 10918–10925.
+- Collard, M., Ruttle, A., Buchanan, B., & O'Brien, M. J. (2013). Population size and cultural evolution in nonindustrial food-producing societies. *PLoS ONE*, 8(9), e72628.
+- Collard, M., Kemery, M. D., & Banks, S. (2005). Causes of toolkit variation among hunter-gatherers: A test of four competing hypotheses. *Canadian Journal of Archaeology*, 29, 1–19.
+- Mesoudi, A. (2011). Variable cultural acquisition costs constrain cumulative cultural evolution. *PLoS ONE*, 6(3), e18239.
+- Read, D. (2006). Tasmanian knowledge and skill: Maladaptive imitation or adequate technology? *American Antiquity*, 71(1).
+- Roux, V., & Corbetta, D. (1989). *The Potter's Wheel: Craft Specialization and Technical Competence*. Oxford & IBH.
+- Walls, M., Knudsen, P., & Larsen, F. (2015). Inughuit open water hunting before the nineteenth century. *American Antiquity*, 80(3), 602–609.

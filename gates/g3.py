@@ -84,10 +84,40 @@ def finish(w, ws, rs, seconds, pr, institutions):
     # M4a pastoralism: herding peoples now, and how many ever took up a herding life
     hs = getattr(w, "herder_since", None)
     live = [b.id for b in w.living_bands()]
-    rec["herders_alive"] = int(sum(1 for i in live if hs is not None and i < len(hs) and hs[i] >= 0))
+    from origins.sim import pastoral
+    rec["herders_alive"] = int(sum(1 for b in w.living_bands() if pastoral.is_herder(w, b)))   # herding now
+    rec["ever_herded_alive"] = int(sum(1 for i in live if hs is not None and i < len(hs) and hs[i] >= 0))
     rec["farming_bands_alive"] = int(sum(1 for i in live if w.farm_share[i] >= 0.5))
     rec["took_up_herding"] = int(sum(1 for e in w.events if e["kind"] == "took_up_herding"))
     rec["flights"] = int(sum(1 for e in w.events if e["kind"] == "flight"))
+    # M4a technology: inventions, adoptions by route, losses (with the people within reach), what is held now
+    if hasattr(w, "tech"):
+        from origins.sim import technology as T
+        tk = {"invention": [], "technique_adopted": [], "technique_lost": [], "technique_recovered": []}
+        for e in w.events:
+            if e["kind"] in tk:
+                d = e["data"]
+                tk[e["kind"]].append([e["t"] // 4, d.get("technique"), d.get("route"), d.get("practised"),
+                                      d.get("skilled"), d.get("connected"), d.get("band", e.get("band"))])
+        rec["tech_inventions"] = tk["invention"]
+        rec["tech_losses"] = tk["technique_lost"]
+        rec["tech_recovered"] = tk["technique_recovered"]
+        routes = {}
+        for r in tk["technique_adopted"]:
+            routes[r[2] or "contact"] = routes.get(r[2] or "contact", 0) + 1
+        rec["tech_adoption_routes"] = routes
+        ids = np.array(live, dtype=int)
+        if len(ids):
+            lv = w.tech[ids]
+            rec["tech_held"] = {k: [int((lv[:, i] > 0).sum()), int((lv[:, i] >= params.TECH_WORKING).sum()),
+                                    round(float(np.median(lv[lv[:, i] > 0, i])), 3) if (lv[:, i] > 0).any() else 0.0]
+                                for i, k in enumerate(T.KEYS)}
+        rec["tech_firsts"] = {k: w.events[e]["t"] // 4 for k, e in getattr(w, "tech_firsts", {}).items()}
+        tsample = [{"event": e["id"]} for e in w.events if e["kind"] in tk]
+        if len(tsample) > 400:
+            tsample = [tsample[i] for i in sorted(rng.choice(len(tsample), 400, replace=False))]
+        tok = [explain.resolvable(w, r) for r in tsample]
+        rec["tech_explain_checked"], rec["tech_explain_resolvable"] = len(tok), int(sum(tok))
     # conflict
     from origins.state import CAUSES
     fv = pr.get("fv_deaths")
