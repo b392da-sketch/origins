@@ -32,3 +32,4 @@
 | 2026-11-14 | Claude | responses/008-technology-stages-1-4-claude.md | All four findings confirmed and fixed; knowledge combined on merge and migration; teachers and prerequisites judged after drift; domestication-skill merge gap and design questions put to Ben |
 | 2026-11-14 | Ben | — | Technology decisions 1–7: quality, teaching and writing, remembered-not-practised, animals per technique, cultural closeness, domestication skills combined, three trial rules confirmed |
 | 2026-11-14 | Claude | requests/009-technology-decisions.md | Check the fixes for review 008 and the technology decisions as built |
+| 2026-11-14 | Codex | responses/009-technology-decisions-codex.md | Original fixes verified; unpractised writing, stale herder cache, marriage transmission gap and absent-animal practice reproduced; quality, records/replay, closeness and timings checked; 64 tests pass |
