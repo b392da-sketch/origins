@@ -342,11 +342,11 @@ class Effects(unittest.TestCase):
         w.bands_changed()
         return w, a
 
-    def test_forage_gear_is_off(self):
-        """Ben, 14 November 2026: foraging gear's food effect is switched off until farming's trigger is recalibrated."""
-        self.assertFalse(P.TECH_FORAGE_GEAR)
+    def test_forage_gear_is_on_with_the_new_trigger(self):
+        """Ben, 14 November 2026: foraging gear's food effect is back on with the crowding trigger."""
+        self.assertTrue(P.TECH_FORAGE_GEAR)
         w, a = self._band()
-        self.assertEqual(float(w.stock_broad.sum()), 0.0)
+        self.assertGreater(float(w.stock_broad.sum()), 0.0)
 
     def test_hunting_gear_raises_foraging(self):
         old = P.TECH_FORAGE_GEAR
@@ -490,6 +490,22 @@ class BroadSpectrum14Nov(unittest.TestCase):
             w.tech[b.id, T.INDEX["cordage"]] = 1.0
         engine.step(w, 40)
         self.assertEqual(w.invariant_failures, [])
+
+
+
+class FarmingTrigger14Nov(unittest.TestCase):
+    """Farming starts from crowding against unaided wild food, or from abundance (docs/FARMING_TRIGGER_PROPOSAL.md)."""
+
+    def test_crowding_counts_people_against_wild_food(self):
+        from origins.sim import farming
+        w = World.new(1, 1, generate(1))
+        c = farming.crowding(w)
+        b = w.living_bands()[0]
+        pl = w.planet
+        cells = [b.cell] + [int(x) for x in pl.grid.neighbours[b.cell] if x >= 0]
+        sizes = w.band_sizes()
+        pop = sum(sizes[o.id] for o in w.living_bands() if o.cell in cells)
+        self.assertAlmostEqual(float(c[b.cell]), pop / pl.capacity[cells].sum(), places=6)
 
 
 if __name__ == "__main__":

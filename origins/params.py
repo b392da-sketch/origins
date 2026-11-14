@@ -111,6 +111,11 @@ FARM_RISK = 0.8                    # farmers discount a harvest's promise for it
 FARM_INERTIA = 0.15                # yearly share of the gap between current and preferred work split that is closed
 HARVEST_QUARTER = 2                # crops come in once a year (third season)
 PRESSURE_MARGIN = 1.6              # food gathered / needed below this presses a people towards new food
+CROWD_START = 0.55                 # people per unit of unaided wild food around a band where crowding pressure begins (Ben, 14 Nov 2026: proposal)
+CROWD_RANGE = 0.30                 # ... and the further rise that gives full pressure (a mature forager world: median 0.64, 90th percentile 0.76)
+ABUNDANCE_YEARS = 20               # years settled before a people may tend rich wild species without pressure (niche construction; Zeder 2012)
+ABUNDANCE_SUIT = 0.5               # land quality for a wild species that counts as rich
+ABUNDANCE_FLOOR = 0.1              # the pressure-equivalent at which they do so (one tenth of full pressure)
 TEND_STILL_YEARS = 5               # years in one area before a people begins to tend a wild plant or herd
 TEND_START = 5e-6                  # yearly chance a pressed band first begins to tend a wild species (per unit pressure and land quality)
 CULTIVATE_START = 1e-6             # yearly chance a band that tends a species first sows it deliberately (per unit pressure and land quality)
@@ -253,7 +258,7 @@ TECH_EFFECT = {
     "copper_working": 0.05,                                      # tools: farming and foraging returns
     "tallies": 0.10, "writing": 0.50,                            # polity capacity
 }
-TECH_FORAGE_GEAR = False           # foraging gear's food effect (broad-spectrum food): OFF (Ben, 14 Nov 2026) until farming's trigger is recalibrated; both versions stopped farming
+TECH_FORAGE_GEAR = True            # foraging gear's food effect (broad-spectrum food): back on with the new farming trigger (Ben, 14 Nov 2026); was off while both versions stopped farming
 TECH_BROAD_RETURN = 0.3            # food per unit of work from broad-spectrum food, against ordinary wild food (lower-ranked resources)
 TECH_SETTLED_YEARS = 20           # years in one place that make a foraging people settled (building techniques)
 TECH_FARMING = 0.2                 # farm (or herd) share a people needs before farming techniques apply to them

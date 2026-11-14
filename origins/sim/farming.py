@@ -212,6 +212,8 @@ def yearly(w):
     r2 = ring2(w)
     wild, suit = land_tables(w)
     years = 1.0
+    crowd = crowding(w, bands)
+    w._press_why = {}
     by_cell: dict[int, list] = {}
     for b in bands:
         by_cell.setdefault(b.cell, []).append(b)
@@ -221,29 +223,41 @@ def yearly(w):
         moved = bool(b.trail) and b.trail[-1][0] > w.t - P.TICKS_PER_YEAR
         w.still_years[b.id] = 0 if moved else w.still_years[b.id] + years
         sk = w.skill[b.id]
-        pressure = float(np.clip((P.PRESSURE_MARGIN - b.margin) / 0.6, 0, 1))
+        # pressure (Ben, 14 November 2026; docs/FARMING_TRIGGER_PROPOSAL.md): the larger of hunger (food margin, as in
+        # M2) and crowding against the wild food the land gives unaided (Weitzel & Codding 2016), so gear and stores
+        # feed people without hiding the crowding beneath
+        hunger = float(np.clip((P.PRESSURE_MARGIN - b.margin) / 0.6, 0, 1))
+        cr = float(crowd[b.cell])
+        crowded = float(np.clip((cr - P.CROWD_START) / P.CROWD_RANGE, 0, 1))
+        pressure = max(hunger, crowded)
+        w._press_why[b.id] = (hunger, cr, crowded)
+        settled = w.still_years[b.id] >= P.ABUNDANCE_YEARS
         share = w.farm_share[b.id]
         for k in range(len(SPECIES)):
             here = wild[c, k] or (sk[k] >= 3 and suit[c, k] > 0)
             if not here:
                 continue
+            # abundance (niche construction; Zeder 2012): a people settled on land rich in this wild species may tend
+            # and sow it without pressure, at a small floor of pressure
+            rich = settled and wild[c, k] and suit[c, k] >= P.ABUNDANCE_SUIT
+            press_k = max(pressure, P.ABUNDANCE_FLOOR if rich else 0.0)
             if sk[k] < 1:
-                if wild[c, k] and w.still_years[b.id] >= P.TEND_STILL_YEARS and pressure > 0:
+                if wild[c, k] and w.still_years[b.id] >= P.TEND_STILL_YEARS and press_k > 0:
                     if sk[k] > 0:
-                        sk[k] = min(1.0, sk[k] + P.TEND_RATE * pressure * suit[c, k])
-                    elif rng.random() < P.TEND_START * pressure * suit[c, k]:
+                        sk[k] = min(1.0, sk[k] + P.TEND_RATE * press_k * suit[c, k])
+                    elif rng.random() < P.TEND_START * press_k * suit[c, k]:
                         # beginning to tend a wild plant or herd is a rare idea, not a certainty
-                        sk[k] = P.TEND_RATE * pressure * suit[c, k]
+                        sk[k] = P.TEND_RATE * press_k * suit[c, k]
             elif sk[k] < 2:
                 if sk[k] == 1.0:
                     # the step from tending to deliberate sowing is another rare idea
-                    if rng.random() < P.CULTIVATE_START * max(share, pressure) * max(suit[c, k], 0.1):
+                    if rng.random() < P.CULTIVATE_START * max(share, press_k) * max(suit[c, k], 0.1):
                         sk[k] = 1.0 + 1e-3
                 else:
                     # deliberate sowing grows with how much a people farms, or how pressed it is for food
-                    sk[k] = min(2.0, sk[k] + P.CULTIVATE_RATE * max(share, pressure))
+                    sk[k] = min(2.0, sk[k] + P.CULTIVATE_RATE * max(share, press_k))
             elif sk[k] < 3:
-                sk[k] = min(3.0, sk[k] + P.DOMESTICATE_RATE * max(share, pressure))
+                sk[k] = min(3.0, sk[k] + P.DOMESTICATE_RATE * max(share, press_k))
         # learning from neighbours who know more about something that can live here
         if rng.random() < P.LEARN_CHANCE:
             near = [o for cc in r2[c] for o in by_cell.get(int(cc), ()) if o.id != b.id]
@@ -297,15 +311,41 @@ def yearly(w):
             _first_village(w, b, kp if vp >= va else ka)
 
 
+def crowding(w, bands=None) -> np.ndarray:
+    """Per cell: people on it and its neighbours over the wild food capacity of those cells (the people the land
+    feeds unaided, before gear or stores)."""
+    pl = w.planet
+    bands = w.living_bands() if bands is None else bands
+    sizes = w.band_sizes()
+    pop = np.zeros(pl.n)
+    if bands:
+        np.add.at(pop, np.array([b.cell for b in bands]), np.array([sizes[b.id] for b in bands]))
+    nb = pl.grid.neighbours
+    valid = nb >= 0
+    idx = np.where(valid, nb, 0)
+    around_pop = pop + np.where(valid, pop[idx], 0.0).sum(axis=1)
+    cap = pl.capacity
+    around_cap = cap + np.where(valid, cap[idx], 0.0).sum(axis=1)
+    return around_pop / np.maximum(around_cap, 1e-9)
+
+
 def _first(w, b, k, stage):
     f = w.farm_firsts.setdefault(SPECIES[k], {})
     if stage in f:
         return
     causes = []
     if stage == "tending":
+        hunger, cr, crowded = getattr(w, "_press_why", {}).get(b.id, (0.0, 0.0, 0.0))
+        if max(hunger, crowded) <= 0:
+            why = (f"settled {int(w.still_years[b.id])} years on land rich in wild {NAMES[SPECIES[k]]}, it began to "
+                   f"tend it without being pressed for food")
+        elif crowded >= hunger:
+            why = (f"{cr:.2f} people per unit of the wild food the land gives unaided were living within reach "
+                   f"(crowded against wild food)")
+        else:
+            why = f"it gathered {b.margin:.2f} times its food needs (pressed for food)"
         causes.append({"note": f"{w.band_name(b)} had stayed in one area for {int(w.still_years[b.id])} years where "
-                               f"wild {NAMES[SPECIES[k]]} grew, and gathered {b.margin:.2f} times its food needs "
-                               f"(pressed for food)"})
+                               f"wild {NAMES[SPECIES[k]]} grew; " + why})
     else:
         prev = {"cultivation": "tending", "domestication": "cultivation"}[stage]
         if prev in f:
