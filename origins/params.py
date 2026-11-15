@@ -313,5 +313,23 @@ CURATION = True                    # False: the knock-out
 CURATED_GOODS = ("fine_stone", "copper", "tin", "iron")   # tools; salt is eaten, not curated
 CURATION_HALF = 0.01               # holdings per person at which wear is halved: wear x h / (h + CURATION_HALF)
 CURATION_MIN = 0.1                 # wear never falls below this share of its usual rate
+# trade stage 5 (Ben, 16 Nov 2026): what goods change. All starting values.
+GOODS_EFFECTS = True               # False: the knock-out of every effect below
+MATERIALS_FROM_GOODS = True        # a material held as goods counts as within reach (dependence on imports)
+GOOD_MATERIAL = {"fine_stone": "flint", "salt": "salt", "copper": "copper", "tin": "tin", "iron": "iron", "gold": "gold"}
+MATERIAL_HELD = 0.005              # holdings per person of a good that count as having its material
+METAL_NEED = 0.02                  # metal (copper + tin + iron) per person at which metal tools have their full effect
+SALT_NEED = 0.05                   # salt per person at which salt has its full effect (needs vary tenfold: Harding 2013)
+SALT_SPOIL = 0.2                   # spoiling of stored food x (1 - this) with salt enough
+SALT_HERD = 0.1                    # food from herds x (1 + this) with salt enough (herbivores need salt: Harding 2013)
+PRESTIGE_GOODS = ("gold", "shell")
+PRESTIGE_NEED = 0.05               # prestige goods in the ruler's store per member at which they have their full effect
+PRESTIGE_HOLD = 0.1                # polity capacity x (1 + this) with prestige goods enough (contested: small)
+CRAFT_TIME = {                     # share of a year a practitioner spends making a year's GOOD_YIELD
+    "salt": 0.05, "fine_stone": 0.05, "copper": 0.05, "tin": 0.05, "iron": 0.05, "gold": 0.05,
+    "textiles": 0.05, "pottery": 0.05, "shell": 0.05,
+}
+TRADE_TEACH = 0.5                  # chance of a lesson along a trade route, against TECH_SPREAD for full contact
+TRADE_NEED_REF = 1.0               # imported goods held (relative to the mean, summed) at which the trade need is full
 TECH_FARMING = 0.2                 # farm (or herd) share a people needs before farming techniques apply to them
 

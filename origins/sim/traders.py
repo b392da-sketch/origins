@@ -283,6 +283,7 @@ def yearly(w, live):
     sizes_all = w.band_sizes()
     alive = [p for p in sorted(w.polities.values(), key=lambda x: x.id)
              if p.alive and p.seat < len(w.bands) and w.bands[p.seat].alive]
+    w.trade_links = []                                  # routes travelled this year: next year's lessons (stage 5)
     if len(alive) < 2:
         return
     ids = np.array([b.id for b in live])
@@ -342,6 +343,7 @@ def yearly(w, live):
         load = traders * P.TRADER_LOAD * (1 + E.get("pack_animals", 0) * tq[0] + E.get("carts", 0) * tq[1])
         for grav, _, B, cost, cells, bcost, bcells in opts:
             cap = load * grav / gsum if gsum > 0 else 0.0
+            w.trade_links.append([int(A.seat), int(B.seat)])
             _carry(w, A, B, cost, cells, bcost, bcells, cap, tq, holder, cols, sizes_all, log_row)
 
 
@@ -457,12 +459,14 @@ def _carry(w, A, B, cost, cells, bcost, bcells, cap, tq, holder, cols, sizes_all
 
 
 def to_json(w) -> dict:
-    return {"route_log": getattr(w, "route_log", []), "routes_seen": sorted(getattr(w, "routes_seen", set())),
+    return {"route_log": getattr(w, "route_log", []), "trade_links": getattr(w, "trade_links", []),
+            "routes_seen": sorted(getattr(w, "routes_seen", set())),
             "evaded_seen": sorted(getattr(w, "evaded_seen", set()))}
 
 
 def from_json(w, d: dict):
     d = d or {}
     w.route_log = d.get("route_log", [])
+    w.trade_links = [list(x) for x in d.get("trade_links", [])]
     w.routes_seen = set(d.get("routes_seen", []))
     w.evaded_seen = set(d.get("evaded_seen", []))

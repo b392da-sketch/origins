@@ -686,3 +686,107 @@ def check_end(w):
 
 
 from .. import params as P  # noqa: E402
+
+
+# --------------------------------------------------------------------------- stage 5: what goods change
+# Ben, 16 November 2026 (build notes, "Trade stage 5"). Every factor below is 0..1 and every effect a starting value.
+# GOODS_EFFECTS False is the knock-out of all of them.
+
+def _effects_on() -> bool:
+    return bool(getattr(P, "TRADE", False) and getattr(P, "GOODS_EFFECTS", False))
+
+
+def per_person(w, ids, names) -> np.ndarray:
+    """Holdings per person of the named goods, summed (0 where goods are not set up)."""
+    ids = np.asarray(ids)
+    if getattr(w, "goods", None) is None or not len(ids):
+        return np.zeros(len(ids))
+    n = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
+    rows = np.minimum(ids, len(w.goods) - 1)
+    held = w.goods[rows][:, [GI[g] for g in names]].sum(axis=1)
+    return np.where(ids < len(w.goods), held, 0.0) / n
+
+
+def goods_materials(w, ids, materials) -> np.ndarray:
+    """live x materials: does each band hold enough of a good to count as having its material (MATERIAL_HELD per
+    person)? A people working imported tin depends on the trade that brings it (M4 spec 4.3)."""
+    out = np.zeros((len(ids), len(materials)), dtype=bool)
+    if not _effects_on() or not getattr(P, "MATERIALS_FROM_GOODS", False):
+        return out
+    for g, m in P.GOOD_MATERIAL.items():
+        if m in materials:
+            out[:, materials.index(m)] = per_person(w, ids, (g,)) >= P.MATERIAL_HELD
+    return out
+
+
+def metal_factor(w, ids) -> np.ndarray:
+    """0..1: metal tools need metal (copper, tin, iron) held, METAL_NEED per person for the full effect."""
+    if not _effects_on():
+        return np.ones(len(ids))
+    return np.clip(per_person(w, ids, ("copper", "tin", "iron")) / P.METAL_NEED, 0.0, 1.0)
+
+
+def salt_factor(w, ids) -> np.ndarray:
+    """0..1: salt held, SALT_NEED per person for the full effect."""
+    if not _effects_on():
+        return np.zeros(len(ids))
+    return np.clip(per_person(w, ids, ("salt",)) / P.SALT_NEED, 0.0, 1.0)
+
+
+def prestige_factor(w, polity_id: int) -> float:
+    """0..1: prestige goods in the ruler's store per member of the polity, PRESTIGE_NEED for the full effect."""
+    if not _effects_on() or polity_id < 0 or getattr(w, "treasury", None) is None or polity_id >= len(w.treasury):
+        return 0.0
+    held = float(w.treasury[polity_id, [GI[g] for g in P.PRESTIGE_GOODS]].sum())
+    if held <= 0:
+        return 0.0
+    members = np.nonzero(w.polity_of[:len(w.bands)] == polity_id)[0]
+    n = float(w.band_sizes()[members].sum()) if len(members) else 0.0
+    return float(np.clip(held / max(n, 1.0) / P.PRESTIGE_NEED, 0.0, 1.0))
+
+
+def craft_share(w, ids) -> np.ndarray:
+    """Share of ordinary members' work that goes into making goods instead of food: for each good a band makes,
+    CRAFT_TIME x the share of ordinary members who practise x the technique's quality, at a source. Specialists'
+    share of the making comes from surplus and costs no food time (Ben, 16 November 2026; Costin 1991). Derived from
+    the current state, so nothing is saved; cached by tick."""
+    ids = np.asarray(ids)
+    if not _effects_on() or not len(ids):
+        return np.zeros(len(ids))
+    c = getattr(w, "_craft", None)
+    if c is not None and c[0] == w.t and c[1].shape[0] == len(ids) and np.array_equal(c[1], ids):
+        return c[2]
+    from . import technology
+    live = [w.bands[int(i)] for i in ids]
+    cells = np.array([b.cell for b in live])
+    q = technology.practised_quality(w)
+    share = np.zeros(len(ids))
+    for g in GOODS:
+        where, tech = SOURCES[g]
+        ok = _deposit(w, cells, where) if where else np.ones(len(ids), dtype=bool)
+        level = q[ids, technology.INDEX[tech]].astype(float) if tech else np.ones(len(ids))
+        share += P.CRAFT_TIME[g] * P.TECH_PRACTISE_SHARE * level * ok
+    share = np.clip(share, 0.0, 0.5)
+    w._craft = (w.t, ids.copy(), share)
+    return share
+
+
+def trade_need(w, ids, cells) -> np.ndarray:
+    """0..1: how much a band trades, from the goods it holds that it has no source for (imports), each relative to
+    the mean over the bands given, summed, over TRADE_NEED_REF (Ben, 16 November 2026: trade-driven inventions
+    respond to the band's real trade)."""
+    ids = np.asarray(ids)
+    if getattr(w, "goods", None) is None or not len(ids):
+        return np.zeros(len(ids))
+    n = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
+    tot = np.zeros(len(ids))
+    for g in GOODS:
+        where, _tech = SOURCES[g]
+        if not where:
+            continue                                   # made anywhere: not an import
+        local = _deposit(w, cells, where)
+        per = w.goods[ids, GI[g]] / n
+        mean = per.mean()
+        if mean > 0:
+            tot += np.where(local, 0.0, per / mean)
+    return np.clip(tot / P.TRADE_NEED_REF, 0.0, 1.0)

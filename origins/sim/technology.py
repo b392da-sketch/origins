@@ -283,6 +283,9 @@ def _possible(w, ids, cells, lvl=None) -> np.ndarray:
     farms = np.clip(w.farm_share[ids], 0, 1) >= P.TECH_FARMING
     crop = sk[:, farming.PLANTS].any(axis=1)
     mats = _cell_materials(w)[cells]
+    if getattr(P, "TRADE", False) and not getattr(w, "_no_goods_materials", False):
+        from . import trade as _trade
+        mats = mats | _trade.goods_materials(w, ids, MATERIALS)     # held as goods (stage 5: dependence on imports)
     land = _cell_terrain(w)[cells]
     settled = _settled(w, ids)
     ok = np.ones((len(ids), K), dtype=bool)
@@ -304,6 +307,15 @@ def _possible(w, ids, cells, lvl=None) -> np.ndarray:
     return ok
 
 
+def _trade_need(w, ids, cells, pol, crowding):
+    """The band's real trade, from the imported goods it holds (stage 5; Ben, 16 November 2026). Without goods
+    effects, the stand-in used before: being in a polity and crowding."""
+    from . import trade as _trade
+    if _trade._effects_on():
+        return _trade.trade_need(w, ids, cells)
+    return np.clip(pol * 0.5 + crowding, 0, 1)
+
+
 def _needs(w, live, ids, cells, sizes, cell_pop) -> dict:
     """The pressures behind invention and adoption, each 0..1 per band, from what the simulation already computes."""
     ratio = np.array([b.last_ratio for b in live], dtype=float)
@@ -323,11 +335,55 @@ def _needs(w, live, ids, cells, sizes, cell_pop) -> dict:
             p = w.polities.get(int(w.polity_of[b.id]))
             tier[i] = (p.tier if p is not None else 0) / 3.0
     return {"hunting": forager * (0.5 + 0.5 * hunger), "hunger": hunger, "stores": np.maximum(stores, hunger),
-            "crowding": crowding, "water": water, "trade": np.clip(pol * 0.5 + crowding, 0, 1),
+            "crowding": crowding, "water": water, "trade": _trade_need(w, ids, cells, pol, crowding),
             "power": tier, "tribute": tier, "war": np.clip(tier + crowding * 0.5, 0, 1)}
 
 
 # --- stage 2: invention ---------------------------------------------------------------------------------------------
+
+def _material_source(w, b, group) -> str:
+    """How a band has one of a technique's materials: within reach, or held as goods (imports)."""
+    for m in group:
+        if _cell_materials(w)[b.cell, MATERIALS.index(m)]:
+            return f"{m} within reach"
+    if getattr(P, "TRADE", False):
+        from . import trade as _trade
+        held = _trade.goods_materials(w, np.array([b.id]), MATERIALS)[0]
+        for m in group:
+            if held[MATERIALS.index(m)]:
+                return f"{m} held, brought by trade"
+    return "/".join(group) + " (source not found)"
+
+
+def _cut_off(w, live, ids, cells):
+    """Techniques a band could practise only with materials held as goods, judged each year. When the goods run out,
+    the technique stops being practised and the record says so (M4 spec 4.3: dependence; Ben, 16 November 2026)."""
+    if not getattr(P, "TRADE", False):
+        return
+    if getattr(w, "tech_import", None) is None or len(w.tech_import) < len(w.tech):
+        old = getattr(w, "tech_import", None)
+        w.tech_import = np.zeros(w.tech.shape, dtype=bool)
+        if old is not None:
+            w.tech_import[:len(old)] = old
+    known = w.tech[ids] > 0
+    with_goods = _possible(w, ids, cells)
+    w._no_goods_materials = True
+    try:
+        without = _possible(w, ids, cells)
+    finally:
+        w._no_goods_materials = False
+    now = known & with_goods & ~without
+    was = w.tech_import[ids]
+    cut = was & known & ~with_goods
+    for i, k in np.argwhere(cut).tolist():
+        b = live[i]
+        t = TECHNIQUES[k]
+        gone = [m for group in t.materials for m in group if m in P.GOOD_MATERIAL.values()]
+        why = (f"{w.band_name(b)} could no longer practise {t.name}: the "
+               + "/".join(gone or ["materials"]) + " it had by trade ran out, and none is within reach")
+        w.event("technique_cut_off", cell=b.cell, band=b.id, technique=t.key, causes=[{"note": why}])
+    w.tech_import[ids] = now
+
 
 def yearly(w):
     """Invention: each band, for each technique it could practise but does not know, invents it with chance
@@ -348,6 +404,7 @@ def yearly(w):
     cells = np.array([b.cell for b in live])
     cell_pop = np.bincount(cells, weights=sizes, minlength=w.planet.n)
     connected = _reach(w, cells, cell_pop[:, None])[:, 0]
+    _cut_off(w, live, ids, cells)
     possible = _possible(w, ids, cells) & (w.tech[ids] <= 0)
     needs = _needs(w, live, ids, cells, sizes, cell_pop)
     need = np.stack([needs[t.need] for t in TECHNIQUES], axis=1)
@@ -365,8 +422,7 @@ def yearly(w):
         why = (f"{w.band_name(b)} invented {t.name}, crude at first, under pressure of {t.need} ({top:.0%}), "
                f"with {connected[i]:,.0f} people within reach")
         if t.materials:
-            why += "; materials within reach: " + ", ".join(
-                next(m for m in group if _cell_materials(w)[b.cell, MATERIALS.index(m)]) for group in t.materials)
+            why += "; materials: " + ", ".join(_material_source(w, b, group) for group in t.materials)
         w.event("invention", cell=b.cell, band=b.id, technique=t.key, causes=[{"note": why}],
                 need=t.need, pressure=round(float(top), 3), connected=int(connected[i]))
         firsts = w.tech_firsts if hasattr(w, "tech_firsts") else {}
@@ -516,6 +572,9 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
     hits = np.argwhere(can & (draw < chance)).tolist()
     w._tech_eff = None
     if not hits:
+        _trade_lessons(w, live, ids, new, possible_now, practising_now, need, rng)
+        w.tech[ids] = new.astype(np.float32)
+        w._tech_eff = None
         return
     from .language import ring2, shared_roots
     by_cell: dict[int, list] = {}
@@ -555,8 +614,53 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
                 causes=[{"band": src.id}, {"note": why + ("; they were gift partners" if via_partner else "")}],
                 source=src.id, route="partnership" if via_partner else "contact",
                 level=round(level, 3), closeness=round(close, 3))
+    _trade_lessons(w, live, ids, new, possible_now, practising_now, need, rng)   # after contact (stage 5)
     w.tech[ids] = new.astype(np.float32)
     w._tech_eff = None                                  # effects are judged afresh after the year's changes
+
+
+def _trade_lessons(w, live, ids, new, possible_now, practising_now, need, rng):
+    """Traders' routes carry techniques between the two seats (M4 spec 4.2: trade creates contact; Ben, 16 November
+    2026): along each route travelled last year, each seat can learn what the other practises, with chance
+    TECH_SPREAD x TRADE_TEACH x (need floor + need) x closeness of speech. Recorded with route "trade"."""
+    links = getattr(w, "trade_links", None)
+    if not links or not getattr(P, "TRADE", False):
+        return
+    from . import trade as _trade
+    if not _trade._effects_on():
+        return
+    from .language import shared_roots
+    pos = {int(b): i for i, b in enumerate(np.asarray(ids).tolist())}
+    for a_seat, b_seat in links:
+        for x, y in ((a_seat, b_seat), (b_seat, a_seat)):
+            i, j = pos.get(int(x)), pos.get(int(y))
+            if i is None or j is None:
+                continue
+            can = possible_now[i] & (new[i] <= 0) & practising_now[j]
+            ks = np.nonzero(can)[0]
+            if not len(ks):
+                continue
+            nd = need[i, ks] if need is not None else np.zeros(len(ks))
+            chance = P.TECH_SPREAD * P.TRADE_TEACH * (P.TECH_NEED_FLOOR + nd)
+            draw = rng.random(len(ks))
+            b, src = live[i], live[j]
+            la, lb = w.languages.get(b.language), w.languages.get(src.language)
+            same = shared_roots(la, lb) if (la is not None and lb is not None) else 1.0
+            close = P.TECH_FOREIGN + (1.0 - P.TECH_FOREIGN) * same
+            take = rng.random(len(ks))
+            for k, d, tk in zip(ks.tolist(), draw.tolist(), take.tolist()):
+                if d >= chance[list(ks).index(k)] or tk >= close:
+                    continue
+                level = P.TECH_ADOPT_SHARE * float(new[j, k])
+                if level < P.TECH_LOST:
+                    continue
+                new[i, k] = level
+                t = TECHNIQUES[k]
+                why = (f"{w.band_name(b)} learned {t.name} from {w.band_name(src)} along the traders' road between them "
+                       f"({same:.0%} of words shared)")
+                w.event("technique_adopted", cell=b.cell, band=b.id, technique=t.key,
+                        causes=[{"band": src.id}, {"note": why}], source=src.id, route="trade",
+                        level=round(level, 3), closeness=round(close, 3))
 
 
 def combine(w, src, dst, route: str, carriers: float | None = None):
@@ -640,7 +744,7 @@ def forage_access(w, ids, cells) -> np.ndarray:
     water = (pl.coast[cells] | pl.lake[cells] | pl.river[cells]).astype(float)
     got = np.zeros(len(ids))
     for k in ("fire_hardening", "cordage", "bow", "copper_working"):
-        got = got + _e(k) * _q(w, ids, k)
+        got = got + _e(k) * _q(w, ids, k) * (_metal(w, ids) if k == "copper_working" else 1.0)
     for k in ("fish_traps", "canoes"):
         got = got + water * _e(k) * _q(w, ids, k)
     full = broad_share(w)[cells]
@@ -659,9 +763,25 @@ def farm_multipliers(w, ids, cells, animal_part=None):
     ter = _e("terracing") * _q(w, ids, "terracing") * land[:, TERRAIN.index("hills")]
     plough = _e("plough") * np.minimum(_q(w, ids, "plough"), _q(w, ids, "draft_animals"))
     milk = _e("milking") * _q(w, ids, "milking")
-    tools = 1 + _e("copper_working") * _q(w, ids, "copper_working")
+    tools = 1 + _e("copper_working") * _q(w, ids, "copper_working") * _metal(w, ids)   # metal tools need metal
+    salt = 1 + _salt_herd(w, ids)                                                      # herds need salt
     return ((1 + irr) * (1 + plough) * tools * one, (1 + irr) * (1 + ter) * one,
-            (1 + milk) * tools * one, (1 + milk) * one)
+            (1 + milk) * tools * salt * one, (1 + milk) * one)
+
+
+def _metal(w, ids):
+    """Metal tools help only where metal is held (stage 5; Ben, 16 November 2026)."""
+    if not getattr(P, "TRADE", False):
+        return 1.0
+    from . import trade as _trade
+    return _trade.metal_factor(w, ids)
+
+
+def _salt_herd(w, ids):
+    if not getattr(P, "TRADE", False):
+        return 0.0
+    from . import trade as _trade
+    return P.SALT_HERD * _trade.salt_factor(w, ids)
 
 
 def spoil_multiplier(w, ids) -> np.ndarray:
@@ -671,6 +791,9 @@ def spoil_multiplier(w, ids) -> np.ndarray:
         return np.ones(len(ids))
     pot = _e("pottery") * _q(w, ids, "pottery") * (1 + _e("kilns") * _q(w, ids, "kilns"))
     m = (1 - _e("baskets") * _q(w, ids, "baskets")) * (1 - np.clip(pot, 0, 0.9)) * (1 - _e("mud_brick") * _q(w, ids, "mud_brick"))
+    if getattr(P, "TRADE", False):
+        from . import trade as _trade
+        m = m * (1 - P.SALT_SPOIL * _trade.salt_factor(w, ids))       # salting preserves (stage 5; Harding 2013)
     return np.clip(m, 0.05, 1.0)
 
 
@@ -693,4 +816,8 @@ def land_advantage_multiplier(w, band_id: int) -> float:
 
 def capacity_multiplier(w, seat_id: int) -> float:
     """Tallies and writing at the seat let officials manage more (M3 capacity)."""
-    return 1.0 + _e("tallies") * band_quality(w, seat_id, "tallies") + _e("writing") * band_quality(w, seat_id, "writing")
+    base = 1.0 + _e("tallies") * band_quality(w, seat_id, "tallies") + _e("writing") * band_quality(w, seat_id, "writing")
+    if getattr(P, "TRADE", False) and 0 <= seat_id < len(w.polity_of):
+        from . import trade as _trade
+        base *= 1.0 + P.PRESTIGE_HOLD * _trade.prestige_factor(w, int(w.polity_of[seat_id]))   # prestige goods (stage 5)
+    return base

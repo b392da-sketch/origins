@@ -83,6 +83,9 @@ def forage_and_eat(w):
     cells = np.fromiter((b.cell for b in bands), dtype=np.int64, count=L)
     from . import farming, surplus
     effort *= surplus.work_share(w, ids, w.live_sizes())   # specialists eat but do not produce food
+    if getattr(P, "TRADE", False):
+        from . import trade as _trade
+        effort *= 1.0 - _trade.craft_share(w, ids)          # making goods costs ordinary members food time (stage 5)
     effort, farm_food = farming.season_food_live(w, ids, cells, effort)
     # Wild food: the ordinary stock, plus broad-spectrum food (small game, birds, fish, marginal plants) that only
     # foragers with the right gear can take (M4a; Ben, 14 November 2026: gear lets the land yield more to foragers,

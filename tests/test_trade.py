@@ -934,5 +934,132 @@ class Review017(unittest.TestCase):
         self.assertAlmostEqual(traders._cost(u, v, pl, foot, water, sea), 1.31908, places=4)
 
 
+class GoodsEffects(unittest.TestCase):
+    """Trade stage 5 (Ben, 16 November 2026): what goods change; GOODS_EFFECTS False is the knock-out."""
+    _bands_on, _line_cells = Review014._bands_on, Review014._line_cells
+
+    def _one(self, need_no=None, size=100):
+        from origins.sim import technology as T
+        w0 = World.new(1, 1, generate(1))
+        mats = T._cell_materials(w0)
+        cell = next(c for c in range(w0.planet.n) if w0.planet.land[c]
+                    and (need_no is None or not mats[c, T.MATERIALS.index(need_no)]))
+        w, (b,) = self._bands_on([cell])
+        sizes = np.zeros(len(w.bands) + 64, dtype=int)
+        sizes[b.id] = size
+        w.band_sizes = lambda: np.resize(sizes, len(w.bands))
+        return w, b, T
+
+    def test_imported_copper_lets_a_band_work_it_and_its_loss_is_recorded(self):
+        w, b, T = self._one(need_no="copper")
+        k = T.INDEX["copper_working"]
+        w.tech[b.id, k] = 0.8
+        ids, cells = np.array([b.id]), np.array([b.cell])
+        self.assertFalse(T._possible(w, ids, cells)[0, k])          # no copper within reach
+        w.goods[b.id, trade.GI["copper"]] = 2.0                       # 0.02 per person, brought by trade
+        self.assertTrue(T._possible(w, ids, cells)[0, k])
+        T._cut_off(w, w.living_bands(), ids, cells)
+        self.assertTrue(w.tech_import[b.id, k])
+        w.goods[b.id, trade.GI["copper"]] = 0.0                       # the trade stops and the stock is gone
+        n0 = len(w.events)
+        T._cut_off(w, w.living_bands(), ids, cells)
+        ev = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "technique_cut_off"]
+        self.assertEqual(len(ev), 1)
+        self.assertIn("by trade ran out", ev[0]["causes"][0]["note"])
+
+    def test_metal_tools_need_metal(self):
+        w, b, T = self._one()
+        w.tech[b.id, T.INDEX["copper_working"]] = 1.0
+        w.goods[b.id, trade.GI["copper"]] = 2.0                       # enough to work (as above)
+        T.refresh(w)
+        if not T._possible(w, np.array([b.id]), np.array([b.cell]))[0, T.INDEX["copper_working"]]:
+            self.skipTest("copper working not possible here")
+        full = T.farm_multipliers(w, [b.id], np.array([b.cell]))[0][0]
+        w.goods[b.id, trade.GI["copper"]] = 0.6                       # 0.006: workable, but tools thin
+        T.refresh(w)
+        thin = T.farm_multipliers(w, [b.id], np.array([b.cell]))[0][0]
+        self.assertAlmostEqual(full, 1 + P.TECH_EFFECT["copper_working"], places=6)
+        self.assertAlmostEqual(thin, 1 + P.TECH_EFFECT["copper_working"] * 0.006 / P.METAL_NEED, places=6)
+
+    def test_salt_preserves_and_helps_herds(self):
+        w, b, T = self._one()
+        base_spoil = T.spoil_multiplier(w, [b.id])[0]
+        base_herd = T.farm_multipliers(w, [b.id], np.array([b.cell]))[2][0]
+        w.goods[b.id, trade.GI["salt"]] = 10.0                        # 0.1 per person: more than SALT_NEED
+        self.assertAlmostEqual(T.spoil_multiplier(w, [b.id])[0], base_spoil * (1 - P.SALT_SPOIL), places=6)
+        self.assertAlmostEqual(T.farm_multipliers(w, [b.id], np.array([b.cell]))[2][0], base_herd * (1 + P.SALT_HERD), places=6)
+
+    def test_a_rulers_prestige_goods_raise_capacity_a_little(self):
+        from origins.sim import polity, traders
+        w, b, T = self._one()
+        p = polity._new_polity(w, b, [{"note": "t"}], why="t")
+        base = T.capacity_multiplier(w, b.id)
+        traders.grow(w, p.id)
+        w.treasury[p.id, trade.GI["gold"]] = 100.0                    # 1 per member: more than PRESTIGE_NEED
+        self.assertAlmostEqual(T.capacity_multiplier(w, b.id), base * (1 + P.PRESTIGE_HOLD), places=9)
+
+    def test_making_goods_costs_food_time(self):
+        w, b, T = self._one()
+        if not trade._deposit(w, np.array([b.cell]), "salt|coast")[0]:
+            w, b, T = self._at_source()
+        share = trade.craft_share(w, np.array([b.id]))[0]
+        self.assertGreater(share, 0.0)
+        self.assertLessEqual(share, 0.5)
+
+    def _at_source(self):
+        from origins.sim import technology as T
+        w0 = World.new(1, 1, generate(1))
+        cell = int(np.nonzero(w0.planet.coast)[0][0])
+        w, (b,) = self._bands_on([cell])
+        return w, b, T
+
+    def test_traders_roads_carry_techniques(self):
+        from origins.sim import technology as T
+        w0 = World.new(1, 1, generate(1))
+        c = self._line_cells(w0, 5)
+        w, (a, b) = self._bands_on([c[0], c[4]])
+        k = T.INDEX["fire_hardening"]
+        w.tech[a.id, k] = 1.0
+        w.trade_links = [[a.id, b.id]]
+        live = w.living_bands()
+        ids = np.array([x.id for x in live]); cells = np.array([x.cell for x in live])
+        new = w.tech[ids].astype(float)
+        poss = T._possible(w, ids, cells)
+        prac = (new > 0) & poss
+        old = (P.TRADE_TEACH, P.TECH_FOREIGN)
+        P.TRADE_TEACH, P.TECH_FOREIGN = 1e9, 1.0
+        try:
+            T._trade_lessons(w, live, ids, new, poss, prac, None, w.rng["technology"])
+        finally:
+            P.TRADE_TEACH, P.TECH_FOREIGN = old
+        self.assertGreater(new[list(ids).index(b.id), k], 0.0)
+        ev = [e for e in w.events if e["kind"] == "technique_adopted" and e["data"].get("route") == "trade"]
+        self.assertEqual(len(ev), 1)
+
+    def test_trade_need_follows_imports(self):
+        w, b, T = self._one(need_no="tin")
+        if trade._deposit(w, np.array([b.cell]), "tin")[0]:
+            self.skipTest("tin here")
+        ids, cells = np.array([b.id]), np.array([b.cell])
+        self.assertEqual(trade.trade_need(w, ids, cells)[0], 0.0)
+        w.goods[b.id, trade.GI["tin"]] = 5.0
+        self.assertGreater(trade.trade_need(w, ids, cells)[0], 0.0)
+
+    def test_the_knock_out_switches_every_effect_off(self):
+        w, b, T = self._one(need_no="copper")
+        w.goods[b.id, trade.GI["copper"]] = 2.0
+        w.goods[b.id, trade.GI["salt"]] = 10.0
+        old = P.GOODS_EFFECTS
+        P.GOODS_EFFECTS = False
+        try:
+            ids = np.array([b.id])
+            self.assertFalse(trade.goods_materials(w, ids, T.MATERIALS).any())
+            self.assertEqual(trade.metal_factor(w, ids)[0], 1.0)
+            self.assertEqual(trade.salt_factor(w, ids)[0], 0.0)
+            self.assertEqual(trade.craft_share(w, ids)[0], 0.0)
+        finally:
+            P.GOODS_EFFECTS = old
+
+
 if __name__ == "__main__":
     unittest.main()
