@@ -433,3 +433,12 @@ The specification (section 4, item 3) has directed trade begin "once there are s
 - McBryde, I. (1984). Kulin greenstone quarries: the social contexts of production and distribution for the Mt William site. *World Archaeology*, 16(2), 267–285.
 - Pétrequin, P., Cassen, S., Errera, M., Klassen, L., Sheridan, A., & Pétrequin, A.-M. (eds.) (2012). *JADE: Grandes haches alpines du Néolithique européen, Ve et IVe millénaires av. J.-C.* Presses universitaires de Franche-Comté.
 - Smith, M. A., & Fankhauser, B. (2009). *Geochemistry and identification of Australian red ochre deposits*. Palaeoworks Technical Paper 9 (their 1996 report to AIATSIS).
+
+### Trade stage 4 decisions (Ben, 15 November 2026)
+
+1. **Partners trade, and hubs form (a change to specification section 4, item 3, approved by Ben).** Partners pass working goods (fine stone, salt, metals) as well as gifts; settled villages drop weak partners for well-supplied ones, so hubs form, as in Ibáñez et al.'s (2015) best fit. Directed trade by specialist traders comes on top of this, once there are polities. Journeys to distant sources are not built.
+2. **Traders are paid in goods:** they keep a share of what they carry; their food comes from surplus, like other specialists.
+3. **Rulers take a toll and first pick:** a share of each load crossing their land and the right to buy first, as at Kanesh; smuggling past them is possible and recorded.
+4. **Routes follow gravity:** trade between centres grows with both their sizes and falls with distance.
+
+All shares and rates will be starting values. The build waits for Codex's review 014 and Claude's answer.
