@@ -205,7 +205,16 @@ def yearly(w):
     from . import traders
     traders.yearly(w, live)                            # stage 4b: traders of polities, between seats
     rate = np.array([P.GOOD_WEAR[g] for g in GOODS])
-    worn = w.goods[ids] * rate[None, :]
+    band_rate = np.broadcast_to(rate[None, :], (len(ids), G)).copy()
+    if getattr(P, "CURATION", False):
+        # scarce tools are used sparingly (Ben, 16 November 2026): wear x max(CURATION_MIN, h / (h + CURATION_HALF)),
+        # h = holdings per person
+        n = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
+        for g in P.CURATED_GOODS:
+            i = GI[g]
+            h = w.goods[ids, i] / n
+            band_rate[:, i] *= np.maximum(P.CURATION_MIN, h / (h + P.CURATION_HALF))
+    worn = w.goods[ids] * band_rate
     w.goods[ids] -= worn
     tw = w.treasury * rate[None, :]                     # rulers' stores wear as everyone's do (stage 4b)
     w.treasury -= tw

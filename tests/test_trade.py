@@ -830,5 +830,44 @@ class Decisions16Nov(unittest.TestCase):
         self.assertEqual({(r[1], r[2]) for r in w.route_log if r[1] == pols[0].id}, {(pols[0].id, pols[1].id)})
 
 
+class Curation(unittest.TestCase):
+    """Ben, 16 November 2026: scarce tools wear more slowly; salt does not; switched off, wear is as before."""
+    _bands_on, _line_cells = Review014._bands_on, Review014._line_cells
+
+    def _wear(self, on):
+        w0 = World.new(1, 1, generate(1))
+        c = self._line_cells(w0, 5)
+        w, (rich, poor) = self._bands_on([c[0], c[4]])            # far apart: no exchange between them
+        sizes = np.zeros(len(w.bands) + 64, dtype=int)
+        sizes[rich.id] = sizes[poor.id] = 100
+        w.band_sizes = lambda: np.resize(sizes, len(w.bands))
+        F, S = trade.GI["fine_stone"], trade.GI["salt"]
+        w.goods[rich.id, F], w.goods[poor.id, F] = 100.0, 0.1     # 1 and 0.001 per person
+        w.goods[rich.id, S], w.goods[poor.id, S] = 100.0, 0.1
+        old = (P.CURATION, P.GOOD_YIELD)
+        P.CURATION, P.GOOD_YIELD = on, {g: 0.0 for g in P.GOOD_YIELD}
+        try:
+            w.invariant_failures = []
+            trade.check_begin(w)
+            trade.yearly(w)
+            trade.check_end(w)
+        finally:
+            P.CURATION, P.GOOD_YIELD = old
+        self.assertEqual(w.invariant_failures, [])
+        return w, rich, poor, F, S
+
+    def test_scarce_tools_wear_more_slowly(self):
+        w, rich, poor, F, S = self._wear(True)
+        k = P.GOOD_WEAR["fine_stone"]
+        self.assertAlmostEqual(w.goods[rich.id, F], 100.0 * (1 - k * 1.0 / (1.0 + P.CURATION_HALF)), places=9)
+        self.assertAlmostEqual(w.goods[poor.id, F], 0.1 * (1 - k * max(P.CURATION_MIN, 0.001 / (0.001 + P.CURATION_HALF))), places=12)
+        self.assertAlmostEqual(w.goods[poor.id, S], 0.1 * (1 - P.GOOD_WEAR["salt"]), places=12)   # salt is eaten
+
+    def test_switched_off_wear_is_as_before(self):
+        w, rich, poor, F, S = self._wear(False)
+        k = P.GOOD_WEAR["fine_stone"]
+        self.assertAlmostEqual(w.goods[poor.id, F], 0.1 * (1 - k), places=12)
+
+
 if __name__ == "__main__":
     unittest.main()
