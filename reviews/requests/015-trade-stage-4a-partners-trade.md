@@ -12,6 +12,7 @@
 4. **Swaps** (`trade._switch`): draws from the "trade" stream in band order; the twice-as-well-supplied rule; the events for the dropped and the new partner. Can a band swap to a partner it has just dropped, or back and forth?
 5. **Gift records** (Ben's decision): running totals in `w.partner_gave` reset on every new link, kept in saves and the digest; one event per partnership for the first exchange; totals carried by the lapse event; a thinned `gift_log`. Are totals lost anywhere a link ends (`band_ended`, `_unlink_all`, consolidation)? Does this still meet the specification's "each trade recorded with its partners, goods and quantities" (section 4.2)?
 6. **Older saves:** four-link saves widen to 16 without changing links or goods.
-7. **Event volume:** partnership formation and lapse are now the largest kinds of event. Worth thinning?
+7. **Event volume:** partnership formation and lapse are now the largest kinds of event, over a third of formations from swaps. Worth thinning?
+8. **The knock-out:** in my trials, large far-off bands hold more fine stone per person than small ones with or without partner trade and swaps (about 5 and 7 times). If you can see where that difference comes from, please say.
 
 Same format as before (AGENTS.md).

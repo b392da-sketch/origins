@@ -467,6 +467,13 @@ Trial rerun (planet 3, year-8,500 save, 100 years, 51 s): no ledger failures; 1,
 - fine stone per person by cells from the source: 0.40, 0.10, 0.049, 0.017, 0.0066, 0.0037, 0.0013, 0.00049, 0.00021 (8 cells), then 5.3e-5, 1.6e-5, 4.6e-6 at 9–11 cells, and 1.8e-6 at 12 cells (about 720 km), about 0.0005% of the source level against roughly 0.6% for obsidian;
 - beyond 5 cells, the largest tenth of bands hold about 5 times as much fine stone per person as the smaller half (Ibáñez et al. 2015: about 33 times beyond 500 km in the PPNB).
 
-So hubs form, but the tail is still far too thin: partner links of two rings shorten chains only a little, and the fall-off is set mainly by wear against exchange (`GOOD_WEAR` 0.2 for fine stone against 0.1 of the gap a year). Directed trade (stage 4b) is meant to add long links between centres; if the tail is still thin after it, the wear and exchange rates go to Ben as a decision, not a quiet tuning. All values are starting values.
+**Knock-out** (the same 1,200 years with `PARTNER_TRADE_RATE` and `PARTNER_SWITCH` at zero; link allowance and gifts unchanged): no ledger failures; fine stone per person 0.43, 0.12, 0.045, 0.014, 0.0047, 0.0022, 0.00074, 0.00033, 0.00014 (8 cells), then 3.9e-5, 7.8e-6, 1.2e-6, 2.3e-7 (12 cells); beyond 5 cells the largest tenth hold about 7 times what the smaller half hold. 256,259 partnerships formed, 74,848 lapsed.
 
-Also: 409,196 partnerships formed and 214,808 lapsed in 1,200 years. Most formation follows bands moving, splitting and ending, not swaps. This is now the largest kind of event (about a fifth of the record).
+**What stage 4a does, then:**
+- It thickens the tail: about 1.5 times at 8 cells, 3 times at 10, 8 times at 12; more fine stone leaves the sources (0.40 at the source against 0.43).
+- It does **not** make the size difference: large far-off bands already hold about 7 times what small ones do without partner trade or swaps (5 times with them). So the hub pattern in the trial comes from something else, not yet identified (perhaps where large settled bands sit, on rivers and coasts with better transport); "hubs form" is not shown.
+- Swaps account for about 153,000 of the 409,196 partnerships formed (37%) and most of the extra lapses (214,808 against 74,848), even with the twice-as-well-supplied rule.
+
+The tail is still far too thin: partner links of two rings shorten chains only a little, and the fall-off is set mainly by wear against exchange (`GOOD_WEAR` 0.2 for fine stone against 0.1 of the gap a year). Directed trade (stage 4b) is meant to add long links between centres; if the tail is still thin after it, the wear and exchange rates go to Ben as a decision, not a quiet tuning. All values are starting values.
+
+Also: partnership formation is now the largest kind of event (409,196 of about 2.0 million, a fifth of the record), over a third of it from swaps.
