@@ -477,3 +477,30 @@ Trial rerun (planet 3, year-8,500 save, 100 years, 51 s): no ledger failures; 1,
 The tail is still far too thin: partner links of two rings shorten chains only a little, and the fall-off is set mainly by wear against exchange (`GOOD_WEAR` 0.2 for fine stone against 0.1 of the gap a year). Directed trade (stage 4b) is meant to add long links between centres; if the tail is still thin after it, the wear and exchange rates go to Ben as a decision, not a quiet tuning. All values are starting values.
 
 Also: partnership formation is now the largest kind of event (409,196 of about 2.0 million, a fifth of the record), over a third of it from swaps.
+
+### Trade stage 4b: literature check on traders, routes and rulers (15 November 2026)
+
+Ben's decisions for 4b (above): traders paid in goods; rulers take a toll and first pick, smuggling recorded; routes by gravity. Further points from the literature:
+
+- **Merchant ventures were financed and shared.** At Kanesh, a long-term partnership of 12 investors put about 15 kg of gold in the hands of one merchant, Amur-Ishtar, for 12 years; a partner who withdrew early got back less than he put in (Kültepe excavation, reported by Arkeonews 2025, citing F. Kulakoğlu; the full archive is described in Larsen 2015). So a trader carries other people's goods and keeps a share, which is how Ben's decision 2 already works. *The exact split between investors and merchant is not stated in the sources I could read; I will not give a figure.*
+- **Rulers gain by holding bottlenecks.** Earle (2011) names three sources of rulers' control: land, the taxing or protection of trade, and attached craft specialists. In the Aegean the main bottleneck was probably sea shipping, with palaces charging for safe harbours and protection; in Bronze Age Denmark control moved to the ownership of long-distance boats and warriors guarding trade. Earle sets these against staple finance: wealth finance rests on valuables produced or obtained, and the two can be joined, with staples feeding the specialists who make valuables (also D'Altroy & Earle 1985; Earle 1997). For the build: a ruler's toll should fall where routes are forced through its land (passes, river crossings, harbours), not evenly everywhere.
+- **Gateway communities.** Large settlements grow up along natural trade routes, at points where they can control the movement of goods, and can outgrow what their own hinterland would support (Hirth 1978, Chalcatzingo in Formative Mesoamerica). This should emerge from tolls on forced routes rather than being written in; a gate check could look for it.
+- **Ports of trade.** Polanyi (1963) describes ports of trade: places, often on the edge of states or between them, set aside for exchange between foreign traders under local control. A later possibility, not for 4b.
+- **Caravans had real costs.** A caravan account from Kanesh lists clothing and wages for guides, donkeys, their gear and fodder, and fees; the Assur–Kanesh journey took six to eight weeks (Metropolitan Museum, tablet 66.245.10, merchant Imdi-ilum, active 1888–1876 BCE). Traders' food and the loss of goods on the road should be costs in the build.
+
+Design consequences (to propose before building; Codex review 015 first):
+1. Traders are a specialist role of polities, fed from surplus, numbered by the polity's surplus and its trade.
+2. Routes link polity centres by gravity (size × size, falling with travel cost), with travel cost from terrain and transport, so routes bend through passes and along rivers and coasts.
+3. Goods carried are working and prestige goods, from where they are plentiful to where they are scarce; the trader keeps a share of what arrives.
+4. Each polity a route crosses takes a toll; the destination's ruler buys first; a trader may take a costlier way round a toll (smuggling, recorded).
+5. Costs: traders' food, and a share of goods lost on the road.
+
+### Sources (added)
+
+- Arkeonews (29 January 2025). Anatolia's first company was founded 4,000 years ago with 15 kilos of gold (reporting F. Kulakoğlu, Kültepe excavations).
+- Earle, T. K. (1997). *How Chiefs Come to Power: The Political Economy in Prehistory*. Stanford University Press.
+- Earle, T. (2011). Redistribution and the political economy: the evolution of an idea. *American Journal of Archaeology*, 115(2), 237–244.
+- Hirth, K. (1978). Interregional trade and the formation of prehistoric gateway communities. *American Antiquity*, 43(1), 35–45.
+- Larsen, M. T. (2015). *Ancient Kanesh: A Merchant Colony in Bronze Age Anatolia*. Cambridge University Press.
+- Metropolitan Museum of Art. Cuneiform tablet: caravan account, 66.245.10.
+- Polanyi, K. (1963). Ports of trade in early societies. *Journal of Economic History*, 23(1), 30–45.
