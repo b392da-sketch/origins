@@ -377,5 +377,88 @@ class PartnersTrade(unittest.TestCase):
         self.assertEqual(w2.goods[a.id, trade.GI["salt"]], 7.0)
 
 
+class GiftTotals(unittest.TestCase):
+    """Ben, 15 November 2026: gifts kept as running totals per partnership; one event for the first exchange;
+    swaps need a partner at least PARTNER_SWITCH_GAIN times as well supplied."""
+    _bands_on, _step, _line_cells = Review014._bands_on, Review014._step, Review014._line_cells
+
+    def _pair(self):
+        w0 = World.new(1, 1, generate(1))
+        c = self._line_cells(w0, 2)
+        w, (a, b) = self._bands_on(c)
+        trade._link(w, a.id, b.id)
+        w.goods[a.id, trade.GI["shell"]] = 100.0
+        return w, a, b
+
+    def _years(self, w, n):
+        old = P.PARTNER_FORM
+        P.PARTNER_FORM = 0.0
+        try:
+            for _ in range(n):
+                trade.partnerships_yearly(w, w.living_bands())
+                w.t += 4
+        finally:
+            P.PARTNER_FORM = old
+
+    def test_totals_add_up_and_only_the_first_exchange_is_an_event(self):
+        w, a, b = self._pair()
+        n0 = len(w.events)
+        self._years(w, 3)
+        ev = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "gift_exchange"]
+        self.assertEqual(len(ev), 1)
+        tot = trade.gift_totals(w, a.id, b.id)
+        self.assertEqual(tot["years"], 3)
+        # a gives 5% of its shell each year and receives 5% of b's back
+        held = w.goods[a.id, trade.GI["shell"]] + w.goods[b.id, trade.GI["shell"]]
+        self.assertAlmostEqual(held, 100.0, places=9)
+        gave_a, gave_b = tot[str(a.id)]["shell"], tot[str(b.id)]["shell"]
+        self.assertAlmostEqual(100.0 - gave_a + gave_b, w.goods[a.id, trade.GI["shell"]], places=5)
+        self.assertGreater(len(w.gift_log), 0)
+
+    def test_a_lapse_carries_the_totals_and_a_new_link_starts_at_zero(self):
+        w, a, b = self._pair()
+        self._years(w, 2)
+        tot = trade.gift_totals(w, a.id, b.id)
+        far = [c for c in range(w.planet.grid.n) if w.planet.land[c]
+               and c not in set(int(x) for x in __import__("origins.sim.language", fromlist=["ring2"]).ring2(w)[a.cell])]
+        b.cell = far[0]
+        w.bands_changed()
+        n0 = len(w.events)
+        self._years(w, 1)
+        lap = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "partnership_lapsed"]
+        self.assertEqual(len(lap), 1)
+        self.assertEqual(lap[0]["data"]["gifts"], tot)
+        self.assertFalse(w.partner_gave[a.id].any())
+
+    def test_totals_survive_save_and_load(self):
+        from origins import persist
+        w, a, b = self._pair()
+        self._years(w, 2)
+        w2 = persist.from_bytes(persist.to_bytes(w), planet=w.planet)
+        self.assertEqual(trade.gift_totals(w2, a.id, b.id), trade.gift_totals(w, a.id, b.id))
+        self.assertEqual(w2.gift_log, w.gift_log)
+        self.assertEqual(persist.digest(w2), persist.digest(w))
+
+    def test_a_swap_needs_a_clear_gain(self):
+        w0 = World.new(1, 1, generate(1))
+        c = self._line_cells(w0, 3)
+        w, bs = self._bands_on([c[0]] + [c[1]] * 4 + [c[2]])
+        a, mine, other = bs[0], bs[1:5], bs[5]
+        for o in mine:
+            trade._link(w, a.id, o.id)
+        F = trade.GI["fine_stone"]
+        for o in mine:
+            w.goods[o.id, F] = 10.0
+        w.goods[other.id, F] = 15.0                               # better, but not twice as well supplied
+        w.farm_share[a.id] = 0.6
+        old = (P.PARTNER_SWITCH, P.PARTNER_FORM)
+        P.PARTNER_SWITCH, P.PARTNER_FORM = 1.0, 0.0
+        try:
+            trade.partnerships_yearly(w, w.living_bands())
+        finally:
+            P.PARTNER_SWITCH, P.PARTNER_FORM = old
+        self.assertNotIn(other.id, trade.partners(w, a.id))
+
+
 if __name__ == "__main__":
     unittest.main()

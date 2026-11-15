@@ -80,7 +80,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
               "polity_of": w.polity_of, "polity_via": w.polity_via, "conquered_at": w.conquered_at,
               "herder_since": w.herder_since, "tech": w.tech, "tech_record": w.tech_record,
               "goods": w.goods, "partner_of": w.partner_of, "partner_since": w.partner_since,
-              "goods_reached": w.goods_reached}
+              "goods_reached": w.goods_reached, "partner_gave": w.partner_gave}
     arrays.update({"p_" + k: v for k, v in w.people.arrays().items()})
     arrays.update({"g_" + k: v for k, v in w.groups.arrays().items()})
     arrays.update({"b_" + k: v for k, v in w.bands.arrays().items()})
@@ -199,6 +199,11 @@ def from_bytes(data: bytes, planet=None) -> World:
     if "partner_of" in arrays:                          # gift partnerships (trade stage 2); older saves have none
         w.partner_of = np.array(arrays["partner_of"], dtype=np.int64)
         w.partner_since = np.array(arrays["partner_since"], dtype=np.int64)
+        if "partner_gave" in arrays:                   # running gift totals (15 November 2026)
+            w.partner_gave = np.array(arrays["partner_gave"], dtype=np.float64)
+        else:
+            from . import params as _P
+            w.partner_gave = np.zeros(w.partner_of.shape + (len(_P.GIFT_GOODS),))
     elif len(w.partner_of) < len(w.goods):
         _trade.grow(w, len(w.goods) - 1)             # keeps every goods row (Codex review 013)
     _trade.grow(w, len(w.goods) - 1)                 # widens partner links to PARTNERS_CAP for older saves (stage 4a)
@@ -276,7 +281,7 @@ def digest(w: World) -> str:
         h.update(np.ascontiguousarray(v).tobytes())
     for arr in (w.stock, w.stock_broad, w.known, w.region_z, w.customs, w.neutral, w.hazard_food, w.immune, w.skill, w.farm_share,
                 w.crop_store, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since, w.tech,
-                w.tech_record, w.goods, w.partner_of, w.partner_since, w.goods_reached):
+                w.tech_record, w.goods, w.partner_of, w.partner_since, w.goods_reached, w.partner_gave):
         h.update(np.ascontiguousarray(arr).tobytes())
     for k, v in sorted(w.bands.arrays().items()):
         h.update(k.encode())

@@ -287,5 +287,6 @@ PARTNER_SIZE_REF = 30              # a band of this size holds PARTNERS_MAX link
 PARTNER_TRADE_GOODS = ("salt", "fine_stone", "copper", "tin", "iron")   # working goods partners trade
 PARTNER_TRADE_RATE = 0.1           # as DTL_RATE, for partners who are not neighbours
 PARTNER_SWITCH = 0.1               # yearly chance a settled band with no room drops its worst-supplied partner for a better one
+PARTNER_SWITCH_GAIN = 2.0          # the new partner must be at least this many times as well supplied (Ben, 15 Nov 2026)
 TECH_FARMING = 0.2                 # farm (or herd) share a people needs before farming techniques apply to them
 

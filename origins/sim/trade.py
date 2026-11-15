@@ -63,6 +63,8 @@ def init(w):
     w.goods_ledger = {g: {f: 0.0 for f in FLOWS} for g in GOODS}
     k = int(getattr(P, "PARTNERS_CAP", 16))
     w.partner_of = -np.ones((64, k), dtype=np.int64)
+    w.partner_gave = np.zeros((64, k, len(P.GIFT_GOODS)))    # running totals of gifts given to each partner (Ben, 15 Nov 2026)
+    w.gift_log = []              # thinned: [year, band, partner, {good: given}, {good: received}]
     w.partner_since = -np.ones((64, k), dtype=np.int64)
     w.exchange_log = []          # [year, band, units received, units given, goods that first arrived]
     w.goods_reached = np.zeros((64, G), dtype=bool)   # a good has reached this band (Codex review 014)
@@ -74,6 +76,7 @@ def ensure(w, band_id: int, parent: int):
     w.goods[band_id] = 0.0
     w.partner_of[band_id] = -1                 # a new band starts without partners of its own
     w.partner_since[band_id] = -1
+    w.partner_gave[band_id] = 0.0
     w.goods_reached[band_id] = False
 
 
@@ -99,12 +102,19 @@ def grow(w, band_id: int):
         k = int(P.PARTNERS_CAP)
         w.partner_of = -np.ones((len(w.goods), k), dtype=np.int64)
         w.partner_since = -np.ones((len(w.goods), k), dtype=np.int64)
+    if getattr(w, "partner_gave", None) is None:                # saves from before running totals: start at zero
+        w.partner_gave = np.zeros(w.partner_of.shape + (len(P.GIFT_GOODS),))
+    if not hasattr(w, "gift_log"):
+        w.gift_log = []
     if w.partner_of.shape[1] < int(P.PARTNERS_CAP):            # saves from before stage 4a held four links per band
         for name in ("partner_of", "partner_since"):
             a = getattr(w, name)
             out = -np.ones((len(a), int(P.PARTNERS_CAP)), dtype=np.int64)
             out[:, :a.shape[1]] = a
             setattr(w, name, out)
+        out = np.zeros((len(w.partner_of), int(P.PARTNERS_CAP), len(P.GIFT_GOODS)))
+        out[:, :w.partner_gave.shape[1]] = w.partner_gave
+        w.partner_gave = out
     if band_id >= len(w.partner_of):
         cap = len(w.goods)
         for name in ("partner_of", "partner_since"):
@@ -112,6 +122,10 @@ def grow(w, band_id: int):
             out = -np.ones((cap, a.shape[1]), dtype=np.int64)
             out[:len(a)] = a
             setattr(w, name, out)
+    if len(w.partner_gave) < len(w.partner_of):
+        out = np.zeros((len(w.partner_of),) + w.partner_gave.shape[1:])
+        out[:len(w.partner_gave)] = w.partner_gave
+        w.partner_gave = out
 
 
 def move_share(w, src_id: int, dst_id: int, frac: float):
@@ -199,6 +213,8 @@ def _link(w, a: int, b: int):
     ib = int(np.nonzero(w.partner_of[b] < 0)[0][0])
     w.partner_of[a, ia], w.partner_since[a, ia] = b, w.t
     w.partner_of[b, ib], w.partner_since[b, ib] = a, w.t
+    w.partner_gave[a, ia] = 0.0
+    w.partner_gave[b, ib] = 0.0
 
 
 def _unlink(w, a: int, b: int):
@@ -206,6 +222,21 @@ def _unlink(w, a: int, b: int):
         hit = w.partner_of[x] == y
         w.partner_of[x, hit] = -1
         w.partner_since[x, hit] = -1
+        w.partner_gave[x, hit] = 0.0
+
+
+def gift_totals(w, a: int, b: int) -> dict:
+    """What a and b have given each other since their partnership began: {"years": n, "<a>": {good: total},
+    "<b>": {...}} (running totals; Ben, 15 November 2026)."""
+    out = {"years": 0, str(a): {}, str(b): {}}
+    for x, y in ((a, b), (b, a)):
+        hit = np.nonzero(w.partner_of[x] == y)[0]
+        if not len(hit):
+            continue
+        k = int(hit[0])
+        out["years"] = int((w.t - int(w.partner_since[x, k])) // 4)
+        out[str(x)] = {g: round(float(v), 6) for g, v in zip(P.GIFT_GOODS, w.partner_gave[x, k]) if v > 0}
+    return out
 
 
 def _unlink_all(w, a: int):
@@ -266,8 +297,9 @@ def partnerships_yearly(w, live):
             if o not in alive:
                 _unlink(w, b.id, o)                      # the partner's end is its own record
             elif alive[o].cell not in reach[b.id] and o > b.id:
+                tot = gift_totals(w, b.id, o)
                 _unlink(w, b.id, o)
-                w.event("partnership_lapsed", cell=b.cell, band=b.id, partner=o,
+                w.event("partnership_lapsed", cell=b.cell, band=b.id, partner=o, gifts=tot,
                         causes=[{"band": o}, {"note": f"{w.band_name(b)} and {w.band_name(alive[o])} were no longer "
                                                           f"within reach of each other"}])
     # gifts: lasting goods pass both ways each year, keeping the link alive and carrying goods along chains
@@ -275,19 +307,30 @@ def partnerships_yearly(w, live):
         for o in partners(w, b.id):
             if o > b.id:
                 given = {str(b.id): {}, str(o): {}}
-                for g in P.GIFT_GOODS:
+                kb = int(np.nonzero(w.partner_of[b.id] == o)[0][0])
+                ko = int(np.nonzero(w.partner_of[o] == b.id)[0][0])
+                first = not (w.partner_gave[b.id, kb].any() or w.partner_gave[o, ko].any())
+                for j, g in enumerate(P.GIFT_GOODS):
                     i = GI[g]
                     x, y = P.GIFT_SHARE * w.goods[b.id, i], P.GIFT_SHARE * w.goods[o, i]
                     gx, gy = move_good(w, b.id, o, i, x), move_good(w, o, b.id, i, y)
+                    w.partner_gave[b.id, kb, j] += gx
+                    w.partner_gave[o, ko, j] += gy
                     if gx > 0:
                         given[str(b.id)][g] = round(gx, 6)
                     if gy > 0:
                         given[str(o)][g] = round(gy, 6)
                 if given[str(b.id)] or given[str(o)]:
-                    # each exchange recorded with its partners, goods and quantities (M4 spec 4.2; Codex review 013)
-                    w.event("gift_exchange", cell=b.cell, band=b.id, partner=o, goods=given,
-                            causes=[{"band": o}, {"note": f"{w.band_name(b)} and {w.band_name(alive[o])} exchanged "
-                                                          f"their yearly gifts as partners"}])
+                    # Each exchange is recorded with its partners, goods and quantities (M4 spec 4.2) as running
+                    # totals per partnership, carried by the lapse event; the first exchange is an event; yearly
+                    # exchanges go into a thinned log (Ben, 15 November 2026: 9.9 million yearly events in 1,200
+                    # years were 85% of the record).
+                    from ..state import log_row
+                    log_row(w, "gift_log", [w.t, b.id, o, given[str(b.id)], given[str(o)]], P.EXCHANGE_LOG_CAP)
+                    if first:
+                        w.event("gift_exchange", cell=b.cell, band=b.id, partner=o, goods=given,
+                                causes=[{"band": o}, {"note": f"{w.band_name(b)} and {w.band_name(alive[o])} "
+                                                              f"exchanged their first gifts as partners"}])
     # new links: pairs within reach with room, drawn in band order, likelier between peoples who share words
     by_cell: dict = {}
     for b in live:
@@ -342,16 +385,18 @@ def _switch(w, live, reach, by_cell, free, rng):
         worst = min(mine, key=lambda o: (sup.get(o, 0.0), o))
         mine_set = set(mine)
         cands = [o for c in sorted(reach[b.id]) for o in by_cell.get(c, ())
-                 if o.id != b.id and o.id not in mine_set and free[o.id] > 0 and sup[o.id] > sup.get(worst, 0.0)]
+                 if o.id != b.id and o.id not in mine_set and free[o.id] > 0
+                 and sup[o.id] > P.PARTNER_SWITCH_GAIN * sup.get(worst, 0.0) and sup[o.id] > 0]
         if not cands:
             continue
         best = max(cands, key=lambda o: (sup[o.id], -o.id))
+        tot = gift_totals(w, b.id, worst)
         _unlink(w, b.id, worst)
         free[worst] = free.get(worst, 0) + 1
         _link(w, b.id, best.id)
         free[best.id] -= 1
         ow = w.bands[worst]
-        w.event("partnership_lapsed", cell=b.cell, band=b.id, partner=worst,
+        w.event("partnership_lapsed", cell=b.cell, band=b.id, partner=worst, gifts=tot,
                 causes=[{"band": worst}, {"note": f"{w.band_name(b)} gave up its partnership with {w.band_name(ow)}, "
                                                   f"its worst-supplied partner, for a better-supplied one"}])
         w.event("partnership_formed", cell=b.cell, band=b.id, partner=best.id,
@@ -554,11 +599,12 @@ def down_the_line(w, live, ids, cells):
 
 
 def to_json(w) -> dict:
-    return {"exchange_log": getattr(w, "exchange_log", [])}
+    return {"exchange_log": getattr(w, "exchange_log", []), "gift_log": getattr(w, "gift_log", [])}
 
 
 def from_json(w, d: dict):
     w.exchange_log = (d or {}).get("exchange_log", [])
+    w.gift_log = (d or {}).get("gift_log", [])
 
 
 def check_begin(w):
