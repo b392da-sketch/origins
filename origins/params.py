@@ -290,7 +290,7 @@ PARTNER_SWITCH = 0.1               # yearly chance a settled band with no room d
 PARTNER_SWITCH_GAIN = 2.0          # the new partner must be at least this many times as well supplied (Ben, 15 Nov 2026)
 PARTNER_REFORM_WAIT = 10           # years before two bands parted by a swap can be partners again (Ben, 15 Nov 2026)
 # trade stage 4b (Ben, 15 Nov 2026): traders of polities carry goods between centres. All starting values.
-TRADER_GOODS = ("salt", "fine_stone", "copper", "tin", "iron", "gold", "shell")   # working and prestige goods (Ben)
+TRADER_GOODS = ("salt", "fine_stone", "copper", "tin", "iron", "gold", "shell", "textiles", "pottery")   # all goods: textiles and pottery too (Ben, 15 Nov 2026; Kanesh)
 TRADER_SHARE = 0.2                 # share of a seat's specialists who are traders (fed from surplus, as specialists are)
 TRADER_LOAD = 2.0                  # units of goods one trader carries in a year, on foot; pack animals and carts add to it
 TRADE_RANGE = 30.0                 # furthest route, in travel cost (one land cell on foot = 1; Assur-Kanesh about 20 cells)

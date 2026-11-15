@@ -10,7 +10,7 @@ climbing and high ground cost more, rivers and coasts cost less with canoes, and
 sail. So routes bend through passes and along rivers and coasts, and where land forces them through one polity's
 cells, that polity holds a bottleneck (Earle 2011; Hirth 1978).
 
-Each route moves working and prestige goods (TRADER_GOODS) from the seat where they are plentiful per person to the
+Each route moves goods (TRADER_GOODS: all of them, textiles and pottery included; Ben, 15 November 2026) from the seat where they are plentiful per person to the
 one where they are scarce, a share TRADER_RATE of the gap, within what the traders can carry. On the way:
 - goods are lost on the road: 1 - exp(-ROAD_LOSS x cost);
 - each polity whose cells the road crosses takes TOLL of the load, unless going round its cells loses less than the
