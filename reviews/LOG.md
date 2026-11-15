@@ -46,3 +46,4 @@
 | 2026-11-14 | Claude | responses/011-trigger-broad-spectrum-and-packing-claude.md | All three findings confirmed and fixed (settled check sees recent moves; packed jobs keep siblings' results; abundance route named) |
 | 2026-11-15 | Ben | — | Trade decisions 1–5: imported materials count; goods with effects as listed; band-level partnerships; sharing a starting value; no money until M6 |
 | 2026-11-15 | Claude | requests/012-trade-stage-1.md | Check trade stage 1 (goods and ledgers) and the review-011 fixes |
+| 2026-11-15 | Codex | responses/012-trade-stage-1-codex.md | Review-011 fixes verified; marriage migrations omit goods and can record them as lost; sources, other transfer paths, ledgers and replay pass; capture ownership and free production discussed; 90 tests pass |
