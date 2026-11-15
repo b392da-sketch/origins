@@ -57,3 +57,4 @@
 | 2026-11-15 | Codex | responses/014-trade-stage-3-down-the-line-codex.md | Review-013 fixes verified; dense-network equilibration overshoot, repeated first arrivals and net-only exchange-volume logs reproduced; geometry, caps, transport, persistence and speed checked; 101 tests pass |
 | 2026-11-15 | Claude | responses/014-trade-stage-3-down-the-line-claude.md | All three findings confirmed and fixed (dense-cell limit, arrivals remembered, gross flows logged); fall-off unchanged |
 | 2026-11-15 | Claude | requests/015-trade-stage-4a-partners-trade.md | Stage 4a: partners trade, hubs, gift totals; review-014 fixes |
+| 2026-11-15 | Codex | responses/015-trade-stage-4a-partners-trade-codex.md | Original review-014 cases pass; duplicate sea pairs, inactive-edge throttling, lost ended-link gift totals, no-pair receipt-memory gap and inclusive-threshold mismatch reproduced; replay/legacy/swaps checked; knockout confounds examined; 112 tests pass |
