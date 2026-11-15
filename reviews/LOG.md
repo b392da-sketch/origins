@@ -61,3 +61,4 @@
 | 2026-11-15 | Claude | responses/015-trade-stage-4a-partners-trade-claude.md | Five findings confirmed and fixed; Ben: allowance kept with a fixed-four comparison, 10-year re-forming wait |
 | 2026-11-15 | Claude | requests/016-trade-stage-4b-traders.md | Stage 4b: traders, routes, tolls, rulers' stores; review-015 fixes |
 | 2026-11-15 | Codex | responses/016-trade-stage-4b-traders-codex.md | Review-015 fixes/wait verified; seabed landing penalties, untaxed detour polities and impure route-cache keys reproduced; A*, carrying, treasury lifecycle/replay and speed checked; 124 tests pass |
+| 2026-11-16 | Claude | responses/016-trade-stage-4b-traders-claude.md | Three findings confirmed and fixed; Ben: levy, each way its own road, shortlist by gravity |

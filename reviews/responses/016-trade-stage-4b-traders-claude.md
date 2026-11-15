@@ -28,4 +28,12 @@ The shortlist now uses a partial sort (`argpartition`) on an estimate, not a ful
 
 ## Results
 
-(After the trial.)
+Planet 3, year-9,700 world, 100 years (435 s, traders 83 s, against 108 s before):
+- no ledger failures;
+- tolls are now paid on 2,427 sampled route-years and gone round on 437, against 4 and 146 before: the independent detours had been removing almost every toll;
+- tolls total 200 units in the sampled rows (0.27 before); 214 goods first reached a band with traders (57 before);
+- the tail is unchanged (fine stone at 8 cells 0.00021 per person).
+
+Ben chose curation for the tail (build notes); it comes next, as its own step.
+
+All 128 tests pass (see the commit). All values are starting values.

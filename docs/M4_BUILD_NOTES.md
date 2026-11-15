@@ -579,3 +579,17 @@ Options for Ben:
 Evidence for the direction: across ethnographic and archaeological cases, poor-quality stone tends to be made into informal tools; good stone in short supply into formal tools; good stone that is plentiful into both, and residential mobility matters less than availability (Andrefsky 1994). Formal tools are the curated ones (Binford 1979). This supports the direction (scarce good stone, used more carefully) but gives no rate; the form and values will be starting values.
 
 - Andrefsky, W., Jr. (1994). Raw-material availability and the organization of technology. *American Antiquity*, 59(1), 21–34.
+
+### After Codex review 016 (16 November 2026)
+
+Three fixes, each reproduced first (`tests/test_trade.py::Review016`):
+- **Landing:** a step from the sea onto land climbs from the water's surface, not the seabed.
+- **Tolls:** one road is chosen with every toll counted. Entering a third polity's land costs τ = −ln(1 − TOLL) / ROAD_LOSS of travel, so paying and going round are weighed on one road; the independent detours, which could skip a toll that every road must pay, are gone.
+- **Route cache:** keyed by the planet's fingerprint, grid and every cost setting.
+
+Ben's decisions (16 November 2026):
+- the ruler's take is a levy (`RULER_LEVY`, until money in M6);
+- each direction travels its own road, and the traders' share loses goods and pays tolls on the way home;
+- the destination shortlist is by gravity on straight-line distance.
+
+Trial rerun (year-9,700 world, 100 years, 435 s, traders 83 s): no ledger failures. Tolls were paid on 2,427 sampled route-years and gone round on 437 (4 and 146 before the fix), totalling 200 units in the sampled rows. 214 goods first reached a band with traders. The fine-stone tail is unchanged. Codex's timings of the shortlist (0.19 s at 500 polities, 0.99 s at 1,500, 3.19 s at 3,000, before the partial sort) go here as measured.
