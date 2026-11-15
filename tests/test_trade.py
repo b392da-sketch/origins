@@ -696,5 +696,19 @@ class Traders(unittest.TestCase):
         self.assertAlmostEqual(cost, P.SEA_COST)
 
 
+class TreasuryWear(unittest.TestCase):
+    def test_rulers_stores_wear_like_everyone_elses(self):
+        w = World.new(1, 1, generate(1))
+        from origins.sim import traders
+        traders.grow(w, 3)
+        w.treasury[3, trade.GI["salt"]] = 10.0
+        w.invariant_failures = []
+        trade.check_begin(w)
+        trade.yearly(w)
+        trade.check_end(w)
+        self.assertEqual(w.invariant_failures, [])
+        self.assertAlmostEqual(w.treasury[3, trade.GI["salt"]], 10.0 * (1 - P.GOOD_WEAR["salt"]))
+
+
 if __name__ == "__main__":
     unittest.main()

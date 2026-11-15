@@ -204,10 +204,13 @@ def yearly(w):
     down_the_line(w, live, ids, cells)
     from . import traders
     traders.yearly(w, live)                            # stage 4b: traders of polities, between seats
-    worn = w.goods[ids] * np.array([P.GOOD_WEAR[g] for g in GOODS])[None, :]
+    rate = np.array([P.GOOD_WEAR[g] for g in GOODS])
+    worn = w.goods[ids] * rate[None, :]
     w.goods[ids] -= worn
+    tw = w.treasury * rate[None, :]                     # rulers' stores wear as everyone's do (stage 4b)
+    w.treasury -= tw
     for i, g in enumerate(GOODS):
-        w.goods_ledger[g]["worn"] += float(worn[:, i].sum())
+        w.goods_ledger[g]["worn"] += float(worn[:, i].sum()) + float(tw[:, i].sum())
 
 
 # --- stage 2: gift partnerships -------------------------------------------------------------------------------------
