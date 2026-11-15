@@ -59,6 +59,7 @@ def init(w):
     w.partner_of = -np.ones((64, k), dtype=np.int64)
     w.partner_since = -np.ones((64, k), dtype=np.int64)
     w.exchange_log = []          # [year, band, units received, units given, goods that first arrived]
+    w.goods_reached = np.zeros((64, G), dtype=bool)   # a good has reached this band (Codex review 014)
 
 
 def ensure(w, band_id: int, parent: int):
@@ -67,6 +68,7 @@ def ensure(w, band_id: int, parent: int):
     w.goods[band_id] = 0.0
     w.partner_of[band_id] = -1                 # a new band starts without partners of its own
     w.partner_since[band_id] = -1
+    w.goods_reached[band_id] = False
 
 
 def grow(w, band_id: int):
@@ -81,6 +83,12 @@ def grow(w, band_id: int):
         out = np.zeros((cap, G), dtype=np.float64)
         out[:len(w.goods)] = w.goods
         w.goods = out
+    if getattr(w, "goods_reached", None) is None:
+        w.goods_reached = w.goods > P.ARRIVE_MIN        # older saves: whatever a band holds has reached it
+    if len(w.goods_reached) < len(w.goods):
+        out = np.zeros((len(w.goods), G), dtype=bool)
+        out[:len(w.goods_reached)] = w.goods_reached
+        w.goods_reached = out
     if getattr(w, "partner_of", None) is None:
         k = int(P.PARTNERS_MAX)
         w.partner_of = -np.ones((len(w.goods), k), dtype=np.int64)
@@ -374,10 +382,20 @@ def down_the_line(w, live, ids, cells):
     # (across the sea, exchange scales with the better sail's quality, as crossings do: Ben, 14 Nov 2026)
     rate = np.clip(rate, 0, 0.5)
     sa, sb = sizes[I], sizes[J]
+    # Each pair closes a share of the gap in holdings per person; summed over all of a band's pairs, that share must
+    # stay at or below one half, or many simultaneous inflows push a well-connected band past every donor (Codex
+    # review 014). Pairs touching a band over the limit are scaled down together, so each band's new holding per
+    # person stays between its own and its neighbours'.
+    cond = np.zeros(len(ids))
+    np.add.at(cond, I, rate * sb / (sa + sb))
+    np.add.at(cond, J, rate * sa / (sa + sb))
+    lim = np.where(cond > 0.5, 0.5 / np.maximum(cond, 1e-300), 1.0)
+    rate = rate * np.minimum(lim[I], lim[J])
     before = w.goods[ids].copy()
     received = np.zeros(len(ids))
     given = np.zeros(len(ids))
     top_src = {}
+    reached = w.goods_reached[ids] | (before > P.ARRIVE_MIN)    # by any route: production, gifts, people moving
     for gi in range(G):
         g = before[:, gi]
         if not g.any():
@@ -397,10 +415,15 @@ def down_the_line(w, live, ids, cells):
         if moved:
             w.goods_ledger[GOODS[gi]]["moved_out"] += moved
             w.goods_ledger[GOODS[gi]]["moved_in"] += moved
-        received += np.maximum(delta, 0)
-        given += np.maximum(-delta, 0)
-        # first arrivals: a band that held none of this good and now holds some
-        new = np.nonzero((g <= P.ARRIVE_MIN) & (g + delta > P.ARRIVE_MIN))[0]
+        # gross flows, pair by pair, so a band that passes goods on is counted (Codex review 014)
+        np.add.at(received, J, np.maximum(f, 0))
+        np.add.at(received, I, np.maximum(-f, 0))
+        np.add.at(given, I, np.maximum(f, 0))
+        np.add.at(given, J, np.maximum(-f, 0))
+        # first arrivals: a band this good has never reached now holds some (wear can take it below the line again
+        # without a second "first" arrival)
+        new = np.nonzero(~reached[:, gi] & (g + delta > P.ARRIVE_MIN))[0]
+        reached[:, gi] |= (g + delta > P.ARRIVE_MIN)
         if len(new):
             inflow = {}
             for k_, (a, b_, x) in enumerate(zip(I.tolist(), J.tolist(), f.tolist())):
@@ -420,6 +443,7 @@ def down_the_line(w, live, ids, cells):
             w.event("good_arrived", cell=b.cell, band=b.id, good=good, source=o.id,
                     causes=[{"band": o.id}, {"note": f"{good.replace('_', ' ')} first reached {w.band_name(b)} "
                                                       f"from {w.band_name(o)}, its neighbour, by exchange"}])
+    w.goods_reached[ids] = reached
     from ..state import log_row
     for k in np.nonzero((received > 0) | (given > 0))[0].tolist():
         log_row(w, "exchange_log", [w.year, int(ids[k]), round(float(received[k]), 4), round(float(given[k]), 4),

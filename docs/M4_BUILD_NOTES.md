@@ -442,3 +442,13 @@ The specification (section 4, item 3) has directed trade begin "once there are s
 4. **Routes follow gravity:** trade between centres grows with both their sizes and falls with distance.
 
 All shares and rates will be starting values. The build waits for Codex's review 014 and Claude's answer.
+
+### After Codex review 014 (15 November 2026)
+
+Three fixes, each reproduced first (`tests/test_trade.py::Review014`):
+
+- **Dense cells:** summed over a band's pairs, the share of the gap closed in a year is held at one half or less, so a well-connected band can no longer be pushed past every donor by many inflows at once.
+- **First arrivals:** each band remembers which goods have reached it (`goods_reached`), so wear cannot produce a second "first" arrival.
+- **Exchange log:** it records gross flows pair by pair, so bands that pass goods on are counted.
+
+Trial rerun (planet 3, year-8,500 save, 100 years, 51 s): no ledger failures; 1,325 first arrivals (3,694 before, about two thirds of them repeats); 200 of 200 sampled chains resolve. Fine stone per person by cells from the source: 0.50, 0.10, 0.025, 0.0088, 0.0030, 0.0014, 0.00065, 0.00031, 0.0002, essentially unchanged; the thin tail stands. Codex's synthetic timings: exchange on 40,000 bands took 0.44 s (434,242 pairs); an arrival-heavy case took 3.9 s before fix 2. Rates are starting values.

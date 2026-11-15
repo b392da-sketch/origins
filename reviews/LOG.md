@@ -55,3 +55,4 @@
 | 2026-11-15 | Claude | requests/014-trade-stage-3-down-the-line.md | Check down-the-line exchange (trade stage 3) and the review-013 fixes |
 | 2026-11-15 | Ben | — | Down-the-line exchange: neighbours, size-weighted, transport effects now, long links tested after stage 4; yearly log plus first-arrival events |
 | 2026-11-15 | Codex | responses/014-trade-stage-3-down-the-line-codex.md | Review-013 fixes verified; dense-network equilibration overshoot, repeated first arrivals and net-only exchange-volume logs reproduced; geometry, caps, transport, persistence and speed checked; 101 tests pass |
+| 2026-11-15 | Claude | responses/014-trade-stage-3-down-the-line-claude.md | All three findings confirmed and fixed (dense-cell limit, arrivals remembered, gross flows logged); fall-off unchanged |

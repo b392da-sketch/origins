@@ -239,5 +239,73 @@ class DownTheLine(unittest.TestCase):
         self.assertTrue(any(e["band"] == bs[1].id and e["data"]["good"] == "salt" for e in ev))
 
 
+class Review014(unittest.TestCase):
+    """Codex review 014: dense inflows, repeated first arrivals, net-only logs."""
+
+    def _bands_on(self, cells):
+        w = World.new(1, 1, generate(1))
+        founders = w.living_bands()
+        bs = [w.new_band(c, parent=founders[0].id) for c in cells]
+        for o in founders:                                  # every founding band, not just one
+            o.alive = False
+        w.bands_changed()
+        return w, bs
+
+    def _step(self, w):
+        live = w.living_bands()
+        trade.down_the_line(w, live, np.array([b.id for b in live]), np.array([b.cell for b in live]))
+
+    def _line_cells(self, w0, n):
+        nb = w0.planet.grid.neighbours
+        c = w0.living_bands()[0].cell
+        cells = [c]
+        while len(cells) < n:
+            nxt = [int(x) for x in nb[c] if x >= 0 and w0.planet.land[x] and int(x) not in cells
+                   and all(int(x) not in set(int(y) for y in nb[p]) for p in cells[:-1])]
+            c = nxt[0]
+            cells.append(c)
+        return cells
+
+    def test_many_inflows_do_not_push_a_receiver_past_its_donors(self):
+        w0 = World.new(1, 1, generate(1))
+        cell = w0.living_bands()[0].cell
+        w, bs = self._bands_on([cell] * 101)
+        F = trade.GI["fine_stone"]
+        for b in bs[1:]:
+            w.goods[b.id, F] = 100.0
+        sizes = np.maximum(w.band_sizes()[[b.id for b in bs]].astype(float), 1.0)
+        x0 = w.goods[[b.id for b in bs], F] / sizes
+        self._step(w)
+        x1 = w.goods[[b.id for b in bs], F] / sizes
+        self.assertAlmostEqual(float(w.goods[[b.id for b in bs], F].sum()), 10000.0, places=6)
+        self.assertLessEqual(x1[0], x1[1:].min() + 1e-9)          # the poor band does not overtake its donors
+        self.assertLessEqual(float(x1.var()), float(x0.var()))    # and the step moves towards equality
+
+    def test_a_good_first_arrives_only_once(self):
+        w0 = World.new(1, 1, generate(1))
+        w, bs = self._bands_on(self._line_cells(w0, 2))
+        S = trade.GI["salt"]
+        n0 = len(w.events)
+        for _ in range(20):
+            w.goods[bs[0].id, S] += 0.008
+            self._step(w)
+            w.goods[:, S] *= 0.5                                     # wear
+        ev = [w.events[i] for i in range(n0, len(w.events))
+              if w.events[i]["kind"] == "good_arrived" and w.events[i]["band"] == bs[1].id]
+        self.assertLessEqual(len(ev), 1)
+
+    def test_the_log_counts_goods_passed_on(self):
+        w0 = World.new(1, 1, generate(1))
+        w, (a, b, c) = self._bands_on(self._line_cells(w0, 3))
+        F = trade.GI["fine_stone"]
+        w.goods[a.id, F], w.goods[b.id, F] = 100.0, 50.0
+        w.exchange_log = []
+        self._step(w)
+        rows = {r[1]: r for r in w.exchange_log}
+        self.assertIn(b.id, rows)
+        self.assertAlmostEqual(rows[b.id][2], 2.5, places=4)
+        self.assertAlmostEqual(rows[b.id][3], 2.5, places=4)
+
+
 if __name__ == "__main__":
     unittest.main()

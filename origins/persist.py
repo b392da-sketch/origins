@@ -79,7 +79,8 @@ def to_file(w: World, f, fast: bool = False) -> None:
               "still_years": w.still_years, "forage_rr": w.forage_rr, "spec": w.spec,
               "polity_of": w.polity_of, "polity_via": w.polity_via, "conquered_at": w.conquered_at,
               "herder_since": w.herder_since, "tech": w.tech, "tech_record": w.tech_record,
-              "goods": w.goods, "partner_of": w.partner_of, "partner_since": w.partner_since}
+              "goods": w.goods, "partner_of": w.partner_of, "partner_since": w.partner_since,
+              "goods_reached": w.goods_reached}
     arrays.update({"p_" + k: v for k, v in w.people.arrays().items()})
     arrays.update({"g_" + k: v for k, v in w.groups.arrays().items()})
     arrays.update({"b_" + k: v for k, v in w.bands.arrays().items()})
@@ -200,6 +201,11 @@ def from_bytes(data: bytes, planet=None) -> World:
         w.partner_since = np.array(arrays["partner_since"], dtype=np.int64)
     elif len(w.partner_of) < len(w.goods):
         _trade.grow(w, len(w.goods) - 1)             # keeps every goods row (Codex review 013)
+    if "goods_reached" in arrays:                       # trade stage 3, after review 014
+        w.goods_reached = np.array(arrays["goods_reached"], dtype=bool)
+    else:
+        w.goods_reached = None
+        _trade.grow(w, len(w.goods) - 1)             # older saves: what a band holds has reached it
     if led:
         w.goods_ledger = {k: dict(v) for k, v in led.items()}
     from .sim import customs as _customs
@@ -269,7 +275,7 @@ def digest(w: World) -> str:
         h.update(np.ascontiguousarray(v).tobytes())
     for arr in (w.stock, w.stock_broad, w.known, w.region_z, w.customs, w.neutral, w.hazard_food, w.immune, w.skill, w.farm_share,
                 w.crop_store, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since, w.tech,
-                w.tech_record, w.goods, w.partner_of, w.partner_since):
+                w.tech_record, w.goods, w.partner_of, w.partner_since, w.goods_reached):
         h.update(np.ascontiguousarray(arr).tobytes())
     for k, v in sorted(w.bands.arrays().items()):
         h.update(k.encode())
