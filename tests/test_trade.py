@@ -191,5 +191,53 @@ class Review013(unittest.TestCase):
         self.assertIn("trade._unlink_all(w, b.id)", inspect.getsource(bands.consolidate_groups))
 
 
+
+class DownTheLine(unittest.TestCase):
+    """Trade stage 3: exchange between neighbours (Ben, 15 November 2026)."""
+
+    def _line(self, n=6):
+        """A chain of bands on adjacent land cells, the first holding salt."""
+        w = World.new(1, 1, generate(1))
+        a = w.living_bands()[0]
+        nb = w.planet.grid.neighbours
+        cells, c = [a.cell], a.cell
+        while len(cells) < n:
+            nxt = [int(x) for x in nb[c] if x >= 0 and w.planet.land[x] and int(x) not in cells
+                   and all(int(x) not in set(int(y) for y in nb[p]) for p in cells[:-1])]
+            if not nxt:
+                break
+            c = nxt[0]
+            cells.append(c)
+        bs = [a] + [w.new_band(c, parent=a.id) for c in cells[1:]]
+        for o in w.living_bands():
+            if o not in bs:
+                o.alive = False
+        w.bands_changed()
+        return w, bs
+
+    def test_goods_thin_out_with_distance_and_are_conserved(self):
+        w, bs = self._line()
+        S = trade.GI["salt"]
+        w.goods[bs[0].id, S] = 1000.0
+        live = w.living_bands()
+        ids = np.array([b.id for b in live])
+        cells = np.array([b.cell for b in live])
+        for _ in range(10):
+            trade.down_the_line(w, live, ids, cells)
+        held = [float(w.goods[b.id, S]) for b in bs]
+        self.assertAlmostEqual(sum(held), 1000.0, places=6)
+        self.assertTrue(all(held[k] >= held[k + 1] for k in range(len(held) - 1)), held)
+        self.assertGreater(held[1], 0.0)
+
+    def test_first_arrival_is_recorded(self):
+        w, bs = self._line(3)
+        w.goods[bs[0].id, trade.GI["salt"]] = 1000.0
+        live = w.living_bands()
+        n0 = len(w.events)
+        trade.down_the_line(w, live, np.array([b.id for b in live]), np.array([b.cell for b in live]))
+        ev = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "good_arrived"]
+        self.assertTrue(any(e["band"] == bs[1].id and e["data"]["good"] == "salt" for e in ev))
+
+
 if __name__ == "__main__":
     unittest.main()

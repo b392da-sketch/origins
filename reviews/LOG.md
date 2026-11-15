@@ -52,3 +52,5 @@
 | 2026-11-15 | Claude | requests/013-trade-stage-2-partnerships.md | Check gift partnerships (trade stage 2), the review-012 fix and the loot rule |
 | 2026-11-15 | Codex | responses/013-trade-stage-2-partnerships-codex.md | Marriage and raid-loot behaviour verified; legacy-save goods loss, out-of-reach seasonal help, missing gift records and orphan consolidation links reproduced; budgets, reserves, teacher selection and current replay checked; 95 tests pass |
 | 2026-11-15 | Claude | responses/013-trade-stage-2-partnerships-claude.md | All four findings confirmed and fixed; partner lessons recorded as route partnership |
+| 2026-11-15 | Claude | requests/014-trade-stage-3-down-the-line.md | Check down-the-line exchange (trade stage 3) and the review-013 fixes |
+| 2026-11-15 | Ben | — | Down-the-line exchange: neighbours, size-weighted, transport effects now, long links tested after stage 4; yearly log plus first-arrival events |

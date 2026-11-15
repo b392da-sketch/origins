@@ -67,7 +67,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
         "reveal_pending": sorted(w.reveal_pending), "pending_restore": w.pending_restore,
         "env": environment(),
         "language": language.to_json(w), "hazards": w.hazards,
-        "farming": farming.to_json(w), "surplus": surplus.to_json(w), "polity": polity.to_json(w),
+        "farming": farming.to_json(w), "surplus": surplus.to_json(w), "polity": polity.to_json(w), "trade": __import__("origins.sim.trade", fromlist=["x"]).to_json(w),
         "conflict": conflict.to_json(w), "timing": w.timing, "first_herders": getattr(w, "first_herders", None), "tech_firsts": getattr(w, "tech_firsts", {}), "goods_ledger": getattr(w, "goods_ledger", None), "log_strides": w.log_strides,
     }
     arrays = {"stock": w.stock, "stock_broad": w.stock_broad, "known": w.known, "discovered_by": w.discovered_by,
@@ -220,6 +220,8 @@ def from_bytes(data: bytes, planet=None) -> World:
         farming.from_json(w, meta["farming"])
     if "surplus" in meta:
         surplus.from_json(w, meta["surplus"])
+    from .sim import trade as _tr
+    _tr.from_json(w, meta.get("trade"))
     if "polity" in meta:
         polity.from_json(w, meta["polity"])
     if "conflict" in meta:

@@ -402,3 +402,16 @@ Fixes: loading an older save keeps every goods row (`trade.grow`); help in need 
 ### Source (added)
 
 - Ibáñez, J. J., Ortega, D., Campos, D., Khalidi, L., & Méndez, V. (2015). Testing complex networks of interaction at the onset of the Near Eastern Neolithic using modelling of obsidian exchange. *Journal of the Royal Society Interface*, 12(107), 20150210.
+
+### Trade stage 3: down-the-line exchange, as built (Ben, 15 November 2026: recommendations 1–4 and the recording plan)
+
+`trade.down_the_line`, once a year after gifts and before wear. Bands on the same or adjacent cells exchange each good a share `DTL_RATE` (0.1) of the way towards equal holdings per person, so bigger bands hold and pass on more; no band gives more than half of a good in a year. Pack animals (+50%) and carts (+100%) speed exchange over land, canoes (+50%) between bands by water; with sail, coastal bands across one sea cell exchange at a rate scaled by sail quality. Recorded: a thinned yearly log of each band's units received and given (`exchange_log`, saved), and a `good_arrived` event when a good first reaches a band, naming the neighbour most of it came from. All rates are starting values.
+
+Trial: planet 3 forager world (year 8,500 save), 100 years, 41 s (unchanged); no ledger failures; 3,694 first arrivals, 200 of 200 sampled cause chains resolve. Holdings per person by cells from the nearest source:
+
+| Cells (about 110 km each) | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|---|
+| fine stone | 0.50 | 0.11 | 0.026 | 0.009 | 0.003 | 0.0014 | 0.0007 | 0.0003 | 0.0002 |
+| salt | 0.12 | 0.03 | 0.004 | 0.0007 | 0.0002 | 0.00003 | 0.000004 | 0.000001 | 0.0000003 |
+
+The shape is the expected steady (roughly exponential) decline, steeper for salt, which is used up faster. The tail is too thin: at 8 cells fine stone is at about 0.05% of its level at the source, against roughly 0.6% for Levantine obsidian at 700–800 km (0.5% of chipped stone against about 80% near the sources), and there is no plateau near the sources. This is Ibáñez et al.'s (2015) finding: exchange between neighbours alone falls off too fast. Directed trade (stage 4) is to supply the long links; the trial after stage 4 will check whether it does. (Holdings per person are not the archaeological measure, which is the share of chipped stone, so the comparison is rough.)

@@ -20,6 +20,13 @@ when the two bands are no longer within reach or one ends. In a season when a ba
 with food to spare beyond their own needs give up to PARTNER_SHARE of the spare (food moved, not made). Partners
 teach techniques as readily as members of one's own people (technology.keep_and_spread).
 
+Stage 3, down-the-line exchange (Renfrew 1977; Ibáñez et al. 2015; Ben, 15 November 2026): each year, bands on the
+same or adjacent cells exchange goods, a share DTL_RATE of the way towards equal holdings per person, so goods flow
+from where they are plentiful to where they are scarce and, with wear, thin out with distance from their source.
+Bigger bands hold and pass on more (hubs). Pack animals and carts speed exchange over land; canoes along coasts and
+rivers; sail adds links between coastal bands across a sea cell. Recorded: a thinned yearly log of each band's
+exchanges, and an event when a good first reaches a band (naming where most of it came from).
+
 reads: bands (cell), planet minerals and coast, technology (practised quality, skilled practitioners), languages
 writes: w.goods (bands x goods), w.goods_ledger, w.partner_of, w.partner_since, band stores (help in need), events
 """
@@ -51,6 +58,7 @@ def init(w):
     k = int(getattr(P, "PARTNERS_MAX", 4))
     w.partner_of = -np.ones((64, k), dtype=np.int64)
     w.partner_since = -np.ones((64, k), dtype=np.int64)
+    w.exchange_log = []          # [year, band, units received, units given, goods that first arrived]
 
 
 def ensure(w, band_id: int, parent: int):
@@ -151,6 +159,7 @@ def yearly(w):
         w.goods[ids, i] += made
         w.goods_ledger[g]["produced"] += float(made.sum())
     partnerships_yearly(w, live)
+    down_the_line(w, live, ids, cells)
     worn = w.goods[ids] * np.array([P.GOOD_WEAR[g] for g in GOODS])[None, :]
     w.goods[ids] -= worn
     for i, g in enumerate(GOODS):
@@ -309,6 +318,120 @@ def share_in_need(w, bands, ids, avail, need_now, keep_need):
                                                                     f"season; its gift partners gave food they could "
                                                                     f"spare"}])
     return avail
+
+
+# --- stage 3: down-the-line exchange ---------------------------------------------------------------------------------
+
+def _pairs(w, live, cells):
+    """Pairs of bands (positions in live) that exchange: same cell or adjacent cells; with sail, coastal bands across
+    one sea cell. Returns (i, j, kind) arrays, kind 0 land, 1 by water, 2 across the sea."""
+    pl = w.planet
+    nb = pl.grid.neighbours
+    by_cell: dict = {}
+    for k, c in enumerate(cells.tolist()):
+        by_cell.setdefault(c, []).append(k)
+    from . import technology
+    sail = technology.practised_quality(w)[np.asarray([b.id for b in live]), technology.INDEX["sail"]] > 0
+    wet = pl.coast | pl.lake | pl.river
+    I, J, KIND = [], [], []
+    for c, ks in by_cell.items():
+        for a in range(len(ks)):
+            for b in range(a + 1, len(ks)):
+                I.append(ks[a]); J.append(ks[b]); KIND.append(1 if wet[c] else 0)
+        near = [int(x) for x in nb[c] if x > c and pl.land[x]]
+        for d in near:
+            for ka in ks:
+                for kb in by_cell.get(d, ()):
+                    I.append(ka); J.append(kb); KIND.append(1 if (wet[c] and wet[d]) else 0)
+        if pl.coast[c]:
+            across = {int(z) for x in nb[c] if x >= 0 and not pl.land[x] for z in nb[x]
+                      if z > c and z >= 0 and pl.land[z] and pl.coast[z]} - set(int(x) for x in nb[c])
+            for d in sorted(across):
+                for ka in ks:
+                    for kb in by_cell.get(d, ()):
+                        if sail[ka] or sail[kb]:
+                            I.append(ka); J.append(kb); KIND.append(2)
+    return np.array(I, dtype=np.int64), np.array(J, dtype=np.int64), np.array(KIND, dtype=np.int64)
+
+
+def down_the_line(w, live, ids, cells):
+    """Exchange between neighbouring bands, a share of the way towards equal holdings per person (conserving)."""
+    if not getattr(P, "TRADE", False) or len(ids) < 2:
+        return
+    from . import technology
+    I, J, KIND = _pairs(w, live, cells)
+    if not len(I):
+        return
+    sizes = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
+    q = technology.practised_quality(w)
+    def best(key):
+        v = q[ids, technology.INDEX[key]].astype(float)
+        return np.maximum(v[I], v[J])
+    E = P.TECH_EFFECT
+    land = 1 + E.get("pack_animals", 0) * best("pack_animals") + E.get("carts", 0) * best("carts")
+    water = 1 + E.get("canoes_trade", 0) * best("canoes")
+    rate = P.DTL_RATE * np.where(KIND == 0, land, np.where(KIND == 1, np.maximum(land, water), best("sail")))
+    # (across the sea, exchange scales with the better sail's quality, as crossings do: Ben, 14 Nov 2026)
+    rate = np.clip(rate, 0, 0.5)
+    sa, sb = sizes[I], sizes[J]
+    before = w.goods[ids].copy()
+    received = np.zeros(len(ids))
+    given = np.zeros(len(ids))
+    top_src = {}
+    for gi in range(G):
+        g = before[:, gi]
+        if not g.any():
+            continue
+        # towards equal holdings per person: m* = (ga sb - gb sa) / (sa + sb); positive flows a -> b
+        f = rate * (g[I] * sb - g[J] * sa) / (sa + sb)
+        out = np.zeros(len(ids))
+        np.add.at(out, I, np.maximum(f, 0))
+        np.add.at(out, J, np.maximum(-f, 0))
+        scale = np.where(out > 0, np.minimum(1.0, 0.5 * g / np.maximum(out, 1e-300)), 1.0)
+        f = np.where(f > 0, f * scale[I], f * scale[J])          # no band gives more than half of what it holds
+        delta = np.zeros(len(ids))
+        np.add.at(delta, I, -f)
+        np.add.at(delta, J, f)
+        w.goods[ids, gi] = g + delta
+        moved = float(np.abs(f).sum())
+        if moved:
+            w.goods_ledger[GOODS[gi]]["moved_out"] += moved
+            w.goods_ledger[GOODS[gi]]["moved_in"] += moved
+        received += np.maximum(delta, 0)
+        given += np.maximum(-delta, 0)
+        # first arrivals: a band that held none of this good and now holds some
+        new = np.nonzero((g <= P.ARRIVE_MIN) & (g + delta > P.ARRIVE_MIN))[0]
+        if len(new):
+            inflow = {}
+            for k_, (a, b_, x) in enumerate(zip(I.tolist(), J.tolist(), f.tolist())):
+                if x > 0:
+                    inflow.setdefault(b_, []).append((x, a))
+                elif x < 0:
+                    inflow.setdefault(a, []).append((-x, b_))
+            for k in new.tolist():
+                src = max(inflow.get(k, [(0.0, -1)]))[1]
+                top_src.setdefault(k, []).append((GOODS[gi], src))
+    for k, arrivals in top_src.items():
+        b = live[k]
+        for good, src in arrivals:
+            if src < 0:
+                continue
+            o = live[src]
+            w.event("good_arrived", cell=b.cell, band=b.id, good=good, source=o.id,
+                    causes=[{"band": o.id}, {"note": f"{good.replace('_', ' ')} first reached {w.band_name(b)} "
+                                                      f"from {w.band_name(o)}, its neighbour, by exchange"}])
+    from ..state import log_row
+    for k in np.nonzero((received > 0) | (given > 0))[0].tolist():
+        log_row(w, "exchange_log", [w.year, int(ids[k]), round(float(received[k]), 4), round(float(given[k]), 4),
+                                    [g for g, _ in top_src.get(k, [])]], P.EXCHANGE_LOG_CAP)
+
+
+def to_json(w) -> dict:
+    return {"exchange_log": getattr(w, "exchange_log", [])}
+
+
+def from_json(w, d: dict):
+    w.exchange_log = (d or {}).get("exchange_log", [])
 
 
 def check_begin(w):

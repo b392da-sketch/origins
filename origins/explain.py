@@ -153,6 +153,8 @@ def _event_title(w, e) -> str:
         return f"{bn} began a gift partnership"
     if k == "partnership_lapsed":
         return f"{bn}'s gift partnership lapsed"
+    if k == "good_arrived":
+        return f"{d.get('good', 'a good').replace('_', ' ')} reached {bn}"
     if k == "gift_exchange":
         return f"{bn} exchanged gifts with a partner"
     if k == "helped_by_partners":

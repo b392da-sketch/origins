@@ -257,6 +257,7 @@ TECH_EFFECT = {
     "milking": 0.30,                                             # food from herds
     "copper_working": 0.05,                                      # tools: farming and foraging returns
     "tallies": 0.10, "writing": 0.50,                            # polity capacity
+    "pack_animals": 0.5, "carts": 1.0, "canoes_trade": 0.5,      # exchange between neighbours (Ben, 15 Nov 2026: starting values)
 }
 TECH_FORAGE_GEAR = True            # foraging gear's food effect (broad-spectrum food): back on with the new farming trigger (Ben, 14 Nov 2026); was off while both versions stopped farming
 TECH_BROAD_RETURN = 0.3            # food per unit of work from broad-spectrum food, against ordinary wild food (lower-ranked resources)
@@ -276,5 +277,8 @@ PARTNER_FORM = 0.05                # yearly chance a pair within reach begins a 
 PARTNER_SHARE = 0.2                # share of its spare food a partner gives in a bad season (Ben, 15 Nov 2026: starting value)
 GIFT_GOODS = ("shell", "gold")     # lasting goods exchanged as gifts each year
 GIFT_SHARE = 0.05                  # share of each such good a partner gives the other each year
+DTL_RATE = 0.1                     # share of the way to equal holdings per person that neighbouring bands exchange each year
+ARRIVE_MIN = 1e-3                  # holdings below this count as none (for first arrivals)
+EXCHANGE_LOG_CAP = 20000           # rows kept in the thinned yearly exchange log
 TECH_FARMING = 0.2                 # farm (or herd) share a people needs before farming techniques apply to them
 
