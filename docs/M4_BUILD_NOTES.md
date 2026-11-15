@@ -606,3 +606,12 @@ Trial rerun (year-9,700 world, 100 years, 435 s, traders 83 s): no ledger failur
 
   Near the sources nothing changes; the tail fattens from about 5 cells out, by about 4 times at 8 cells, 100 times at 12 and 300 times at 14. At 12 cells (about 720 km) fine stone is about 0.05% of the source level, against roughly 0.6% for obsidian: still about 13 times short, but the curve now flattens with distance rather than falling at a steady rate. Whether the rest of the gap comes from Renfrew's supply zone (direct access near sources), from values of the curation rule, or from elsewhere is not settled.
 - Everything else barely moves: run time 1,266 s against 1,298 s; trader routes and tolls within a few per cent. With curation on there were 4,056 first arrivals against 5,701 off. Fewer bands' stock falls below the threshold and back, so fewer goods arrive "for the first time" through other routes; this is a reading, not checked.
+
+### After Codex review 017 (16 November 2026)
+
+Three fixes, each reproduced first (`tests/test_trade.py::Review017`):
+- **Road home:** a destination is served only if there is a road home within range.
+- **Range:** the toll-aware search keeps states (cell, tolls paid), so a road needing more of the range for fewer tolls is no longer lost. At most `ROAD_TOLLS_MAX` 8 tolls per leg.
+- **Lakes:** the planet records each lake's water surface (`water_level`, not in the fingerprint), and leaving a lake climbs from it.
+
+**Correction to the curation knock-out.** My reading of the fall in first arrivals was wrong. With curation on, more fine stone first reached new bands (2,371 against 1,689); the whole difference is pottery (26 against 2,336). From one practising band in the shared start, pottery spread to 728 bands in the run without curation and died out in the run with it. The histories diverged by chance in their technology. A knock-out from a single history is therefore noisy; at the gate it should run over several histories. Flattening at finite distance is not a permanent plateau (Codex).

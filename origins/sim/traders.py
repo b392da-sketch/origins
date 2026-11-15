@@ -122,7 +122,12 @@ def _step_costs(pl, tq):
 def _cost(u, v, pl, foot, water, sea):
     if pl.land[v]:
         # from the sea or a lake, the climb starts at the water's surface, not the bed (Codex review 016)
-        h0 = float(pl.elevation[u]) if pl.land[u] else max(0.0, float(pl.elevation[u]))
+        if pl.land[u]:
+            h0 = float(pl.elevation[u])
+        elif pl.lake[u] and getattr(pl, "water_level", None) is not None:
+            h0 = float(pl.water_level[u])                 # a lake's surface, not its bed (Codex review 017)
+        else:
+            h0 = max(0.0, float(pl.elevation[u]))
         c = foot + P.MOUNTAIN_COST * max(0.0, float(pl.elevation[v]) - h0) / 1000.0
         if pl.elevation[v] > 2000:
             c += P.HIGH_COST
@@ -220,38 +225,48 @@ def road(pl, a: int, b: int, tq: tuple, holder: dict, ends: set, tau: float):
         k = holder.get(v, -1)
         return tau if (k >= 0 and k not in ends and holder.get(u, -1) != k) else 0.0
 
+    # States are (cell, tolls paid so far). For a given number of tolls, less travel is better on both counts
+    # (cost and range left), so keeping the least travel per state is exact; keeping one label per cell is not, as
+    # a road with fewer tolls may need more of the range (Codex review 017). At most ROAD_TOLLS_MAX tolls are tried.
     nb = pl.grid.neighbours
-    best = {a: 0.0}
-    terr = {a: 0.0}
+    nmax = int(getattr(P, "ROAD_TOLLS_MAX", 8))
+    best = {(a, 0): 0.0}
     prev = {}
-    heap = [(h(a), 0.0, a)]
+    heap = [(h(a), 0.0, 0.0, a, 0)]
+    end = None
     while heap:
-        f, g, u = heapq.heappop(heap)
+        f, g, t, u, n = heapq.heappop(heap)
         if u == b:
+            end = (u, n)
             break
-        if g > best.get(u, math.inf):
+        if t > best.get((u, n), math.inf):
             continue
         for v in nb[u]:
             v = int(v)
             if v < 0:
                 continue
             c = _cost(u, v, pl, foot, water, sea)
-            if c is None or terr[u] + c > P.TRADE_RANGE:
+            if c is None or t + c > P.TRADE_RANGE:
                 continue
-            gv = g + c + fee(u, v)
-            if gv < best.get(v, math.inf):
-                best[v] = gv
-                terr[v] = terr[u] + c
-                prev[v] = u
-                heapq.heappush(heap, (gv + h(v), gv, v))
-    if b not in prev:
+            e = fee(u, v)
+            m = n + (1 if e > 0 else 0)
+            if m > nmax:
+                continue
+            tv = t + c
+            if any(best.get((v, k), math.inf) <= tv for k in range(m + 1)):
+                continue                                  # as little travel with no more tolls already found
+            best[(v, m)] = tv
+            prev[(v, m)] = (u, n)
+            heapq.heappush(heap, (tv + m * tau + h(v), tv + m * tau, tv, v, m))
+    if end is None:
         return math.inf, (), []
-    cells = [b]
-    while cells[-1] != a:
-        cells.append(prev[cells[-1]])
-    cells = tuple(reversed(cells))
-    paid = [holder[v] for u, v in zip(cells[:-1], cells[1:]) if fee(u, v) > 0]
-    return terr[b], cells, paid
+    states = [end]
+    while states[-1] != (a, 0):
+        states.append(prev[states[-1]])
+    states.reverse()
+    cells = tuple(c for c, _ in states)
+    paid = [holder[v] for (v, m), (u, n) in zip(states[1:], states[:-1]) if m > n]
+    return best[end], cells, paid
 
 
 # ---------------------------------------------------------------- yearly
@@ -315,16 +330,19 @@ def yearly(w, live):
             cost, cells = path(pl, seatA.cell, w.bands[B.seat].cell, tq)
             if not cells or cost <= 0:
                 continue
-            opts.append((popv[ia] * popv[j] / cost ** 2, B.id, B, cost, cells))
+            bcost, bcells = path(pl, w.bands[B.seat].cell, seatA.cell, tq)
+            if not bcells:
+                continue                       # no road home within range: the traders cannot serve it (review 017)
+            opts.append((popv[ia] * popv[j] / cost ** 2, B.id, B, cost, cells, bcost, bcells))
         if not opts:
             continue
         opts.sort(key=lambda o: (-o[0], o[1]))
         opts = opts[:P.ROUTES_MAX]
         gsum = sum(o[0] for o in opts)
         load = traders * P.TRADER_LOAD * (1 + E.get("pack_animals", 0) * tq[0] + E.get("carts", 0) * tq[1])
-        for grav, _, B, cost, cells in opts:
+        for grav, _, B, cost, cells, bcost, bcells in opts:
             cap = load * grav / gsum if gsum > 0 else 0.0
-            _carry(w, A, B, cost, cells, cap, tq, holder, cols, sizes_all, log_row)
+            _carry(w, A, B, cost, cells, bcost, bcells, cap, tq, holder, cols, sizes_all, log_row)
 
 
 def _leg(pl, cells, cost, tq, holder, ends):
@@ -361,7 +379,7 @@ def _travel(w, m, col, leg, led, acc):
     return arrive
 
 
-def _carry(w, A, B, cost, cells, cap, tq, holder, cols, sizes_all, log_row):
+def _carry(w, A, B, cost, cells, bcost, bcells, cap, tq, holder, cols, sizes_all, log_row):
     from .trade import GOODS
     pl = w.planet
     a, b = A.seat, B.seat
@@ -377,8 +395,7 @@ def _carry(w, A, B, cost, cells, cap, tq, holder, cols, sizes_all, log_row):
     ends = {A.id, B.id}
     # each way pays its own road (Ben, 16 November 2026): out A -> B, back B -> A
     out = _leg(pl, cells, cost, tq, holder, ends)
-    bcost, bcells = path(pl, cells[-1], cells[0], tq)
-    back = _leg(pl, bcells, bcost, tq, holder, ends) if bcells else out
+    back = _leg(pl, bcells, bcost, tq, holder, ends)
     acc = {"lost": 0.0, "tolls": 0.0}
     moved = picks = kept = 0.0
     for col, x in zip(cols, f.tolist()):

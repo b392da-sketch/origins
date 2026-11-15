@@ -869,5 +869,70 @@ class Curation(unittest.TestCase):
         self.assertAlmostEqual(w.goods[poor.id, F], 0.1 * (1 - k), places=12)
 
 
+class Review017(unittest.TestCase):
+    """Codex review 017."""
+    _bands_on, _line_cells = Review014._bands_on, Review014._line_cells
+
+    def test_no_road_home_means_no_route(self):
+        from origins.sim import traders
+        w, (a, b), A, B, c, _ = Traders._world(self)
+        w.goods[b.id, trade.GI["salt"]] = 100.0
+        real = traders.path
+
+        def one_way(pl, x, y, tq, blocked=frozenset()):
+            if (x, y) == (b.cell, a.cell):
+                return (float("inf"), ())                          # uphill all the way: no road home in range
+            return real(pl, x, y, tq, blocked)
+        traders.path = one_way
+        try:
+            w.route_log = []
+            traders.yearly(w, w.living_bands())
+        finally:
+            traders.path = real
+        self.assertEqual([r for r in w.route_log if r[1] == A.id and r[2] == B.id], [])
+        self.assertEqual(w.goods[b.id, trade.GI["salt"]], 100.0)
+
+    def test_a_road_within_range_with_one_toll_beats_none_found(self):
+        from origins.sim import traders
+        # S=0; prefixes to J=7: 0-1-2-7 (3 travel, tolls K1,K2), 0-3-7 (4 travel, toll K3), 0-4-5-7 (5 travel, none)
+        # then J-T=6 costs 26; range 30
+        edges = {(0, 1): 1, (1, 2): 1, (2, 7): 1, (0, 3): 2, (3, 7): 2, (0, 4): 2.5, (4, 5): 1.25, (5, 7): 1.25,
+                 (7, 6): 26}
+        edges.update({(v, u): c for (u, v), c in list(edges.items())})
+        n = 8
+        nb = -np.ones((n, 6), dtype=np.int64)
+        for u in range(n):
+            vs = sorted(v for (x, v) in edges if x == u)
+            nb[u, :len(vs)] = vs
+
+        class G:
+            pass
+        g = G(); g.neighbours = nb; g.xyz = np.tile([1.0, 0.0, 0.0], (n, 1)); g.radius_km = 1.0; g.spacing_km = 1.0
+        pl = G(); pl.grid = g
+        holder = {1: 101, 2: 102, 3: 103}
+        real = traders._cost
+        traders._cost = lambda u, v, pl_, f, wa, se: edges[(u, v)]
+        old = P.TRADE_RANGE
+        try:
+            P.TRADE_RANGE = 30.0
+            tau = -np.log(1 - P.TOLL) / P.ROAD_LOSS
+            cost, cells, paid = traders.road(pl, 0, 6, (0.0, 0.0, 0.0, 0.0), holder, set(), tau)
+        finally:
+            traders._cost = real
+            P.TRADE_RANGE = old
+        self.assertEqual(cells, (0, 3, 7, 6))
+        self.assertAlmostEqual(cost, 30.0)
+        self.assertEqual(paid, [103])
+
+    def test_leaving_a_lake_climbs_from_its_surface(self):
+        from origins.sim import traders
+        pl = generate(1)
+        u, v = 4991, 19836
+        self.assertTrue(pl.lake[u]); self.assertTrue(pl.land[v])
+        self.assertAlmostEqual(float(pl.water_level[u]), 671.26, places=1)
+        foot, water, sea = traders._step_costs(pl, (0.0, 0.0, 1.0, 0.0))
+        self.assertAlmostEqual(traders._cost(u, v, pl, foot, water, sea), 1.31908, places=4)
+
+
 if __name__ == "__main__":
     unittest.main()

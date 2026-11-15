@@ -305,6 +305,7 @@ HIGH_COST = 0.5                    # extra travel cost per step in cells above 2
 RIVER_COST = 0.5                   # travel cost of a step along a river or coast with canoes of quality 1 (else as land)
 SEA_COST = 2.0                     # travel cost of a sea cell with sail of quality 1 (divided by quality; none without sail)
 TRADE_LOG_CAP = 20000
+ROAD_TOLLS_MAX = 8                 # most tolls a road search considers paying on one leg
 # curation (Ben, 16 Nov 2026): scarce tools are used sparingly, so a band's wear of them falls as its holdings per
 # person fall (good stone in short supply is made into formal, curated tools: Andrefsky 1994; Binford 1979).
 # Form and values are starting values, not measured.
