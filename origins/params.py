@@ -289,5 +289,21 @@ PARTNER_TRADE_RATE = 0.1           # as DTL_RATE, for partners who are not neigh
 PARTNER_SWITCH = 0.1               # yearly chance a settled band with no room drops its worst-supplied partner for a better one
 PARTNER_SWITCH_GAIN = 2.0          # the new partner must be at least this many times as well supplied (Ben, 15 Nov 2026)
 PARTNER_REFORM_WAIT = 10           # years before two bands parted by a swap can be partners again (Ben, 15 Nov 2026)
+# trade stage 4b (Ben, 15 Nov 2026): traders of polities carry goods between centres. All starting values.
+TRADER_GOODS = ("salt", "fine_stone", "copper", "tin", "iron", "gold", "shell")   # working and prestige goods (Ben)
+TRADER_SHARE = 0.2                 # share of a seat's specialists who are traders (fed from surplus, as specialists are)
+TRADER_LOAD = 2.0                  # units of goods one trader carries in a year, on foot; pack animals and carts add to it
+TRADE_RANGE = 30.0                 # furthest route, in travel cost (one land cell on foot = 1; Assur-Kanesh about 20 cells)
+ROUTES_MAX = 3                     # destinations a polity's traders serve, chosen by gravity (size x size / cost^2)
+TRADER_RATE = 0.5                  # share of the gap in holdings per person a route aims to close in a year, before load
+ROAD_LOSS = 0.01                   # share of goods lost per unit of travel cost: lost = 1 - exp(-ROAD_LOSS x cost)
+TOLL = 0.05                        # share of a load each polity crossed takes, unless the trader goes round
+FIRST_PICK = 0.1                   # share of what arrives the destination's ruler takes first (Kanesh: about 10% of textiles)
+TRADER_KEEP = 0.25                 # share of what is delivered the traders keep, taken home (the split at Kanesh is unknown)
+MOUNTAIN_COST = 2.0                # extra travel cost per 1,000 m climbed between cells
+HIGH_COST = 0.5                    # extra travel cost per step in cells above 2,000 m
+RIVER_COST = 0.5                   # travel cost of a step along a river or coast with canoes of quality 1 (else as land)
+SEA_COST = 2.0                     # travel cost of a sea cell with sail of quality 1 (divided by quality; none without sail)
+TRADE_LOG_CAP = 20000
 TECH_FARMING = 0.2                 # farm (or herd) share a people needs before farming techniques apply to them
 

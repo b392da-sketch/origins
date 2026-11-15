@@ -59,6 +59,8 @@ FLOWS = ("produced", "worn", "lost", "moved_out", "moved_in")
 
 
 def init(w):
+    from . import traders
+    traders.init(w)
     w.goods = np.zeros((64, G), dtype=np.float64)
     w.goods_ledger = {g: {f: 0.0 for f in FLOWS} for g in GOODS}
     k = int(getattr(P, "PARTNERS_CAP", 16))
@@ -158,7 +160,10 @@ def band_ended(w, band_id: int):
 
 
 def totals(w) -> np.ndarray:
-    return w.goods.sum(axis=0) if getattr(w, "goods", None) is not None else np.zeros(G)
+    """Goods held by bands and by rulers (trade stage 4b)."""
+    from . import traders
+    base = w.goods.sum(axis=0) if getattr(w, "goods", None) is not None else np.zeros(G)
+    return base + traders.totals(w)
 
 
 def _deposit(w, cells, what) -> np.ndarray:
@@ -197,6 +202,8 @@ def yearly(w):
         w.goods_ledger[g]["produced"] += float(made.sum())
     partnerships_yearly(w, live)
     down_the_line(w, live, ids, cells)
+    from . import traders
+    traders.yearly(w, live)                            # stage 4b: traders of polities, between seats
     worn = w.goods[ids] * np.array([P.GOOD_WEAR[g] for g in GOODS])[None, :]
     w.goods[ids] -= worn
     for i, g in enumerate(GOODS):
@@ -631,11 +638,14 @@ def down_the_line(w, live, ids, cells):
 
 
 def to_json(w) -> dict:
-    return {"exchange_log": getattr(w, "exchange_log", []), "gift_log": getattr(w, "gift_log", []),
+    from . import traders
+    return {"traders": traders.to_json(w), "exchange_log": getattr(w, "exchange_log", []), "gift_log": getattr(w, "gift_log", []),
             "partner_dropped": getattr(w, "partner_dropped", {})}
 
 
 def from_json(w, d: dict):
+    from . import traders
+    traders.from_json(w, (d or {}).get("traders"))
     w.exchange_log = (d or {}).get("exchange_log", [])
     w.gift_log = (d or {}).get("gift_log", [])
     w.partner_dropped = dict((d or {}).get("partner_dropped", {}))

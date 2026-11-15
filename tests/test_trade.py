@@ -584,5 +584,117 @@ class ReformWait(unittest.TestCase):
             P.PARTNER_SWITCH, P.PARTNER_FORM = old
 
 
+class Traders(unittest.TestCase):
+    """Trade stage 4b (Ben, 15 November 2026): traders of polities carry goods between seats."""
+    _bands_on, _line_cells = Review014._bands_on, Review014._line_cells
+
+    def _world(self, n_between=0):
+        from origins.sim import polity, traders
+        w0 = World.new(1, 1, generate(1))
+        c = self._line_cells(w0, 5)
+        w, bs = self._bands_on([c[0], c[4]])
+        A = polity._new_polity(w, bs[0], [{"note": "test"}], why="test")
+        B = polity._new_polity(w, bs[1], [{"note": "test"}], why="test")
+        sizes = np.zeros(len(w.band_sizes()) + 64, dtype=int)
+        sizes[bs[0].id] = sizes[bs[1].id] = 200
+        w.band_sizes = lambda: sizes[:len(w.bands)] if len(w.bands) <= len(sizes) else np.resize(sizes, len(w.bands))
+        w.spec[bs[0].id] = 10.0                                  # two traders at A's seat
+        return w, bs, A, B, c, sizes
+
+    def _year(self, w):
+        from origins.sim import trade, traders
+        trade.check_begin(w)
+        traders.yearly(w, w.living_bands())
+        w.invariant_failures = getattr(w, "invariant_failures", [])
+        trade.check_end(w)
+
+    def test_a_route_carries_goods_with_losses_picks_and_shares(self):
+        from origins.sim import traders
+        w, (a, b), A, B, c, _ = self._world()
+        F = trade.GI["fine_stone"]
+        w.goods[a.id, F] = 100.0
+        n0 = len(w.events)
+        w.invariant_failures = []
+        self._year(w)
+        self.assertEqual(w.invariant_failures, [])
+        self.assertGreater(w.goods[b.id, F], 0.0)                 # delivered
+        self.assertGreater(w.treasury[B.id, F], 0.0)              # the destination's ruler took first pick
+        self.assertGreater(w.goods_ledger["fine_stone"]["lost"], 0.0)   # lost on the road
+        load = 2 * P.TRADER_LOAD
+        self.assertAlmostEqual(100.0 - (w.goods[a.id, F] - 0.0), load - P.TRADER_KEEP * (
+            (load * np.exp(-P.ROAD_LOSS * traders.path(w.planet, a.cell, b.cell, (0.0, 0.0, 0.0, 0.0))[0])) * (1 - P.FIRST_PICK)),
+            places=6)
+        kinds = [w.events[i]["kind"] for i in range(n0, len(w.events))]
+        self.assertEqual(kinds.count("trade_route_opened"), 1)
+        self.assertIn("good_arrived", kinds)
+        self._year(w)
+        kinds = [w.events[i]["kind"] for i in range(n0, len(w.events))]
+        self.assertEqual(kinds.count("trade_route_opened"), 1)    # opened once
+
+    def test_a_polity_on_the_road_takes_a_toll_or_is_gone_round(self):
+        from origins.sim import polity, traders
+        w, (a, b), A, B, c, sizes = self._world()
+        cost, cells = traders.path(w.planet, a.cell, b.cell, (0.0, 0.0, 0.0, 0.0))
+        nb = w.planet.grid.neighbours
+        strip = set(cells[1:-1])
+        for x in cells[1:-1]:                                     # K holds the road and the land either side of it
+            strip |= {int(y) for y in nb[x] if y >= 0 and w.planet.land[y]}
+        strip -= {a.cell, b.cell}
+        mid = [w.new_band(x, parent=a.id) for x in sorted(strip)]
+        K = polity._new_polity(w, mid[0], [{"note": "test"}], why="test")
+        for m in mid:
+            w.polity_of[m.id] = K.id
+            sizes[m.id] = 1
+        w.bands_changed()
+        F = trade.GI["fine_stone"]
+        old = (P.TOLL, P.ROUTES_MAX)
+        try:
+            P.ROUTES_MAX = 1
+            rows = {}
+            for toll in (0.001, 0.9):
+                P.TOLL = toll
+                w.goods[a.id, F] = 100.0
+                w.route_log = []
+                w.log_strides.pop("route_log", None)
+                self._year(w)
+                rows[toll] = [r for r in w.route_log if r[1] == A.id and r[2] == B.id]
+            self.assertEqual(len(rows[0.001]), 1)
+            self.assertEqual(rows[0.001][0][8:], [1, 0])          # a small toll is paid ...
+            self.assertGreater(rows[0.001][0][5], 0.0)
+            self.assertEqual(rows[0.9][0][8:], [0, 1])            # ... a ruinous one is gone round
+            ev = [e for e in w.events if e["kind"] == "toll_evaded"]
+            self.assertEqual(len(ev), 1)
+            self.assertEqual(ev[0]["data"]["around"], K.id)
+        finally:
+            P.TOLL, P.ROUTES_MAX = old
+
+    def test_rulers_stores_pass_on_and_survive_save_and_load(self):
+        from origins import persist
+        from origins.sim import polity, traders
+        w, (a, b), A, B, c, _ = self._world()
+        w.goods[a.id, trade.GI["salt"]] = 50.0
+        self._year(w)
+        self.assertGreater(w.treasury[B.id].sum(), 0.0)
+        w2 = persist.from_bytes(persist.to_bytes(w), planet=w.planet)
+        self.assertTrue(np.array_equal(w2.treasury, w.treasury))
+        self.assertEqual(w2.routes_seen, w.routes_seen)
+        held = float(w.treasury[B.id].sum())
+        before = float(w.goods[b.id].sum())
+        polity._end_polity(w, B, "test", [{"note": "test"}])
+        self.assertEqual(float(w.treasury[B.id].sum()), 0.0)
+        self.assertAlmostEqual(float(w.goods[b.id].sum()), before + held, places=9)
+
+    def test_no_sea_crossing_without_sail(self):
+        from origins.sim import traders
+        pl = generate(1)
+        land = np.nonzero(pl.land)[0]
+        sea = [int(x) for x in pl.grid.neighbours[int(np.nonzero(pl.coast)[0][0])] if x >= 0 and not pl.land[x] and not pl.lake[x]]
+        self.assertTrue(sea)
+        cost, cells = traders.path(pl, int(np.nonzero(pl.coast)[0][0]), sea[0], (0.0, 0.0, 0.0, 0.0))
+        self.assertEqual(cells, ())
+        cost, cells = traders.path(pl, int(np.nonzero(pl.coast)[0][0]), sea[0], (0.0, 0.0, 0.0, 1.0))
+        self.assertAlmostEqual(cost, P.SEA_COST)
+
+
 if __name__ == "__main__":
     unittest.main()

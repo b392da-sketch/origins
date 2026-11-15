@@ -80,7 +80,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
               "polity_of": w.polity_of, "polity_via": w.polity_via, "conquered_at": w.conquered_at,
               "herder_since": w.herder_since, "tech": w.tech, "tech_record": w.tech_record,
               "goods": w.goods, "partner_of": w.partner_of, "partner_since": w.partner_since,
-              "goods_reached": w.goods_reached, "partner_gave": w.partner_gave}
+              "goods_reached": w.goods_reached, "partner_gave": w.partner_gave, "treasury": w.treasury}
     arrays.update({"p_" + k: v for k, v in w.people.arrays().items()})
     arrays.update({"g_" + k: v for k, v in w.groups.arrays().items()})
     arrays.update({"b_" + k: v for k, v in w.bands.arrays().items()})
@@ -212,6 +212,8 @@ def from_bytes(data: bytes, planet=None) -> World:
     else:
         w.goods_reached = None
         _trade.grow(w, len(w.goods) - 1)             # older saves: what a band holds has reached it
+    if "treasury" in arrays:                            # rulers' stores (trade stage 4b)
+        w.treasury = np.array(arrays["treasury"], dtype=np.float64)
     if led:
         w.goods_ledger = {k: dict(v) for k, v in led.items()}
     from .sim import customs as _customs
@@ -281,7 +283,7 @@ def digest(w: World) -> str:
         h.update(np.ascontiguousarray(v).tobytes())
     for arr in (w.stock, w.stock_broad, w.known, w.region_z, w.customs, w.neutral, w.hazard_food, w.immune, w.skill, w.farm_share,
                 w.crop_store, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since, w.tech,
-                w.tech_record, w.goods, w.partner_of, w.partner_since, w.goods_reached, w.partner_gave):
+                w.tech_record, w.goods, w.partner_of, w.partner_since, w.goods_reached, w.partner_gave, w.treasury):
         h.update(np.ascontiguousarray(arr).tobytes())
     for k, v in sorted(w.bands.arrays().items()):
         h.update(k.encode())
@@ -292,6 +294,8 @@ def digest(w: World) -> str:
              "last_event": w.events[-1] if w.events else None,
              "language": language.to_json(w), "hazards": w.hazards, "farming": farming.to_json(w),
              "polity": polity.to_json(w), "conflict": conflict.to_json(w),
-             "partner_dropped": getattr(w, "partner_dropped", {})}
+             "partner_dropped": getattr(w, "partner_dropped", {}),
+             "routes_seen": sorted(getattr(w, "routes_seen", set())),
+             "evaded_seen": sorted(getattr(w, "evaded_seen", set()))}
     h.update(json.dumps(_jsonable(small), sort_keys=True).encode())
     return h.hexdigest()[:20]

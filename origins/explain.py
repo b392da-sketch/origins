@@ -157,6 +157,10 @@ def _event_title(w, e) -> str:
         return f"{d.get('good', 'a good').replace('_', ' ')} reached {bn}"
     if k == "gift_exchange":
         return f"{bn} exchanged gifts with a partner"
+    if k == "trade_route_opened":
+        return f"traders from {bn} opened a route"
+    if k == "toll_evaded":
+        return f"traders from {bn} went round a toll"
     if k == "helped_by_partners":
         return f"{bn} was helped by its gift partners"
     if k == "technique_recovered":

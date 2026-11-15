@@ -395,6 +395,8 @@ def _conquer(w, b, t, s, ts, is_pol, pol, eid) -> int:
         moved = polity.members_of(w, dp.id)
         dp.alive = False
         dp.ended = w.t
+        from . import traders as _traders
+        _traders.polity_conquered(w, dp, pol)           # the ruler's store goes to the conqueror (stage 4b)
         w.event("polity_ended", cell=t.cell, band=t.id, polity=dp.id, why="conquered",
                 causes=[{"event": eid}])
     for x in moved:

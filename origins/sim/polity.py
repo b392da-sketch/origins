@@ -271,6 +271,8 @@ def _new_polity(w, seat, causes, parent=-1, why="") -> Polity:
 def _end_polity(w, p, why, causes):
     p.alive = False
     p.ended = w.t
+    from . import traders as _traders
+    _traders.polity_ended(w, p)                       # the ruler's store passes to the seat (trade stage 4b)
     for b in members_of(w, p.id):
         w.polity_of[b.id] = -1
         w.polity_via[b.id] = -1
