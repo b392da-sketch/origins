@@ -34,4 +34,4 @@ So a knock-out from one history is noisy. The fine-stone comparison holds at the
 
 On fairness: both runs loaded the same year-9,700 save (`snap_p3s1_8500_plus1200.zip`), ran 300 years each with the same code at `16def2d`, and differed only in the `CURATION` environment switch. The script is now in the repository: `local/scripts/knockout_curation.py`.
 
-All tests pass (see the commit). All values are starting values.
+All 133 tests pass (see the commit). All values are starting values.
