@@ -573,3 +573,9 @@ Options for Ben:
 - Shott, M. J. (1989). On tool-class use lives and the formation of archaeological assemblages. *American Antiquity*, 54(1), 9–30.
 - Shott, M. J., & Sillitoe, P. (2004). Modeling use-life distributions in archaeology using New Guinea Wola ethnographic data. *American Antiquity*, 69(2), 339–355.
 - Tripcevich, N. (2007). *Quarries, Caravans, and Routes to Complexity: Prehispanic Obsidian in the South-Central Andes* (PhD dissertation, University of California, Santa Barbara), section 2.2.5, online at mapaspects.org (summarising Ericson 1984).
+
+**Ben's decision (15 November 2026): curation.** A band's wear of working goods will fall as its holdings per person fall: scarce goods are used sparingly. Built as a trial with starting values once review 016 is answered, and judged at the gate by its knock-out.
+
+Evidence for the direction: across ethnographic and archaeological cases, poor-quality stone tends to be made into informal tools; good stone in short supply into formal tools; good stone that is plentiful into both, and residential mobility matters less than availability (Andrefsky 1994). Formal tools are the curated ones (Binford 1979). This supports the direction (scarce good stone, used more carefully) but gives no rate; the form and values will be starting values.
+
+- Andrefsky, W., Jr. (1994). Raw-material availability and the organization of technology. *American Antiquity*, 59(1), 21–34.
