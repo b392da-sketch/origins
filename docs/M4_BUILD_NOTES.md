@@ -593,3 +593,16 @@ Ben's decisions (16 November 2026):
 - the destination shortlist is by gravity on straight-line distance.
 
 Trial rerun (year-9,700 world, 100 years, 435 s, traders 83 s): no ledger failures. Tolls were paid on 2,427 sampled route-years and gone round on 437 (4 and 146 before the fix), totalling 200 units in the sampled rows. 214 goods first reached a band with traders. The fine-stone tail is unchanged. Codex's timings of the shortlist (0.19 s at 500 polities, 0.99 s at 1,500, 3.19 s at 3,000, before the partial sort) go here as measured.
+
+### Curation, as built (16 November 2026)
+
+- **Rule.** In each band, wear of tools (`CURATED_GOODS`: fine stone, copper, tin, iron) is the usual rate × max(`CURATION_MIN` 0.1, h / (h + `CURATION_HALF` 0.01)), where h is the band's holdings per person. Near a source (h about 0.4), wear is about 98% of the usual rate; at h = 0.001 it is a tenth. Salt, textiles, pottery and prestige goods wear as before, and so do rulers' stores. `CURATION` False is the knock-out. The form and values are starting values; only the direction rests on the literature (Andrefsky 1994; Binford 1979).
+- **Knock-out** (planet 3, year-9,700 world, 300 years each, run side by side; no ledger failures either way). Fine stone per person by cells from the source:
+
+| Cells | 0 | 4 | 6 | 8 | 10 | 12 | 14 |
+|---|---|---|---|---|---|---|---|
+| Curation on | 0.41 | 0.013 | 0.0035 | 0.0015 | 0.00045 | 0.00019 | 0.00011 |
+| Curation off | 0.44 | 0.0065 | 0.0015 | 0.00035 | 1.9e-5 | 1.8e-6 | 3.4e-7 |
+
+  Near the sources nothing changes; the tail fattens from about 5 cells out, by about 4 times at 8 cells, 100 times at 12 and 300 times at 14. At 12 cells (about 720 km) fine stone is about 0.05% of the source level, against roughly 0.6% for obsidian: still about 13 times short, but the curve now flattens with distance rather than falling at a steady rate. Whether the rest of the gap comes from Renfrew's supply zone (direct access near sources), from values of the curation rule, or from elsewhere is not settled.
+- Everything else barely moves: run time 1,266 s against 1,298 s; trader routes and tolls within a few per cent. With curation on there were 4,056 first arrivals against 5,701 off. Fewer bands' stock falls below the threshold and back, so fewer goods arrive "for the first time" through other routes; this is a reading, not checked.
