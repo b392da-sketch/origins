@@ -537,10 +537,12 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
         la, lb = w.languages.get(b.language), w.languages.get(src.language)
         same = shared_roots(la, lb) if (la is not None and lb is not None) else 1.0
         close = P.TECH_FOREIGN + (1.0 - P.TECH_FOREIGN) * same
+        via_partner = False
         if getattr(P, "TRADE", False):
             from . import trade as _trade
             if src.id in _trade.partners(w, b.id):
                 close = 1.0                  # gift partners live together for months: they teach as one people
+                via_partner = True
         if rng.random() >= close:
             continue
         level = P.TECH_ADOPT_SHARE * float(new[j, k])                # learners fall short of their teacher
@@ -550,7 +552,8 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
         why = (f"{w.band_name(b)} learned {t.name} from {w.band_name(src)} ({same:.0%} of words shared); "
                f"{teachers[i, k]:,.0f} of the {skilled_reach[i]:,.0f} skilled people within reach practised it")
         w.event("technique_adopted", cell=b.cell, band=b.id, technique=t.key,
-                causes=[{"band": src.id}, {"note": why}], source=src.id, route="contact",
+                causes=[{"band": src.id}, {"note": why + ("; they were gift partners" if via_partner else "")}],
+                source=src.id, route="partnership" if via_partner else "contact",
                 level=round(level, 3), closeness=round(close, 3))
     w.tech[ids] = new.astype(np.float32)
     w._tech_eff = None                                  # effects are judged afresh after the year's changes

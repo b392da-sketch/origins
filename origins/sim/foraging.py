@@ -34,7 +34,8 @@ def move(w):
     cur = w.stock[cells] / np.maximum(occ[cells], 1)
     nbs = nb[cells]
     valid = (nbs >= 0) & planet.land[np.clip(nbs, 0, None)]
-    vals = np.where(valid, w.stock[np.clip(nbs, 0, None)] / (occ[np.clip(nbs, 0, None)] + s[:, None]), -1.0)
+    with np.errstate(divide="ignore", invalid="ignore"):     # empty bands divide by zero; they never move (s > 0 below)
+        vals = np.where(valid, w.stock[np.clip(nbs, 0, None)] / (occ[np.clip(nbs, 0, None)] + s[:, None]), -1.0)
     settled = w.farm_share[ids] >= 0.5                 # villages stay with their fields
     want = (vals.max(1) > cur * P.MOVE_THRESHOLD) & (s > 0) & ~settled
     cand = np.nonzero(want)[0]

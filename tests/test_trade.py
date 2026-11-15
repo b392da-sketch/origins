@@ -129,5 +129,67 @@ class Partnerships(unittest.TestCase):
         self.assertEqual(w.invariant_failures, [])
 
 
+
+class Review013(unittest.TestCase):
+    """Codex review 013: findings reproduced, then fixed."""
+
+    def test_loading_a_stage1_save_keeps_the_last_goods_row(self):
+        import io, zipfile, json
+        w = World.new(1, 1, generate(1))
+        a = w.living_bands()[0]
+        while len(w.goods) < 128:
+            w.new_band(a.cell, parent=a.id)
+        last = len(w.goods) - 1
+        w.goods[last] = np.arange(1, trade.G + 1) * 10.0
+        data = persist.to_bytes(w)
+        zin = zipfile.ZipFile(io.BytesIO(data))
+        out = io.BytesIO()
+        with zipfile.ZipFile(out, "w") as zo:
+            for n in zin.namelist():
+                blob = zin.read(n)
+                if n == "arrays.npz":
+                    arrs = dict(np.load(io.BytesIO(blob)))
+                    arrs.pop("partner_of"); arrs.pop("partner_since")
+                    buf = io.BytesIO(); np.savez(buf, **arrs); blob = buf.getvalue()
+                zo.writestr(n, blob)
+        w2 = persist.from_bytes(out.getvalue(), w.planet)
+        self.assertEqual(w2.goods[last].tolist(), w.goods[last].tolist())
+
+    def test_help_only_from_partners_within_reach(self):
+        from origins.sim.language import ring2
+        w = World.new(1, 1, generate(1))
+        a = w.living_bands()[0]
+        b = w.new_band(a.cell, parent=a.id)
+        trade._link(w, a.id, b.id)
+        far = [c for c in range(w.planet.n) if w.planet.land[c] and c not in set(int(x) for x in ring2(w)[a.cell])]
+        b.cell = far[0]
+        w.bands_changed()
+        ids = np.array([a.id, b.id])
+        out = trade.share_in_need(w, [a, b], ids, np.array([5.0, 100.0]), np.array([10.0, 10.0]), np.array([10.0, 10.0]))
+        self.assertEqual(out.tolist(), [5.0, 100.0])
+
+    def test_gifts_are_recorded(self):
+        w = World.new(1, 1, generate(1))
+        a = w.living_bands()[0]
+        b = w.new_band(a.cell, parent=a.id)
+        trade._link(w, a.id, b.id)
+        w.goods[a.id, trade.GI["shell"]] = 100.0
+        old = P.PARTNER_FORM
+        P.PARTNER_FORM = 0.0
+        n0 = len(w.events)
+        try:
+            trade.partnerships_yearly(w, w.living_bands())
+        finally:
+            P.PARTNER_FORM = old
+        ev = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "gift_exchange"]
+        self.assertEqual(len(ev), 1)
+        self.assertAlmostEqual(ev[0]["data"]["goods"][str(a.id)]["shell"], 5.0)
+
+    def test_consolidation_drops_partnerships(self):
+        import inspect
+        from origins.sim import bands
+        self.assertIn("trade._unlink_all(w, b.id)", inspect.getsource(bands.consolidate_groups))
+
+
 if __name__ == "__main__":
     unittest.main()

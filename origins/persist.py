@@ -194,12 +194,12 @@ def from_bytes(data: bytes, planet=None) -> World:
     if g is not None and g.shape[1] == _trade.G:
         w.goods = np.array(g, dtype=np.float64)        # exactly as saved (replay digest)
     else:
-        _trade.ensure(w, len(w.farm_share) - 1, -1)
+        _trade.grow(w, len(w.farm_share) - 1)
     if "partner_of" in arrays:                          # gift partnerships (trade stage 2); older saves have none
         w.partner_of = np.array(arrays["partner_of"], dtype=np.int64)
         w.partner_since = np.array(arrays["partner_since"], dtype=np.int64)
     elif len(w.partner_of) < len(w.goods):
-        _trade.ensure(w, len(w.goods) - 1, -1)
+        _trade.grow(w, len(w.goods) - 1)             # keeps every goods row (Codex review 013)
     if led:
         w.goods_ledger = {k: dict(v) for k, v in led.items()}
     from .sim import customs as _customs

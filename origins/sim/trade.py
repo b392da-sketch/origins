@@ -54,7 +54,16 @@ def init(w):
 
 
 def ensure(w, band_id: int, parent: int):
-    """A new band starts with no goods; whoever creates it moves a share across with move_share."""
+    """A new band starts with no goods and no partners; whoever creates it moves a share across with move_share."""
+    grow(w, band_id)
+    w.goods[band_id] = 0.0
+    w.partner_of[band_id] = -1                 # a new band starts without partners of its own
+    w.partner_since[band_id] = -1
+
+
+def grow(w, band_id: int):
+    """Make room for rows up to band_id, keeping every existing row (Codex review 013: loading an older save used to
+    clear its last goods row)."""
     if getattr(w, "goods", None) is None:
         init(w)
     if band_id >= len(w.goods):
@@ -75,9 +84,6 @@ def ensure(w, band_id: int, parent: int):
             out = -np.ones((cap, a.shape[1]), dtype=np.int64)
             out[:len(a)] = a
             setattr(w, name, out)
-    w.goods[band_id] = 0.0
-    w.partner_of[band_id] = -1                 # a new band starts without partners of its own
-    w.partner_since[band_id] = -1
 
 
 def move_share(w, src_id: int, dst_id: int, frac: float):
@@ -220,11 +226,20 @@ def partnerships_yearly(w, live):
     for b in live:
         for o in partners(w, b.id):
             if o > b.id:
+                given = {str(b.id): {}, str(o): {}}
                 for g in P.GIFT_GOODS:
                     i = GI[g]
                     x, y = P.GIFT_SHARE * w.goods[b.id, i], P.GIFT_SHARE * w.goods[o, i]
-                    move_good(w, b.id, o, i, x)
-                    move_good(w, o, b.id, i, y)
+                    gx, gy = move_good(w, b.id, o, i, x), move_good(w, o, b.id, i, y)
+                    if gx > 0:
+                        given[str(b.id)][g] = round(gx, 6)
+                    if gy > 0:
+                        given[str(o)][g] = round(gy, 6)
+                if given[str(b.id)] or given[str(o)]:
+                    # each exchange recorded with its partners, goods and quantities (M4 spec 4.2; Codex review 013)
+                    w.event("gift_exchange", cell=b.cell, band=b.id, partner=o, goods=given,
+                            causes=[{"band": o}, {"note": f"{w.band_name(b)} and {w.band_name(alive[o])} exchanged "
+                                                          f"their yearly gifts as partners"}])
     # new links: pairs within reach with room, drawn in band order, likelier between peoples who share words
     by_cell: dict = {}
     for b in live:
@@ -267,15 +282,20 @@ def share_in_need(w, bands, ids, avail, need_now, keep_need):
         return avail
     avail = avail.copy()
     spare = np.maximum(avail - keep_need, 0.0) * P.PARTNER_SHARE
+    from .language import ring2
+    r2 = ring2(w)
     for k in np.nonzero(short > 0)[0].tolist():
         bid = int(ids[k])
         if bid >= len(w.partner_of):
             continue
+        near = {int(c) for c in r2[bands[k].cell] if c >= 0}
         givers, got = [], 0.0
         for o in partners(w, bid):
             j = pos.get(o)
             if j is None or spare[j] <= 0 or short[k] - got <= 1e-9:
                 continue
+            if bands[j].cell not in near:
+                continue                     # a partner who has moved out of reach cannot help (Codex review 013)
             give = min(spare[j], short[k] - got)
             spare[j] -= give
             avail[j] -= give

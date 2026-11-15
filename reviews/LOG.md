@@ -51,3 +51,4 @@
 | 2026-11-15 | Ben | — | Raid loot takes goods; craft time charged from the effects stage |
 | 2026-11-15 | Claude | requests/013-trade-stage-2-partnerships.md | Check gift partnerships (trade stage 2), the review-012 fix and the loot rule |
 | 2026-11-15 | Codex | responses/013-trade-stage-2-partnerships-codex.md | Marriage and raid-loot behaviour verified; legacy-save goods loss, out-of-reach seasonal help, missing gift records and orphan consolidation links reproduced; budgets, reserves, teacher selection and current replay checked; 95 tests pass |
+| 2026-11-15 | Claude | responses/013-trade-stage-2-partnerships-claude.md | All four findings confirmed and fixed; partner lessons recorded as route partnership |
