@@ -298,7 +298,7 @@ ROUTES_MAX = 3                     # destinations a polity's traders serve, chos
 TRADER_RATE = 0.5                  # share of the gap in holdings per person a route aims to close in a year, before load
 ROAD_LOSS = 0.01                   # share of goods lost per unit of travel cost: lost = 1 - exp(-ROAD_LOSS x cost)
 TOLL = 0.05                        # share of a load each polity crossed takes, unless the trader goes round
-FIRST_PICK = 0.1                   # share of what arrives the destination's ruler takes first (Kanesh: about 10% of textiles)
+RULER_LEVY = 0.1                   # share of what arrives the destination's ruler levies (a levy until money, M6: Ben, 16 Nov 2026; Kanesh: about 10% of textiles)
 TRADER_KEEP = 0.25                 # share of what is delivered the traders keep, taken home (the split at Kanesh is unknown)
 MOUNTAIN_COST = 2.0                # extra travel cost per 1,000 m climbed between cells
 HIGH_COST = 0.5                    # extra travel cost per step in cells above 2,000 m

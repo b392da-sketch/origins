@@ -15,9 +15,11 @@ one where they are scarce, a share TRADER_RATE of the gap, within what the trade
 - goods are lost on the road: 1 - exp(-ROAD_LOSS x cost);
 - each polity whose cells the road crosses takes TOLL of the load, unless going round its cells loses less than the
   toll would take (smuggling, recorded);
-- the destination's ruler takes FIRST_PICK of what arrives (Kanesh: about a tenth of the textiles);
-- the traders keep TRADER_KEEP of what is delivered and take it home; the rest goes to the destination's seat.
-Tolls and first picks go to the ruler's store of goods (w.treasury, per polity); when a polity ends, its store
+- the destination's ruler levies RULER_LEVY of what arrives (at Kanesh, a right to buy about a tenth of the textiles
+  first; with no money until M6 it is a levy: Ben, 16 November 2026);
+- the traders keep TRADER_KEEP of what is delivered and take it home, losing some on the road back and paying
+  tolls on it; the rest goes to the destination's seat. Each direction travels its own road (Ben, 16 November 2026).
+Tolls and levies go to the ruler's store of goods (w.treasury, per polity); when a polity ends, its store
 passes to its seat, or is lost if the seat has gone.
 
 Travel costs are pure functions of the planet and the transport qualities (rounded to tenths), so they are cached
@@ -119,7 +121,9 @@ def _step_costs(pl, tq):
 
 def _cost(u, v, pl, foot, water, sea):
     if pl.land[v]:
-        c = foot + P.MOUNTAIN_COST * max(0.0, float(pl.elevation[v] - pl.elevation[u])) / 1000.0
+        # from the sea or a lake, the climb starts at the water's surface, not the bed (Codex review 016)
+        h0 = float(pl.elevation[u]) if pl.land[u] else max(0.0, float(pl.elevation[u]))
+        c = foot + P.MOUNTAIN_COST * max(0.0, float(pl.elevation[v]) - h0) / 1000.0
         if pl.elevation[v] > 2000:
             c += P.HIGH_COST
         if water is not None and ((pl.river[u] and pl.river[v]) or (pl.coast[u] and pl.coast[v])):
@@ -130,9 +134,17 @@ def _cost(u, v, pl, foot, water, sea):
     return sea
 
 
+def _config(pl) -> tuple:
+    """Everything a travel cost depends on besides the two cells and transport (Codex review 016: the cache was keyed
+    by the planet's seed alone)."""
+    E = P.TECH_EFFECT
+    return (pl.fingerprint, pl.grid.level, pl.grid.n, P.TRADE_RANGE, P.MOUNTAIN_COST, P.HIGH_COST, P.RIVER_COST,
+            P.SEA_COST, E.get("pack_animals", 0), E.get("carts", 0))
+
+
 def path(pl, a: int, b: int, tq: tuple, blocked: frozenset = frozenset()):
     """Cheapest route from cell a to cell b (A*), within TRADE_RANGE. Returns (cost, cells) or (inf, ())."""
-    key = (pl.seed, a, b, tq, blocked)
+    key = (_config(pl), a, b, tq, blocked)
     hit = _COST_CACHE.get(key)
     if hit is not None:
         return hit
@@ -187,6 +199,61 @@ def path(pl, a: int, b: int, tq: tuple, blocked: frozenset = frozenset()):
     return out
 
 
+def road(pl, a: int, b: int, tq: tuple, holder: dict, ends: set, tau: float):
+    """Cheapest road from a to b counting tolls (Codex review 016): entering the land of a polity other than the two
+    ends adds tau to the cost, where tau is the toll expressed as travel cost (a toll keeps 1 - TOLL of a load, as
+    tau of extra road would). So one search chooses one real road, paying where that is cheaper than going round.
+    Re-entering the same polity's land counts as crossing its border again. Not cached: borders change.
+    Returns (travel cost, cells, polities paid, in road order) or (inf, (), [])."""
+    if a == b:
+        return 0.0, (a,), []
+    foot, water, sea = _step_costs(pl, tq)
+    hmin = min(x for x in (foot, water, sea) if x is not None)
+    xyz = pl.grid.xyz
+    R = pl.grid.radius_km / pl.grid.spacing_km
+    target = xyz[b]
+
+    def h(c):
+        return 0.8 * R * math.acos(float(np.clip(np.dot(xyz[c], target), -1.0, 1.0))) * hmin
+
+    def fee(u, v):
+        k = holder.get(v, -1)
+        return tau if (k >= 0 and k not in ends and holder.get(u, -1) != k) else 0.0
+
+    nb = pl.grid.neighbours
+    best = {a: 0.0}
+    terr = {a: 0.0}
+    prev = {}
+    heap = [(h(a), 0.0, a)]
+    while heap:
+        f, g, u = heapq.heappop(heap)
+        if u == b:
+            break
+        if g > best.get(u, math.inf):
+            continue
+        for v in nb[u]:
+            v = int(v)
+            if v < 0:
+                continue
+            c = _cost(u, v, pl, foot, water, sea)
+            if c is None or terr[u] + c > P.TRADE_RANGE:
+                continue
+            gv = g + c + fee(u, v)
+            if gv < best.get(v, math.inf):
+                best[v] = gv
+                terr[v] = terr[u] + c
+                prev[v] = u
+                heapq.heappush(heap, (gv + h(v), gv, v))
+    if b not in prev:
+        return math.inf, (), []
+    cells = [b]
+    while cells[-1] != a:
+        cells.append(prev[cells[-1]])
+    cells = tuple(reversed(cells))
+    paid = [holder[v] for u, v in zip(cells[:-1], cells[1:]) if fee(u, v) > 0]
+    return terr[b], cells, paid
+
+
 # ---------------------------------------------------------------- yearly
 
 def yearly(w, live):
@@ -214,15 +281,12 @@ def yearly(w, live):
     for b, pid, n in zip(live, pol.tolist(), sizes_all[ids].tolist()):
         if pid >= 0 and n > held_by.get(b.cell, -1):
             holder[b.cell], held_by[b.cell] = pid, n
-    land_of: dict = {}
-    for c_, k_ in holder.items():
-        land_of.setdefault(k_, set()).add(c_)
-    land_of = {k_: frozenset(v) for k_, v in land_of.items()}
     q = technology.practised_quality(w)
     E = P.TECH_EFFECT
     cols = [GI[g] for g in P.TRADER_GOODS]
     seats = np.array([p.seat for p in alive])
     sx = pl.grid.xyz[[w.bands[s].cell for s in seats]]
+    popv = np.array([float(pop.get(p.id, 0)) for p in alive])
     R = pl.grid.radius_km / pl.grid.spacing_km
     for ia, A in enumerate(alive):
         traders = math.floor(P.TRADER_SHARE * float(w.spec[A.seat]))
@@ -232,16 +296,26 @@ def yearly(w, live):
         tq = _tq(q[A.seat])
         foot, water, sea = _step_costs(pl, tq)
         hmin = min(x for x in (foot, water, sea) if x is not None)
-        # candidates: other seats close enough in a straight line to be within range at the cheapest step cost
+        # shortlist by gravity on straight-line distance (Ben, 16 November 2026: a large centre further off can come
+        # before a small one nearby), among seats that could be within range at the cheapest step cost
         ang = np.arccos(np.clip(sx @ sx[ia], -1.0, 1.0)) * R
-        order = [int(j) for j in np.argsort(ang, kind="stable") if j != ia and ang[j] * hmin * 0.8 <= P.TRADE_RANGE][:12]
+        ok = ang * hmin * 0.8 <= P.TRADE_RANGE
+        ok[ia] = False
+        cand = np.nonzero(ok)[0]
+        if not len(cand):
+            continue
+        est = popv[ia] * popv[cand] / np.maximum(ang[cand], 1.0) ** 2
+        if len(cand) > 12:
+            top = np.argpartition(-est, 11)[:12]
+            cand, est = cand[top], est[top]
+        order = cand[np.lexsort((cand, -est))].tolist()
         opts = []
         for j in order:
             B = alive[j]
             cost, cells = path(pl, seatA.cell, w.bands[B.seat].cell, tq)
             if not cells or cost <= 0:
                 continue
-            opts.append((pop.get(A.id, 0) * pop.get(B.id, 0) / cost ** 2, B.id, B, cost, cells))
+            opts.append((popv[ia] * popv[j] / cost ** 2, B.id, B, cost, cells))
         if not opts:
             continue
         opts.sort(key=lambda o: (-o[0], o[1]))
@@ -250,10 +324,44 @@ def yearly(w, live):
         load = traders * P.TRADER_LOAD * (1 + E.get("pack_animals", 0) * tq[0] + E.get("carts", 0) * tq[1])
         for grav, _, B, cost, cells in opts:
             cap = load * grav / gsum if gsum > 0 else 0.0
-            _carry(w, A, B, cost, cells, cap, tq, holder, land_of, cols, sizes_all, log_row)
+            _carry(w, A, B, cost, cells, cap, tq, holder, cols, sizes_all, log_row)
 
 
-def _carry(w, A, B, cost, cells, cap, tq, holder, land_of, cols, sizes_all, log_row):
+def _leg(pl, cells, cost, tq, holder, ends):
+    """One direction of a route: the road chosen with every toll counted (Codex review 016), the share of goods that
+    survives the road, the polities paid and those gone round."""
+    crossed = []
+    for c in cells[1:-1]:
+        k = holder.get(c, -1)
+        if k >= 0 and k not in ends and k not in crossed:
+            crossed.append(k)
+    total, paid, evaded = cost, [], []
+    if crossed:
+        tau = -math.log(1.0 - P.TOLL) / P.ROAD_LOSS if 0 < P.TOLL < 1 else (math.inf if P.TOLL >= 1 else 0.0)
+        tcost, tcells, paid = road(pl, cells[0], cells[-1], tq, holder, ends, tau)
+        if tcells:
+            total, cells = tcost, tcells
+            evaded = [k for k in crossed if k not in paid]
+        else:
+            paid = list(crossed)
+    return {"keep": math.exp(-P.ROAD_LOSS * total), "paid": paid, "evaded": evaded, "cost": total, "cells": cells}
+
+
+def _travel(w, m, col, leg, led, acc):
+    """Goods m set out along a leg: road loss, then each toll in road order. Returns what arrives."""
+    arrive = m * leg["keep"]
+    led["lost"] += m - arrive
+    acc["lost"] += m - arrive
+    for k in leg["paid"]:
+        t = P.TOLL * arrive
+        arrive -= t
+        grow(w, k)
+        w.treasury[k, col] += t
+        acc["tolls"] += t
+    return arrive
+
+
+def _carry(w, A, B, cost, cells, cap, tq, holder, cols, sizes_all, log_row):
     from .trade import GOODS
     pl = w.planet
     a, b = A.seat, B.seat
@@ -266,63 +374,49 @@ def _carry(w, A, B, cost, cells, cap, tq, holder, land_of, cols, sizes_all, log_
         return
     if tot > cap:
         f *= cap / tot
-    # tolls: polities whose cells the road crosses, other than the two ends; go round one if that loses less
     ends = {A.id, B.id}
-    crossed = []
-    for c in cells[1:-1]:
-        k = holder.get(c, -1)
-        if k >= 0 and k not in ends and k not in crossed:
-            crossed.append(k)
-    total_cost, paid, evaded = cost, [], []
-    for k in crossed:
-        blocked = land_of[k]                              # going round means off all of k's land
-        dcost, dcells = path(pl, cells[0], cells[-1], tq, blocked)
-        extra = (math.exp(-P.ROAD_LOSS * total_cost) - math.exp(-P.ROAD_LOSS * (total_cost + dcost - cost))
-                 if dcells else math.inf)
-        if extra < P.TOLL * math.exp(-P.ROAD_LOSS * total_cost):
-            evaded.append(k)
-            total_cost += dcost - cost
-        else:
-            paid.append(k)
-    keep_frac = math.exp(-P.ROAD_LOSS * total_cost)
-    moved = lost = tolls = picks = kept = 0.0
+    # each way pays its own road (Ben, 16 November 2026): out A -> B, back B -> A
+    out = _leg(pl, cells, cost, tq, holder, ends)
+    bcost, bcells = path(pl, cells[-1], cells[0], tq)
+    back = _leg(pl, bcells, bcost, tq, holder, ends) if bcells else out
+    acc = {"lost": 0.0, "tolls": 0.0}
+    moved = picks = kept = 0.0
     for col, x in zip(cols, f.tolist()):
         if x == 0:
             continue
-        src, dst, dst_pid = (a, b, B.id) if x > 0 else (b, a, A.id)
+        outbound = x > 0
+        src, dst, dst_pid = (a, b, B.id) if outbound else (b, a, A.id)
+        leg = out if outbound else back
         m = abs(x)
         g = GOODS[col]
         led = w.goods_ledger[g]
         w.goods[src, col] -= m
-        arrive = m * keep_frac
-        led["lost"] += m - arrive
-        lost += m - arrive
-        for k in paid:
-            t = P.TOLL * arrive
-            arrive -= t
-            grow(w, k)
-            w.treasury[k, col] += t
-            tolls += t
-        fp = P.FIRST_PICK * arrive
+        lost0 = acc["lost"]
+        arrive = _travel(w, m, col, leg, led, acc)
+        levy = P.RULER_LEVY * arrive                          # the destination's ruler's levy (Ben, 16 Nov 2026)
         grow(w, dst_pid)
-        w.treasury[dst_pid, col] += fp
-        arrive -= fp
-        kp = P.TRADER_KEEP * arrive                          # the traders are A's: they take their share home
-        w.goods[a, col] += kp
+        w.treasury[dst_pid, col] += levy
+        arrive -= levy
+        kp = P.TRADER_KEEP * arrive                           # the traders are A's: their share goes home with them
         arrive -= kp
         reached_before = bool(w.goods_reached[dst, col])
         w.goods[dst, col] += arrive
+        home = _travel(w, kp, col, back, led, acc) if outbound else kp
+        w.goods[a, col] += home
         led["moved_out"] += m
-        led["moved_in"] += m - (m - m * keep_frac)
+        led["moved_in"] += m - (acc["lost"] - lost0)       # whatever was not lost reached a band or a ruler's store
         moved += m
-        picks += fp
-        kept += kp
+        picks += levy
+        kept += home
         if not reached_before and w.goods[dst, col] > P.ARRIVE_MIN:
             w.goods_reached[dst, col] = True
             db = w.bands[dst]
             w.event("good_arrived", cell=db.cell, band=dst, good=g, source=src, route="trader",
                     causes=[{"band": a}, {"note": f"{g.replace('_', ' ')} first reached {w.band_name(db)} with the "
                                                    f"traders of {A.name}"}])
+    lost, tolls = acc["lost"], acc["tolls"]
+    paid = out["paid"] + [k for k in back["paid"] if k not in out["paid"]]
+    evaded = out["evaded"] + [k for k in back["evaded"] if k not in out["evaded"]]
     key = f"{A.id},{B.id}"
     if key not in w.routes_seen:
         w.routes_seen.add(key)

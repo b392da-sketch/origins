@@ -618,12 +618,14 @@ class Traders(unittest.TestCase):
         self._year(w)
         self.assertEqual(w.invariant_failures, [])
         self.assertGreater(w.goods[b.id, F], 0.0)                 # delivered
-        self.assertGreater(w.treasury[B.id, F], 0.0)              # the destination's ruler took first pick
+        self.assertGreater(w.treasury[B.id, F], 0.0)              # the destination's ruler's levy
         self.assertGreater(w.goods_ledger["fine_stone"]["lost"], 0.0)   # lost on the road
         load = 2 * P.TRADER_LOAD
-        self.assertAlmostEqual(100.0 - (w.goods[a.id, F] - 0.0), load - P.TRADER_KEEP * (
-            (load * np.exp(-P.ROAD_LOSS * traders.path(w.planet, a.cell, b.cell, (0.0, 0.0, 0.0, 0.0))[0])) * (1 - P.FIRST_PICK)),
-            places=6)
+        q0 = (0.0, 0.0, 0.0, 0.0)
+        there = traders.path(w.planet, a.cell, b.cell, q0)[0]
+        back = traders.path(w.planet, b.cell, a.cell, q0)[0]             # each way its own road
+        home = P.TRADER_KEEP * load * np.exp(-P.ROAD_LOSS * there) * (1 - P.RULER_LEVY) * np.exp(-P.ROAD_LOSS * back)
+        self.assertAlmostEqual(100.0 - w.goods[a.id, F], load - home, places=6)
         kinds = [w.events[i]["kind"] for i in range(n0, len(w.events))]
         self.assertEqual(kinds.count("trade_route_opened"), 1)
         self.assertIn("good_arrived", kinds)
@@ -708,6 +710,124 @@ class TreasuryWear(unittest.TestCase):
         trade.check_end(w)
         self.assertEqual(w.invariant_failures, [])
         self.assertAlmostEqual(w.treasury[3, trade.GI["salt"]], 10.0 * (1 - P.GOOD_WEAR["salt"]))
+
+
+class Review016(unittest.TestCase):
+    """Codex review 016."""
+    _bands_on, _line_cells = Review014._bands_on, Review014._line_cells
+
+    def test_landing_from_the_sea_starts_at_sea_level(self):
+        from origins.sim import traders
+        pl = generate(1)
+        u, v = 4997, 19931                                       # sea cell (-1,764 m) next to land (45 m)
+        self.assertFalse(pl.land[u]); self.assertTrue(pl.land[v])
+        foot, water, sea = traders._step_costs(pl, (0.0, 0.0, 1.0, 1.0))
+        c = traders._cost(u, v, pl, foot, water, sea)
+        self.assertAlmostEqual(c, foot + P.MOUNTAIN_COST * max(0.0, float(pl.elevation[v])) / 1000.0, places=6)
+
+    def test_going_round_one_toll_does_not_skip_the_next(self):
+        from origins.sim import polity, traders
+        w0 = World.new(1, 1, generate(1))
+        pl = w0.planet
+        nb = pl.grid.neighbours
+        # A and B two cells apart with exactly the cells between them as the ways through
+        land = set(int(x) for x in np.nonzero(pl.land)[0])
+        for a_ in sorted(land):
+            ring1 = set(int(x) for x in nb[a_] if x >= 0)
+            if not ring1 <= land:
+                continue
+            ring2 = set(int(y) for x in ring1 for y in nb[x] if y >= 0) - ring1 - {a_}
+            if not ring2 <= land:
+                continue
+            b_ = sorted(ring2)[0]
+            mids = sorted(x for x in ring1 if b_ in set(int(y) for y in nb[x]))
+            if len(mids) >= 2:
+                break
+        w, bs = self._bands_on([a_, b_])
+        a, b = bs
+        A = polity._new_polity(w, a, [{"note": "t"}], why="t")
+        B = polity._new_polity(w, b, [{"note": "t"}], why="t")
+        sizes = np.zeros(len(w.band_sizes()) + 64, dtype=int)
+        sizes[a.id] = sizes[b.id] = 200
+        # two third polities: K holds half the ring round A, L the other half, so every road crosses one of them
+        ring1 = sorted(set(int(x) for x in nb[a_] if x >= 0))
+        half = len(ring1) // 2
+        others = []
+        for cells_, name in ((ring1[:half], "K"), (ring1[half:], "L")):
+            bands_ = [w.new_band(x, parent=a.id) for x in cells_]
+            Q = polity._new_polity(w, bands_[0], [{"note": "t"}], why="t")
+            for m in bands_:
+                w.polity_of[m.id] = Q.id
+                sizes[m.id] = 1
+            others.append(Q)
+        w.bands_changed()
+        w.band_sizes = lambda: np.resize(sizes, len(w.bands))
+        w.spec[a.id] = 10.0
+        F = trade.GI["fine_stone"]
+        w.goods[a.id, F] = 100.0
+        old = (P.TOLL, P.ROUTES_MAX)
+        try:
+            P.TOLL, P.ROUTES_MAX = 0.5, 1
+            w.route_log = []
+            traders.yearly(w, w.living_bands())
+            row = [r for r in w.route_log if r[1] == A.id and r[2] == B.id][0]
+            self.assertGreaterEqual(row[8], 1)                    # some toll is paid: no road avoids both
+            self.assertGreater(sum(float(w.treasury[Q.id, F]) for Q in others), 0.0)
+        finally:
+            P.TOLL, P.ROUTES_MAX = old
+
+    def test_the_route_cache_depends_on_range_and_grid(self):
+        from origins.sim import traders
+        traders._COST_CACHE.clear()
+        pl6 = generate(1)
+        old = P.TRADE_RANGE
+        try:
+            P.TRADE_RANGE = 0.01
+            self.assertEqual(traders.path(pl6, 2, 21890, (0.0, 0.0, 0.0, 0.0))[1], ())
+            P.TRADE_RANGE = old
+            self.assertEqual(traders.path(pl6, 2, 21890, (0.0, 0.0, 0.0, 0.0))[1], (2, 21890))
+        finally:
+            P.TRADE_RANGE = old
+        pl5 = generate(1, level=5)
+        q = (1.0, 1.0, 1.0, 1.0)
+        c5 = traders.path(pl5, 2, 5506, q)
+        c6 = traders.path(pl6, 2, 5506, q)
+        traders._COST_CACHE.clear()
+        self.assertEqual(traders.path(pl6, 2, 5506, q), c6)
+        self.assertNotEqual(c5, c6)
+
+
+class Decisions16Nov(unittest.TestCase):
+    """Ben, 16 November 2026: the ruler's take is a levy; each way its own road; shortlist by gravity."""
+    _bands_on, _line_cells = Review014._bands_on, Review014._line_cells
+
+    def test_a_large_centre_further_off_is_shortlisted(self):
+        from origins.sim import polity, traders
+        w0 = World.new(1, 1, generate(1))
+        pl = w0.planet
+        nb = pl.grid.neighbours
+        c = self._line_cells(w0, 5)
+        ring1 = set(int(x) for x in nb[c[0]] if x >= 0)
+        ring2 = set(int(y) for x in ring1 for y in nb[x] if y >= 0) - ring1 - {c[0]}
+        near = sorted(x for x in (ring1 | ring2) if pl.land[x] and x not in c)[:12]
+        self.assertEqual(len(near), 12)
+        w, bs = self._bands_on([c[0], c[4]] + near)
+        pols = [polity._new_polity(w, b, [{"note": "t"}], why="t") for b in bs]
+        sizes = np.zeros(len(w.bands) + 64, dtype=int)
+        sizes[bs[0].id], sizes[bs[1].id] = 100, 5000
+        for b in bs[2:]:
+            sizes[b.id] = 5
+        w.band_sizes = lambda: np.resize(sizes, len(w.bands))
+        w.spec[bs[0].id] = 10.0
+        w.goods[bs[0].id, trade.GI["salt"]] = 50.0
+        old = P.ROUTES_MAX
+        try:
+            P.ROUTES_MAX = 1
+            w.route_log = []
+            traders.yearly(w, w.living_bands())
+        finally:
+            P.ROUTES_MAX = old
+        self.assertEqual({(r[1], r[2]) for r in w.route_log if r[1] == pols[0].id}, {(pols[0].id, pols[1].id)})
 
 
 if __name__ == "__main__":
