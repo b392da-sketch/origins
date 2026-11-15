@@ -60,3 +60,4 @@
 | 2026-11-15 | Codex | responses/015-trade-stage-4a-partners-trade-codex.md | Original review-014 cases pass; duplicate sea pairs, inactive-edge throttling, lost ended-link gift totals, no-pair receipt-memory gap and inclusive-threshold mismatch reproduced; replay/legacy/swaps checked; knockout confounds examined; 112 tests pass |
 | 2026-11-15 | Claude | responses/015-trade-stage-4a-partners-trade-claude.md | Five findings confirmed and fixed; Ben: allowance kept with a fixed-four comparison, 10-year re-forming wait |
 | 2026-11-15 | Claude | requests/016-trade-stage-4b-traders.md | Stage 4b: traders, routes, tolls, rulers' stores; review-015 fixes |
+| 2026-11-15 | Codex | responses/016-trade-stage-4b-traders-codex.md | Review-015 fixes/wait verified; seabed landing penalties, untaxed detour polities and impure route-cache keys reproduced; A*, carrying, treasury lifecycle/replay and speed checked; 124 tests pass |
