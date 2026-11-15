@@ -740,8 +740,16 @@ def prestige_factor(w, polity_id: int) -> float:
     held = float(w.treasury[polity_id, [GI[g] for g in P.PRESTIGE_GOODS]].sum())
     if held <= 0:
         return 0.0
-    members = np.nonzero(w.polity_of[:len(w.bands)] == polity_id)[0]
-    n = float(w.band_sizes()[members].sum()) if len(members) else 0.0
+    c = getattr(w, "_polity_pop", None)               # members' people per polity, once a tick (speed)
+    if c is None or c[0] != w.t:
+        ids = np.asarray(w.live_index()[0])
+        pol = w.polity_of[ids]
+        keep = pol >= 0
+        pop = np.bincount(pol[keep], weights=np.asarray(w.live_sizes(), dtype=float)[keep],
+                          minlength=int(pol.max()) + 1 if keep.any() else 1)
+        c = (w.t, pop)
+        w._polity_pop = c
+    n = float(c[1][polity_id]) if polity_id < len(c[1]) else 0.0
     return float(np.clip(held / max(n, 1.0) / P.PRESTIGE_NEED, 0.0, 1.0))
 
 
