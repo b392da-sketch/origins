@@ -377,3 +377,8 @@ From the literature check (hxaro; Wiessner 1982, 2007) and Ben's decisions 3–4
 - **Contact:** a partner counts as a teacher for techniques at the closeness of one people (shared words treated as 1), since partners visit and live together for months.
 - **Records:** a partnership's founding is an event (with the gift and the closeness that led to it); help in a bad year is an event per receiving band and season, naming the givers. A new random stream, "trade", appended at the end.
 - **Checks:** a band with partners loses far less of its food margin in a bad year than one without (Ben's decision 4); the ledgers still balance; partnerships are dense among foragers in contact and thin among isolated peoples.
+
+### After Codex review 012 (15 November 2026)
+
+- **Fix:** marriage moves carry the movers' share of their band's goods (the spouse and any young children).
+- **Decisions (Ben):** a winning raid takes `RAID_TAKE` of the loser's goods as loot, as of its food store, and captives carry none; producing goods costs no food time until the effects stage (stage 5). Until then, goods stocks embody free labour: keep that in mind when judging trade results.

@@ -176,12 +176,19 @@ def partnerships(w):
             if rng.random() < customs.residence_share(w, int(p.band[j])):   # the husband's people's custom
                 kids = idx[(p.mother[idx] == i) & (age < 12)]
                 src, dst = int(p.band[i]), int(p.band[j])
+                n_src = int((p.band[idx] == src).sum())
+                movers = 1 + len(kids)
                 p.band[i] = p.band[j]
                 p.band[kids] = p.band[j]
                 p.lang[kids] = w.bands[int(p.band[j])].language     # young children grow up speaking it
             else:
                 src, dst = int(p.band[j]), int(p.band[i])
+                n_src = int((p.band[idx] == src).sum())
+                movers = 1
                 p.band[j] = p.band[i]
+            # whoever moves takes their share of their band's goods (Codex review 012)
+            from . import trade
+            trade.move_share(w, src, dst, movers / max(n_src, 1))
             # the one who moves brings what they know, at the level one person can carry (Codex review 009, finding 3)
             from . import technology
             technology.combine(w, w.bands[src], w.bands[dst], "marriage", 1)

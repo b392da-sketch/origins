@@ -20,7 +20,7 @@ and, for a polity or village attacking a village, the village itself
 weigh on the conqueror's load for a century.
 
 reads: bands (cell, size, margin, store), polities, customs, languages, people (age, sex), groups
-writes: people (deaths, band of captives), groups (deaths, captives), band stores, polity membership,
+writes: people (deaths, band of captives), groups (deaths, captives), band stores and goods (loot), polity membership,
         grievances, events, logs
 """
 from __future__ import annotations
@@ -320,6 +320,8 @@ def _fight(w, rng, s, mem, b, t, d, sc, cd, share, g, att, dfd, is_pol, pol, siz
         took = P.RAID_TAKE * max(t.store, 0.0)
         t.store -= took
         b.store += took
+        from . import trade
+        trade.move_share(w, t.id, b.id, P.RAID_TAKE)     # the same share of the loser's goods, as loot (Ben, 15 Nov)
         caps = _captives(w, t, b, P.CAPTIVE_SHARE, rng)
         if caps:
             from . import technology

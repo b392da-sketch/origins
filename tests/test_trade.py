@@ -46,5 +46,40 @@ class GoodsStage1(unittest.TestCase):
         self.assertAlmostEqual(w.goods_ledger["salt"]["lost"], 3.0)
 
 
+
+class Review012(unittest.TestCase):
+    """Codex review 012: findings reproduced, then fixed."""
+
+    def test_marriage_moves_carry_goods(self):
+        from origins.sim import demography
+        w = World.new(1, 1, generate(1))
+        a = w.living_bands()[0]
+        b = w.new_band(a.cell, parent=a.id)
+        p = w.people
+        mem = w.members(a.id)
+        men = mem[(p.sex[mem] == 1) & (w.ages(mem) > 18)]
+        p.band[men] = b.id
+        p.partner[mem] = -1
+        w.people_changed()
+        S = trade.GI["salt"]
+        w.goods[a.id, S], w.goods[b.id, S] = 10.0, 20.0
+        before = w.goods_ledger["salt"]["moved_in"]
+        for _ in range(40):
+            demography.partnerships(w)
+        moved = w.goods_ledger["salt"]["moved_in"] - before
+        married_in = int((p.sex[w.members(b.id)] == 0).sum()) + int((p.sex[w.members(a.id)] == 1).sum())
+        self.assertGreater(married_in, 0)
+        self.assertGreater(moved, 0.0)                      # whoever moved took a share of their band's goods
+        self.assertAlmostEqual(float(w.goods[:, S].sum()), 30.0, places=6)   # moved, not made or lost
+
+
+    def test_raid_loot_takes_goods(self):
+        """Ben, 15 November 2026: a winning raid takes RAID_TAKE of the loser's goods, as of its food."""
+        import inspect
+        from origins.sim import conflict
+        src = inspect.getsource(conflict)
+        self.assertIn("trade.move_share(w, t.id, b.id, P.RAID_TAKE)", src)
+
+
 if __name__ == "__main__":
     unittest.main()
