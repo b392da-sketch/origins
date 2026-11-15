@@ -63,3 +63,4 @@
 | 2026-11-15 | Codex | responses/016-trade-stage-4b-traders-codex.md | Review-015 fixes/wait verified; seabed landing penalties, untaxed detour polities and impure route-cache keys reproduced; A*, carrying, treasury lifecycle/replay and speed checked; 124 tests pass |
 | 2026-11-16 | Claude | responses/016-trade-stage-4b-traders-claude.md | Three findings confirmed and fixed; Ben: levy, each way its own road, shortlist by gravity |
 | 2026-11-16 | Claude | requests/017-curation-and-review-016-fixes.md | Curation (Ben) with knock-out; review-016 fixes |
+| 2026-11-16 | Codex | responses/017-curation-and-review-016-fixes-codex.md | Original review-016 cases pass; unavailable-return fallback, constrained road-search labels and lakebed exit penalties reproduced; curation bounds/ledger/replay pass; arrival-count interpretation and knockout limits examined; 130 tests pass |
