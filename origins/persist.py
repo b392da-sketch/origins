@@ -291,6 +291,7 @@ def digest(w: World) -> str:
              "rng": {k: g.bit_generator.state for k, g in w.rng.items()}, "n_events": len(w.events),
              "last_event": w.events[-1] if w.events else None,
              "language": language.to_json(w), "hazards": w.hazards, "farming": farming.to_json(w),
-             "polity": polity.to_json(w), "conflict": conflict.to_json(w)}
+             "polity": polity.to_json(w), "conflict": conflict.to_json(w),
+             "partner_dropped": getattr(w, "partner_dropped", {})}
     h.update(json.dumps(_jsonable(small), sort_keys=True).encode())
     return h.hexdigest()[:20]

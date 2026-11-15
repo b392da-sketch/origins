@@ -65,6 +65,7 @@ def init(w):
     w.partner_of = -np.ones((64, k), dtype=np.int64)
     w.partner_gave = np.zeros((64, k, len(P.GIFT_GOODS)))    # running totals of gifts given to each partner (Ben, 15 Nov 2026)
     w.gift_log = []              # thinned: [year, band, partner, {good: given}, {good: received}]
+    w.partner_dropped = {}       # "a,b" (a < b) -> tick a swap parted them (PARTNER_REFORM_WAIT; Ben, 15 Nov 2026)
     w.partner_since = -np.ones((64, k), dtype=np.int64)
     w.exchange_log = []          # [year, band, units received, units given, goods that first arrived]
     w.goods_reached = np.zeros((64, G), dtype=bool)   # a good has reached this band (Codex review 014)
@@ -106,6 +107,8 @@ def grow(w, band_id: int):
         w.partner_gave = np.zeros(w.partner_of.shape + (len(P.GIFT_GOODS),))
     if not hasattr(w, "gift_log"):
         w.gift_log = []
+    if not hasattr(w, "partner_dropped"):
+        w.partner_dropped = {}
     if w.partner_of.shape[1] < int(P.PARTNERS_CAP):            # saves from before stage 4a held four links per band
         for name in ("partner_of", "partner_since"):
             a = getattr(w, name)
@@ -147,7 +150,7 @@ def band_ended(w, band_id: int):
     """An ended band's goods are lost (scattered, buried, taken up by no one we follow); its partnerships end."""
     if getattr(w, "goods", None) is None or band_id >= len(w.goods):
         return
-    _unlink_all(w, band_id)
+    _unlink_all(w, band_id, why="ended")
     for i, g in enumerate(GOODS):
         if w.goods[band_id, i]:
             w.goods_ledger[g]["lost"] += float(w.goods[band_id, i])
@@ -239,11 +242,18 @@ def gift_totals(w, a: int, b: int) -> dict:
     return out
 
 
-def _unlink_all(w, a: int):
+def _unlink_all(w, a: int, why: str = "ended"):
+    """End all of a band's partnerships, each with a lapse event carrying its gift totals (Codex review 015: ending,
+    merging and consolidation used to erase them)."""
     if getattr(w, "partner_of", None) is None or a >= len(w.partner_of):
         return
+    ba = w.bands[a] if a < len(w.bands) else None
     for b in partners(w, a):
+        tot = gift_totals(w, a, b)
         _unlink(w, a, b)
+        name = w.band_name(ba) if ba is not None else f"band {a}"
+        w.event("partnership_lapsed", cell=ba.cell if ba is not None else -1, band=a, partner=b, gifts=tot,
+                causes=[{"band": a}, {"note": f"the partnership ended when {name} {why}"}])
 
 
 def move_good(w, src_id: int, dst_id: int, i: int, amount: float):
@@ -277,6 +287,12 @@ def supply(w, ids) -> np.ndarray:
     return (per / np.where(mean > 0, mean, 1.0)).sum(axis=1)
 
 
+def _parted(w, a: int, b: int) -> bool:
+    """True if a swap parted these two bands less than PARTNER_REFORM_WAIT years ago."""
+    t = w.partner_dropped.get(f"{min(a, b)},{max(a, b)}")
+    return t is not None and w.t - t < 4 * P.PARTNER_REFORM_WAIT
+
+
 def _closeness(w, a, b) -> float:
     from .language import shared_roots
     la, lb = w.languages.get(a.language), w.languages.get(b.language)
@@ -288,6 +304,8 @@ def partnerships_yearly(w, live):
     """Lapse, gifts, then new links. Draws from the 'trade' stream only."""
     from .language import ring2
     rng = w.rng["trade"]
+    if w.partner_dropped:                          # forget partings older than the wait
+        w.partner_dropped = {k: t for k, t in w.partner_dropped.items() if w.t - t < 4 * P.PARTNER_REFORM_WAIT}
     r2 = ring2(w)
     reach = {b.id: {int(c) for c in r2[b.cell] if c >= 0} for b in live}
     alive = {b.id: b for b in live}
@@ -343,7 +361,8 @@ def partnerships_yearly(w, live):
             continue
         mine = set(partners(w, b.id))
         cands = sorted((o for c in sorted(reach[b.id]) for o in by_cell.get(c, ())
-                        if o.id > b.id and o.id not in mine and free[o.id] > 0), key=lambda x: x.id)
+                        if o.id > b.id and o.id not in mine and free[o.id] > 0 and not _parted(w, b.id, o.id)),
+                       key=lambda x: x.id)
         if not cands:
             continue
         draws = rng.random(len(cands))
@@ -386,12 +405,14 @@ def _switch(w, live, reach, by_cell, free, rng):
         mine_set = set(mine)
         cands = [o for c in sorted(reach[b.id]) for o in by_cell.get(c, ())
                  if o.id != b.id and o.id not in mine_set and free[o.id] > 0
-                 and sup[o.id] > P.PARTNER_SWITCH_GAIN * sup.get(worst, 0.0) and sup[o.id] > 0]
+                 and sup[o.id] >= P.PARTNER_SWITCH_GAIN * sup.get(worst, 0.0) and sup[o.id] > 0
+                 and not _parted(w, b.id, o.id)]
         if not cands:
             continue
         best = max(cands, key=lambda o: (sup[o.id], -o.id))
         tot = gift_totals(w, b.id, worst)
         _unlink(w, b.id, worst)
+        w.partner_dropped[f"{min(b.id, worst)},{max(b.id, worst)}"] = w.t
         free[worst] = free.get(worst, 0) + 1
         _link(w, b.id, best.id)
         free[best.id] -= 1
@@ -486,6 +507,7 @@ def _partner_pairs(w, live, ids, cells, I, J, KIND):
         return I, J, KIND
     pos = {int(b): k for k, b in enumerate(np.asarray(ids).tolist())}
     nb = w.planet.grid.neighbours
+    have = set(zip(np.minimum(I, J).tolist(), np.maximum(I, J).tolist()))   # e.g. across a sea cell (Codex review 015)
     PI, PJ = [], []
     for k, bid in enumerate(np.asarray(ids).tolist()):
         if bid >= len(w.partner_of):
@@ -497,7 +519,7 @@ def _partner_pairs(w, live, ids, cells, I, J, KIND):
             if j is None or o <= bid:
                 continue
             d = int(cells[j])
-            if d == c or d in near:
+            if d == c or d in near or (min(k, j), max(k, j)) in have:
                 continue                      # already exchanging as neighbours
             PI.append(k); PJ.append(j)
     if not PI:
@@ -508,7 +530,12 @@ def _partner_pairs(w, live, ids, cells, I, J, KIND):
 
 def down_the_line(w, live, ids, cells):
     """Exchange between neighbouring bands, a share of the way towards equal holdings per person (conserving)."""
-    if not getattr(P, "TRADE", False) or len(ids) < 2:
+    if not getattr(P, "TRADE", False):
+        return
+    # what a band holds now has reached it, by any route (production, gifts, people moving), even when it has no
+    # one to exchange with this year (Codex review 015)
+    w.goods_reached[ids] |= w.goods[ids] > P.ARRIVE_MIN
+    if len(ids) < 2:
         return
     from . import technology
     I, J, KIND = _pairs(w, live, cells)
@@ -532,11 +559,16 @@ def down_the_line(w, live, ids, cells):
     # stay at or below one half, or many simultaneous inflows push a well-connected band past every donor (Codex
     # review 014). Pairs touching a band over the limit are scaled down together, so each band's new holding per
     # person stays between its own and its neighbours'.
-    cond = np.zeros(len(ids))
-    np.add.at(cond, I, rate * sb / (sa + sb))
-    np.add.at(cond, J, rate * sa / (sa + sb))
-    lim = np.where(cond > 0.5, 0.5 / np.maximum(cond, 1e-300), 1.0)
-    rate = rate * np.minimum(lim[I], lim[J])
+    # The limit is worked out separately for goods that partners trade and goods they do not, so links that carry no
+    # pottery do not slow pottery between neighbours (Codex review 015).
+    def limited(r):
+        cond = np.zeros(len(ids))
+        np.add.at(cond, I, r * sb / (sa + sb))
+        np.add.at(cond, J, r * sa / (sa + sb))
+        lim = np.where(cond > 0.5, 0.5 / np.maximum(cond, 1e-300), 1.0)
+        return r * np.minimum(lim[I], lim[J])
+    rate_work = limited(rate)
+    rate_other = limited(np.where(KIND == 3, 0.0, rate))
     before = w.goods[ids].copy()
     received = np.zeros(len(ids))
     given = np.zeros(len(ids))
@@ -547,7 +579,7 @@ def down_the_line(w, live, ids, cells):
         if not g.any():
             continue
         # towards equal holdings per person: m* = (ga sb - gb sa) / (sa + sb); positive flows a -> b
-        r = rate if GOODS[gi] in P.PARTNER_TRADE_GOODS else np.where(KIND == 3, 0.0, rate)
+        r = rate_work if GOODS[gi] in P.PARTNER_TRADE_GOODS else rate_other
         f = r * (g[I] * sb - g[J] * sa) / (sa + sb)
         out = np.zeros(len(ids))
         np.add.at(out, I, np.maximum(f, 0))
@@ -599,12 +631,14 @@ def down_the_line(w, live, ids, cells):
 
 
 def to_json(w) -> dict:
-    return {"exchange_log": getattr(w, "exchange_log", []), "gift_log": getattr(w, "gift_log", [])}
+    return {"exchange_log": getattr(w, "exchange_log", []), "gift_log": getattr(w, "gift_log", []),
+            "partner_dropped": getattr(w, "partner_dropped", {})}
 
 
 def from_json(w, d: dict):
     w.exchange_log = (d or {}).get("exchange_log", [])
     w.gift_log = (d or {}).get("gift_log", [])
+    w.partner_dropped = dict((d or {}).get("partner_dropped", {}))
 
 
 def check_begin(w):

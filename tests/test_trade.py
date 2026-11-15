@@ -188,7 +188,7 @@ class Review013(unittest.TestCase):
     def test_consolidation_drops_partnerships(self):
         import inspect
         from origins.sim import bands
-        self.assertIn("trade._unlink_all(w, b.id)", inspect.getsource(bands.consolidate_groups))
+        self.assertIn("trade._unlink_all(w, b.id", inspect.getsource(bands.consolidate_groups))
 
 
 
@@ -458,6 +458,130 @@ class GiftTotals(unittest.TestCase):
         finally:
             P.PARTNER_SWITCH, P.PARTNER_FORM = old
         self.assertNotIn(other.id, trade.partners(w, a.id))
+
+
+class Review015(unittest.TestCase):
+    """Codex review 015."""
+    _bands_on, _step, _line_cells = Review014._bands_on, Review014._step, Review014._line_cells
+
+    def test_a_sail_pair_is_not_counted_again_as_partners(self):
+        w0 = World.new(1, 1, generate(1))
+        c = self._line_cells(w0, 3)
+        w, (a, b) = self._bands_on([c[0], c[2]])
+        trade._link(w, a.id, b.id)
+        live = w.living_bands()
+        ids = np.array([x.id for x in live]); cells = np.array([x.cell for x in live])
+        I, J, K = np.array([0]), np.array([1]), np.array([2])          # already paired across a sea cell
+        I2, J2, K2 = trade._partner_pairs(w, live, ids, cells, I, J, K)
+        self.assertEqual(list(zip(I2.tolist(), J2.tolist(), K2.tolist())), [(0, 1, 2)])
+
+    def test_links_that_carry_no_pottery_do_not_slow_pottery(self):
+        w0 = World.new(1, 1, generate(1))
+        from origins.sim.language import ring2
+        nb = w0.planet.grid.neighbours
+        c = self._line_cells(w0, 2)
+        near0 = set(int(x) for x in nb[c[0]] if x >= 0)
+        near1 = set(int(x) for x in nb[c[1]] if x >= 0)
+        far = [int(x) for x in ring2(w0)[c[0]] if x >= 0 and w0.planet.land[x] and int(x) not in near0
+               and int(x) not in near1 and int(x) not in c][0]       # within partner reach of the giver only
+        w, bs = self._bands_on([c[0], c[1]] + [far] * 16)
+        giver, nbr, far = bs[0], bs[1], bs[2:]
+        for o in far:
+            trade._link(w, giver.id, o.id)
+        Pt = trade.GI["pottery"]
+        w.goods[giver.id, Pt] = 100.0
+        self._step(w)
+        self.assertAlmostEqual(w.goods[nbr.id, Pt], 5.0, places=6)
+        self.assertEqual(float(w.goods[[o.id for o in far], Pt].sum()), 0.0)
+
+    def _gifts(self):
+        w0 = World.new(1, 1, generate(1))
+        w, (a, b) = self._bands_on(self._line_cells(w0, 2))
+        trade._link(w, a.id, b.id)
+        w.goods[a.id, trade.GI["shell"]] = 100.0
+        GiftTotals._years(self, w, 2)
+        return w, a, b, trade.gift_totals(w, a.id, b.id)
+
+    def test_a_band_that_ends_keeps_its_gift_record(self):
+        w, a, b, tot = self._gifts()
+        n0 = len(w.events)
+        trade.band_ended(w, b.id)
+        lap = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "partnership_lapsed"]
+        self.assertEqual(len(lap), 1)
+        self.assertEqual(lap[0]["data"]["gifts"], tot)
+
+    def test_consolidation_keeps_the_gift_record(self):
+        w, a, b, tot = self._gifts()
+        n0 = len(w.events)
+        trade._unlink_all(w, b.id, why="joined another band")
+        lap = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "partnership_lapsed"]
+        self.assertEqual(len(lap), 1)
+        self.assertEqual(lap[0]["data"]["gifts"], tot)
+
+    def test_goods_held_without_neighbours_count_as_reached(self):
+        w0 = World.new(1, 1, generate(1))
+        land = [x for x in range(w0.planet.grid.n) if w0.planet.land[x]]
+        w, (a,) = self._bands_on([land[0]])
+        w.goods[a.id, trade.GI["salt"]] = 5.0
+        self._step(w)                                                # no pairs at all
+        self.assertTrue(w.goods_reached[a.id, trade.GI["salt"]])
+
+    def test_exactly_twice_the_supply_is_enough(self):
+        w0 = World.new(1, 1, generate(1))
+        c = self._line_cells(w0, 3)
+        w, bs = self._bands_on([c[0]] + [c[1]] * 4 + [c[2]])
+        a, mine, other = bs[0], bs[1:5], bs[5]
+        for o in mine:
+            trade._link(w, a.id, o.id)
+        F = trade.GI["fine_stone"]
+        for o in mine:
+            w.goods[o.id, F] = 1.0
+        w.goods[other.id, F] = 2.0
+        w.farm_share[a.id] = 0.6
+        old = (P.PARTNER_SWITCH, P.PARTNER_FORM)
+        P.PARTNER_SWITCH, P.PARTNER_FORM = 1.0, 0.0
+        try:
+            trade.partnerships_yearly(w, w.living_bands())
+        finally:
+            P.PARTNER_SWITCH, P.PARTNER_FORM = old
+        self.assertIn(other.id, trade.partners(w, a.id))
+
+
+class ReformWait(unittest.TestCase):
+    """Ben, 15 November 2026: two bands parted by a swap wait PARTNER_REFORM_WAIT years before linking again."""
+    _bands_on, _line_cells = Review014._bands_on, Review014._line_cells
+
+    def test_a_swapped_out_partner_cannot_return_at_once(self):
+        w0 = World.new(1, 1, generate(1))
+        c = self._line_cells(w0, 3)
+        w, bs = self._bands_on([c[0]] + [c[1]] * 4 + [c[2]])
+        a, mine, rich = bs[0], bs[1:5], bs[5]
+        for o in mine:
+            trade._link(w, a.id, o.id)
+        F = trade.GI["fine_stone"]
+        for k, o in enumerate(mine):
+            w.goods[o.id, F] = 1.0 + k
+        w.goods[rich.id, F] = 50.0
+        w.farm_share[a.id] = 0.6
+        old = (P.PARTNER_SWITCH, P.PARTNER_FORM)
+        P.PARTNER_SWITCH, P.PARTNER_FORM = 1.0, 0.0
+        try:
+            trade.partnerships_yearly(w, w.living_bands())
+        finally:
+            P.PARTNER_SWITCH, P.PARTNER_FORM = old
+        dropped = mine[0].id
+        self.assertNotIn(dropped, trade.partners(w, a.id))
+        trade._unlink(w, a.id, mine[1].id)                         # make room again
+        self.assertTrue(trade._parted(w, a.id, dropped))
+        old = (P.PARTNER_SWITCH, P.PARTNER_FORM)
+        P.PARTNER_SWITCH, P.PARTNER_FORM = 0.0, 1e9                # any allowed pair would link
+        try:
+            trade.partnerships_yearly(w, w.living_bands())
+            self.assertNotIn(dropped, trade.partners(w, a.id))
+            w.t += 4 * P.PARTNER_REFORM_WAIT
+            self.assertFalse(trade._parted(w, a.id, dropped))
+        finally:
+            P.PARTNER_SWITCH, P.PARTNER_FORM = old
 
 
 if __name__ == "__main__":

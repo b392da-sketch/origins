@@ -504,3 +504,19 @@ Design consequences (to propose before building; Codex review 015 first):
 - Larsen, M. T. (2015). *Ancient Kanesh: A Merchant Colony in Bronze Age Anatolia*. Cambridge University Press.
 - Metropolitan Museum of Art. Cuneiform tablet: caravan account, 66.245.10.
 - Polanyi, K. (1963). Ports of trade in early societies. *Journal of Economic History*, 23(1), 30–45.
+
+### After Codex review 015 (15 November 2026)
+
+Five fixes, each reproduced first (`tests/test_trade.py::Review015`):
+- **Sail pairs:** a sail pair is no longer counted a second time as partners.
+- **Dense-cell limit:** worked out separately for goods partners trade and for the rest, so partner links do not slow pottery between neighbours.
+- **Gift totals:** ending, merging and consolidation now record the partnership's totals in a lapse event.
+- **Goods reached:** what a band holds counts as reached even in a year with no one to exchange with.
+- **Swap rule:** "at least twice as well supplied" is now inclusive.
+
+Ben's decisions (15 November 2026):
+- the square-root link allowance stays, with a fixed-four comparison before the gate (16 partners per person in hxaro does not establish 16 per band);
+- two bands parted by a swap wait `PARTNER_REFORM_WAIT` 10 years before linking again;
+- partnership events are not thinned.
+
+**Size difference at matched distance** (stage-4a 1,200-year world; largest tenth of bands against the smaller half at exactly the same distance from a fine-stone source): about 1.0–1.5 times near the sources (0–3 cells), rising to 4–7 times from 6 cells out. So the difference is not an artefact of pooling distances, as Codex suggested it might be. Its cause is not yet separated. Codex shows ordinary size-weighted exchange can produce it, and larger bands' extra links might add to it; the fixed-four comparison will separate them.

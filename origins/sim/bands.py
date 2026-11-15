@@ -260,7 +260,7 @@ def consolidate_groups(w):
         groups.merge_into(w, b, o)
         carry(w, b, o, "combined", n)                # one people now: it keeps what either part knew
         trade.move_share(w, b.id, o.id, 1.0)
-        trade._unlink_all(w, b.id)                   # its partnerships end with it (Codex review 013)
+        trade._unlink_all(w, b.id, why=f"joined {w.band_name(o)}")   # partnerships end, record kept (reviews 013, 015)
         o.store += b.store
         b.store = 0.0
         w.crop_store[o.id] += w.crop_store[b.id]     # the standing crop goes with the people
