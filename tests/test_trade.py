@@ -307,5 +307,75 @@ class Review014(unittest.TestCase):
         self.assertAlmostEqual(rows[b.id][3], 2.5, places=4)
 
 
+class PartnersTrade(unittest.TestCase):
+    """Trade stage 4a: partners trade working goods; links grow with size; settled bands favour well-supplied partners."""
+    _bands_on, _step, _line_cells = Review014._bands_on, Review014._step, Review014._line_cells
+
+    def test_partners_beyond_neighbours_trade_working_goods_only(self):
+        w0 = World.new(1, 1, generate(1))
+        c = self._line_cells(w0, 3)
+        w, (a, b) = self._bands_on([c[0], c[2]])               # two rings apart: not neighbours
+        trade._link(w, a.id, b.id)
+        F, T = trade.GI["fine_stone"], trade.GI["textiles"]
+        w.goods[a.id, F] = w.goods[a.id, T] = 100.0
+        n0 = len(w.events)
+        self._step(w)
+        self.assertGreater(w.goods[b.id, F], 0.0)
+        self.assertEqual(w.goods[b.id, T], 0.0)
+        ev = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "good_arrived"]
+        self.assertTrue(any(e["band"] == b.id and e["data"]["route"] == "partner" for e in ev))
+        trade._unlink(w, a.id, b.id)                               # without the link, nothing passes
+        w2, (a2, b2) = self._bands_on([c[0], c[2]])
+        w2.goods[a2.id, F] = 100.0
+        self._step(w2)
+        self.assertEqual(w2.goods[b2.id, F], 0.0)
+
+    def test_larger_bands_hold_more_links(self):
+        w0 = World.new(1, 1, generate(1))
+        w, bs = self._bands_on([w0.living_bands()[0].cell] * 4)
+        sizes = np.zeros(len(w.band_sizes()), dtype=int)
+        for b, n in zip(bs, (10, 30, 120, 3000)):
+            sizes[b.id] = n
+        w.band_sizes = lambda: sizes
+        self.assertEqual(trade.allowance(w, [b.id for b in bs]).tolist(), [4, 4, 8, 16])
+
+    def test_a_settled_band_trades_up_to_a_better_supplied_partner(self):
+        w0 = World.new(1, 1, generate(1))
+        c = self._line_cells(w0, 3)
+        w, bs = self._bands_on([c[0]] + [c[1]] * 4 + [c[2]])
+        a, poor, rich = bs[0], bs[1:5], bs[5]
+        for o in poor:
+            trade._link(w, a.id, o.id)
+        F = trade.GI["fine_stone"]
+        for k, o in enumerate(poor):
+            w.goods[o.id, F] = 1.0 + k
+        w.goods[rich.id, F] = 50.0
+        w.farm_share[a.id] = 0.6                                   # settled
+        old = P.PARTNER_SWITCH
+        P.PARTNER_SWITCH = 1.0
+        try:
+            trade.partnerships_yearly(w, w.living_bands())
+        finally:
+            P.PARTNER_SWITCH = old
+        mine = trade.partners(w, a.id)
+        self.assertIn(rich.id, mine)
+        self.assertNotIn(poor[0].id, mine)                         # the worst-supplied partner was dropped
+        self.assertEqual(len(mine), 4)
+
+    def test_older_saves_widen_to_the_new_link_cap(self):
+        from origins import persist
+        w0 = World.new(1, 1, generate(1))
+        c = self._line_cells(w0, 2)
+        w, (a, b) = self._bands_on(c)
+        trade._link(w, a.id, b.id)
+        w.goods[a.id, trade.GI["salt"]] = 7.0
+        w.partner_of = w.partner_of[:, :4].copy()
+        w.partner_since = w.partner_since[:, :4].copy()
+        w2 = persist.from_bytes(persist.to_bytes(w), planet=w.planet)
+        self.assertEqual(w2.partner_of.shape[1], P.PARTNERS_CAP)
+        self.assertEqual(trade.partners(w2, a.id), [b.id])
+        self.assertEqual(w2.goods[a.id, trade.GI["salt"]], 7.0)
+
+
 if __name__ == "__main__":
     unittest.main()

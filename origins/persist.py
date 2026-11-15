@@ -201,6 +201,7 @@ def from_bytes(data: bytes, planet=None) -> World:
         w.partner_since = np.array(arrays["partner_since"], dtype=np.int64)
     elif len(w.partner_of) < len(w.goods):
         _trade.grow(w, len(w.goods) - 1)             # keeps every goods row (Codex review 013)
+    _trade.grow(w, len(w.goods) - 1)                 # widens partner links to PARTNERS_CAP for older saves (stage 4a)
     if "goods_reached" in arrays:                       # trade stage 3, after review 014
         w.goods_reached = np.array(arrays["goods_reached"], dtype=bool)
     else:

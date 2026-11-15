@@ -14,7 +14,7 @@ the quality of the technique it needs; wear is a yearly share of each stock. Bot
 Production takes no food time yet (a simplification, recorded in the build notes).
 
 Stage 2, gift partnerships (hxaro; Wiessner 1982, 2007; Ben, 15 November 2026: links between bands): each band keeps
-up to PARTNERS_MAX partner bands within two rings (about 200 km). A link forms with a yearly chance, more readily
+up to PARTNERS_MAX partner bands within two rings (about 120 km; more for larger bands, stage 4a). A link forms with a yearly chance, more readily
 between peoples who share words; partners exchange gifts of lasting goods each year (shell, gold); a link lapses
 when the two bands are no longer within reach or one ends. In a season when a band cannot meet its needs, partners
 with food to spare beyond their own needs give up to PARTNER_SHARE of the spare (food moved, not made). Partners
@@ -26,6 +26,12 @@ from where they are plentiful to where they are scarce and, with wear, thin out 
 Bigger bands hold and pass on more (hubs). Pack animals and carts speed exchange over land; canoes along coasts and
 rivers; sail adds links between coastal bands across a sea cell. Recorded: a thinned yearly log of each band's
 exchanges, and an event when a good first reaches a band (naming where most of it came from).
+
+Stage 4a, partners trade and hubs form (Ibáñez et al. 2015, best fit for the later Neolithic; Ben, 15 November 2026):
+partners who are not neighbours also exchange working goods (PARTNER_TRADE_GOODS) as neighbours do, at
+PARTNER_TRADE_RATE; a band holds more links the larger it is (PARTNERS_MAX at PARTNER_SIZE_REF people, growing with
+the square root of size, at most PARTNERS_CAP); and a settled band with no room left drops, now and then, its
+worst-supplied partner for a better-supplied band within reach that has room, so well-supplied villages gather links.
 
 reads: bands (cell), planet minerals and coast, technology (practised quality, skilled practitioners), languages
 writes: w.goods (bands x goods), w.goods_ledger, w.partner_of, w.partner_since, band stores (help in need), events
@@ -55,7 +61,7 @@ FLOWS = ("produced", "worn", "lost", "moved_out", "moved_in")
 def init(w):
     w.goods = np.zeros((64, G), dtype=np.float64)
     w.goods_ledger = {g: {f: 0.0 for f in FLOWS} for g in GOODS}
-    k = int(getattr(P, "PARTNERS_MAX", 4))
+    k = int(getattr(P, "PARTNERS_CAP", 16))
     w.partner_of = -np.ones((64, k), dtype=np.int64)
     w.partner_since = -np.ones((64, k), dtype=np.int64)
     w.exchange_log = []          # [year, band, units received, units given, goods that first arrived]
@@ -90,9 +96,15 @@ def grow(w, band_id: int):
         out[:len(w.goods_reached)] = w.goods_reached
         w.goods_reached = out
     if getattr(w, "partner_of", None) is None:
-        k = int(P.PARTNERS_MAX)
+        k = int(P.PARTNERS_CAP)
         w.partner_of = -np.ones((len(w.goods), k), dtype=np.int64)
         w.partner_since = -np.ones((len(w.goods), k), dtype=np.int64)
+    if w.partner_of.shape[1] < int(P.PARTNERS_CAP):            # saves from before stage 4a held four links per band
+        for name in ("partner_of", "partner_since"):
+            a = getattr(w, name)
+            out = -np.ones((len(a), int(P.PARTNERS_CAP)), dtype=np.int64)
+            out[:, :a.shape[1]] = a
+            setattr(w, name, out)
     if band_id >= len(w.partner_of):
         cap = len(w.goods)
         for name in ("partner_of", "partner_since"):
@@ -215,6 +227,25 @@ def move_good(w, src_id: int, dst_id: int, i: int, amount: float):
     return amount
 
 
+def allowance(w, ids) -> np.ndarray:
+    """How many partner links each band can hold: PARTNERS_MAX at PARTNER_SIZE_REF people, growing with the square
+    root of size, at most PARTNERS_CAP (stage 4a; starting values)."""
+    n = np.maximum(w.band_sizes()[np.asarray(ids)].astype(float), 1.0)
+    k = np.floor(P.PARTNERS_MAX * np.sqrt(np.maximum(n / P.PARTNER_SIZE_REF, 1.0)))
+    return np.minimum(k, P.PARTNERS_CAP).astype(int)
+
+
+def supply(w, ids) -> np.ndarray:
+    """How well supplied each band is with working goods: holdings per person of each, relative to the mean over
+    the bands given, summed."""
+    ids = np.asarray(ids)
+    cols = [GI[g] for g in P.PARTNER_TRADE_GOODS]
+    n = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
+    per = w.goods[ids][:, cols] / n[:, None]
+    mean = per.mean(axis=0)
+    return (per / np.where(mean > 0, mean, 1.0)).sum(axis=1)
+
+
 def _closeness(w, a, b) -> float:
     from .language import shared_roots
     la, lb = w.languages.get(a.language), w.languages.get(b.language)
@@ -261,7 +292,9 @@ def partnerships_yearly(w, live):
     by_cell: dict = {}
     for b in live:
         by_cell.setdefault(b.cell, []).append(b)
-    free = {b.id: int((w.partner_of[b.id] < 0).sum()) for b in live}
+    allow = dict(zip([b.id for b in live], allowance(w, [b.id for b in live]).tolist()))
+    free = {b.id: allow[b.id] - len(partners(w, b.id)) for b in live}
+    _switch(w, live, reach, by_cell, free, rng)
     for b in sorted(live, key=lambda x: x.id):
         if free[b.id] <= 0:
             continue
@@ -285,6 +318,46 @@ def partnerships_yearly(w, live):
                         causes=[{"band": o.id}, {"note": f"{w.band_name(b)} and {w.band_name(o)} lived within reach "
                                                           f"of each other ({close:.0%} closeness of speech) and began "
                                                           f"to exchange gifts"}])
+
+
+def _switch(w, live, reach, by_cell, free, rng):
+    """Settled bands with no room left drop, with a yearly chance PARTNER_SWITCH, their worst-supplied partner for
+    the best-supplied band within reach that has room and is better supplied (Ibáñez et al. 2015's optimised links).
+    Draws from the 'trade' stream, one draw per settled band with no room, in band order."""
+    from . import technology
+    full = sorted((b for b in live if free[b.id] <= 0 and partners(w, b.id)), key=lambda x: x.id)
+    if not full:
+        return
+    settled = technology._settled(w, [b.id for b in full])
+    full = [b for b, s_ in zip(full, settled.tolist()) if s_]
+    if not full:
+        return
+    draws = rng.random(len(full))
+    ids = np.array([b.id for b in live])
+    sup = dict(zip(ids.tolist(), supply(w, ids).tolist()))
+    for b, u in zip(full, draws.tolist()):
+        if u >= P.PARTNER_SWITCH or free[b.id] > 0:
+            continue
+        mine = partners(w, b.id)
+        worst = min(mine, key=lambda o: (sup.get(o, 0.0), o))
+        mine_set = set(mine)
+        cands = [o for c in sorted(reach[b.id]) for o in by_cell.get(c, ())
+                 if o.id != b.id and o.id not in mine_set and free[o.id] > 0 and sup[o.id] > sup.get(worst, 0.0)]
+        if not cands:
+            continue
+        best = max(cands, key=lambda o: (sup[o.id], -o.id))
+        _unlink(w, b.id, worst)
+        free[worst] = free.get(worst, 0) + 1
+        _link(w, b.id, best.id)
+        free[best.id] -= 1
+        ow = w.bands[worst]
+        w.event("partnership_lapsed", cell=b.cell, band=b.id, partner=worst,
+                causes=[{"band": worst}, {"note": f"{w.band_name(b)} gave up its partnership with {w.band_name(ow)}, "
+                                                  f"its worst-supplied partner, for a better-supplied one"}])
+        w.event("partnership_formed", cell=b.cell, band=b.id, partner=best.id,
+                causes=[{"band": best.id}, {"note": f"{w.band_name(b)}, settled and with no room for more partners, "
+                                                    f"took up {w.band_name(best)}, better supplied with tools, salt "
+                                                    f"and metal than {w.band_name(ow)}"}])
 
 
 def share_in_need(w, bands, ids, avail, need_now, keep_need):
@@ -362,12 +435,39 @@ def _pairs(w, live, cells):
     return np.array(I, dtype=np.int64), np.array(J, dtype=np.int64), np.array(KIND, dtype=np.int64)
 
 
+def _partner_pairs(w, live, ids, cells, I, J, KIND):
+    """Add partners who are not already neighbours (same or adjacent cell) as pairs of kind 3 (stage 4a)."""
+    if getattr(w, "partner_of", None) is None:
+        return I, J, KIND
+    pos = {int(b): k for k, b in enumerate(np.asarray(ids).tolist())}
+    nb = w.planet.grid.neighbours
+    PI, PJ = [], []
+    for k, bid in enumerate(np.asarray(ids).tolist()):
+        if bid >= len(w.partner_of):
+            continue
+        c = int(cells[k])
+        near = set(int(x) for x in nb[c] if x >= 0)
+        for o in partners(w, bid):
+            j = pos.get(o)
+            if j is None or o <= bid:
+                continue
+            d = int(cells[j])
+            if d == c or d in near:
+                continue                      # already exchanging as neighbours
+            PI.append(k); PJ.append(j)
+    if not PI:
+        return I, J, KIND
+    return (np.concatenate([I, np.array(PI, dtype=np.int64)]), np.concatenate([J, np.array(PJ, dtype=np.int64)]),
+            np.concatenate([KIND, np.full(len(PI), 3, dtype=np.int64)]))
+
+
 def down_the_line(w, live, ids, cells):
     """Exchange between neighbouring bands, a share of the way towards equal holdings per person (conserving)."""
     if not getattr(P, "TRADE", False) or len(ids) < 2:
         return
     from . import technology
     I, J, KIND = _pairs(w, live, cells)
+    I, J, KIND = _partner_pairs(w, live, ids, cells, I, J, KIND)
     if not len(I):
         return
     sizes = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
@@ -379,6 +479,7 @@ def down_the_line(w, live, ids, cells):
     land = 1 + E.get("pack_animals", 0) * best("pack_animals") + E.get("carts", 0) * best("carts")
     water = 1 + E.get("canoes_trade", 0) * best("canoes")
     rate = P.DTL_RATE * np.where(KIND == 0, land, np.where(KIND == 1, np.maximum(land, water), best("sail")))
+    rate = np.where(KIND == 3, P.PARTNER_TRADE_RATE * land, rate)       # partners who are not neighbours (stage 4a)
     # (across the sea, exchange scales with the better sail's quality, as crossings do: Ben, 14 Nov 2026)
     rate = np.clip(rate, 0, 0.5)
     sa, sb = sizes[I], sizes[J]
@@ -401,7 +502,8 @@ def down_the_line(w, live, ids, cells):
         if not g.any():
             continue
         # towards equal holdings per person: m* = (ga sb - gb sa) / (sa + sb); positive flows a -> b
-        f = rate * (g[I] * sb - g[J] * sa) / (sa + sb)
+        r = rate if GOODS[gi] in P.PARTNER_TRADE_GOODS else np.where(KIND == 3, 0.0, rate)
+        f = r * (g[I] * sb - g[J] * sa) / (sa + sb)
         out = np.zeros(len(ids))
         np.add.at(out, I, np.maximum(f, 0))
         np.add.at(out, J, np.maximum(-f, 0))
@@ -426,28 +528,29 @@ def down_the_line(w, live, ids, cells):
         reached[:, gi] |= (g + delta > P.ARRIVE_MIN)
         if len(new):
             inflow = {}
-            for k_, (a, b_, x) in enumerate(zip(I.tolist(), J.tolist(), f.tolist())):
+            for a, b_, x, kd in zip(I.tolist(), J.tolist(), f.tolist(), KIND.tolist()):
                 if x > 0:
-                    inflow.setdefault(b_, []).append((x, a))
+                    inflow.setdefault(b_, []).append((x, a, kd))
                 elif x < 0:
-                    inflow.setdefault(a, []).append((-x, b_))
+                    inflow.setdefault(a, []).append((-x, b_, kd))
             for k in new.tolist():
-                src = max(inflow.get(k, [(0.0, -1)]))[1]
-                top_src.setdefault(k, []).append((GOODS[gi], src))
+                _, src, kd = max(inflow.get(k, [(0.0, -1, 0)]))
+                top_src.setdefault(k, []).append((GOODS[gi], src, kd))
     for k, arrivals in top_src.items():
         b = live[k]
-        for good, src in arrivals:
+        for good, src, kd in arrivals:
             if src < 0:
                 continue
             o = live[src]
-            w.event("good_arrived", cell=b.cell, band=b.id, good=good, source=o.id,
+            how = "its trading partner" if kd == 3 else "its neighbour"
+            w.event("good_arrived", cell=b.cell, band=b.id, good=good, source=o.id, route="partner" if kd == 3 else "neighbour",
                     causes=[{"band": o.id}, {"note": f"{good.replace('_', ' ')} first reached {w.band_name(b)} "
-                                                      f"from {w.band_name(o)}, its neighbour, by exchange"}])
+                                                      f"from {w.band_name(o)}, {how}, by exchange"}])
     w.goods_reached[ids] = reached
     from ..state import log_row
     for k in np.nonzero((received > 0) | (given > 0))[0].tolist():
         log_row(w, "exchange_log", [w.year, int(ids[k]), round(float(received[k]), 4), round(float(given[k]), 4),
-                                    [g for g, _ in top_src.get(k, [])]], P.EXCHANGE_LOG_CAP)
+                                    [g for g, _, _ in top_src.get(k, [])]], P.EXCHANGE_LOG_CAP)
 
 
 def to_json(w) -> dict:
