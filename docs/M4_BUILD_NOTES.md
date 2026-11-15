@@ -409,9 +409,27 @@ Fixes: loading an older save keeps every goods row (`trade.grow`); help in need 
 
 Trial: planet 3 forager world (year 8,500 save), 100 years, 41 s (unchanged); no ledger failures; 3,694 first arrivals, 200 of 200 sampled cause chains resolve. Holdings per person by cells from the nearest source:
 
-| Cells (about 110 km each) | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+| Cells (about 60 km apart) | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
 |---|---|---|---|---|---|---|---|---|---|
 | fine stone | 0.50 | 0.11 | 0.026 | 0.009 | 0.003 | 0.0014 | 0.0007 | 0.0003 | 0.0002 |
 | salt | 0.12 | 0.03 | 0.004 | 0.0007 | 0.0002 | 0.00003 | 0.000004 | 0.000001 | 0.0000003 |
 
-The shape is the expected steady (roughly exponential) decline, steeper for salt, which is used up faster. The tail is too thin: at 8 cells fine stone is at about 0.05% of its level at the source, against roughly 0.6% for Levantine obsidian at 700–800 km (0.5% of chipped stone against about 80% near the sources), and there is no plateau near the sources. This is Ibáñez et al.'s (2015) finding: exchange between neighbours alone falls off too fast. Directed trade (stage 4) is to supply the long links; the trial after stage 4 will check whether it does. (Holdings per person are not the archaeological measure, which is the share of chipped stone, so the comparison is rough.)
+The shape is the expected steady (roughly exponential) decline, steeper for salt, which is used up faster. The tail is too thin: at 8 cells (about 480 km) fine stone is at about 0.04% of its level at the source, whereas Levantine obsidian was still at roughly 0.6% of its near-source share at 700–800 km, about 12–13 cells (0.5% of chipped stone against about 80% near the sources); and there is no plateau near the sources (Renfrew's supply zone, about 300 km or 5 cells). *Correction (15 November 2026): the table first said cells were about 110 km apart; planets are built at grid level 6 on half Earth's radius, so cells are about 60 km apart, which makes the shortfall larger than first written.* This is Ibáñez et al.'s (2015) finding: exchange between neighbours alone falls off too fast. Directed trade (stage 4) is to supply the long links; the trial after stage 4 will check whether it does. (Holdings per person are not the archaeological measure, which is the share of chipped stone, so the comparison is rough.)
+
+### Trade stage 4: literature check on directed trade (15 November 2026)
+
+The specification (section 4, item 3) has directed trade begin "once there are specialists and polities". The literature says long links come in two kinds, and the first is older than polities:
+
+- **Long links before states.** The Near Eastern obsidian data are fitted not by down-the-line exchange but by dense local links (neighbours about 50 km apart) plus at most one distant link per village, up to about 120–180 km. In the best fit for the later Neolithic (PPNB), villages drop weak partners for well-supplied ones, so hubs form; large sites far from sources hold far more obsidian than small ones (Ibáñez et al. 2015). Those are pre-state farming villages. At our grid (cells about 60 km apart), such a link spans two to three cells, which is our partnership reach; but our partners now pass only shell and gold, and only as gifts.
+- **Journeys to the source.** Australian ethnography records parties travelling to quarries hundreds of kilometres away: red ochre from Bookartoo (Parachilna) reached Boulia, about 450 km away, by organised expeditions on established routes, men carrying cakes of about 28–35 kg; people came to Ulpunyali ochre from 165–200 km. In 1874, four tons of Moana ochre were taken to Koppermanna to try to stop further Diyari expeditions to Bookartoo (Smith & Fankhauser 2009, citing Jones 1984). At Mount William, the greenstone quarry was held by custodians of two clans; visiting groups sent a messenger to the headman, camped near the quarry and exchanged goods such as possum-skin rugs for axes and blanks; the stone travelled several hundred kilometres (McBryde 1978, 1984, summarised in the encyclopedia article on the quarry). Access to a source was by permission, not open.
+- **Prestige goods between elites.** Alpine jadeitite axes travelled up to 2,000 km in the fifth and fourth millennia BCE, largely through direct exchange between elites, and were deposited in hoards and graves (Pétrequin et al. 2012, reviewed by Cooney 2013).
+- **Directed trade with merchants and rulers.** Old Assyrian caravans (already in these notes: Barjamovic et al. 2019): a gravity pattern between centres, rulers taking a share of each load and a first choice, merchants in their own quarter, smuggling. Curtin (1984) calls such communities trade diasporas: networks of foreign merchants living, briefly or for generations, in a host society as cross-cultural brokers, which fade once they are no longer needed.
+- **A caution.** Similar fall-off curves can come from different exchange systems (equifinality; Hodder 1974; Hodder & Orton 1976). The gate should judge trade by its recorded mechanisms and who carried what, not by the shape of the curve alone.
+
+### Sources (added)
+
+- Cooney, G. (2013). Review of *JADE: Grandes haches alpines du Néolithique européen*. *Antiquity*, 87(336).
+- Curtin, P. D. (1984). *Cross-Cultural Trade in World History*. Cambridge University Press.
+- McBryde, I. (1984). Kulin greenstone quarries: the social contexts of production and distribution for the Mt William site. *World Archaeology*, 16(2), 267–285.
+- Pétrequin, P., Cassen, S., Errera, M., Klassen, L., Sheridan, A., & Pétrequin, A.-M. (eds.) (2012). *JADE: Grandes haches alpines du Néolithique européen, Ve et IVe millénaires av. J.-C.* Presses universitaires de Franche-Comté.
+- Smith, M. A., & Fankhauser, B. (2009). *Geochemistry and identification of Australian red ochre deposits*. Palaeoworks Technical Paper 9 (their 1996 report to AIATSIS).
