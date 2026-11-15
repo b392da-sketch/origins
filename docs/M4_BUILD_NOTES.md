@@ -452,3 +452,21 @@ Three fixes, each reproduced first (`tests/test_trade.py::Review014`):
 - **Exchange log:** it records gross flows pair by pair, so bands that pass goods on are counted.
 
 Trial rerun (planet 3, year-8,500 save, 100 years, 51 s): no ledger failures; 1,325 first arrivals (3,694 before, about two thirds of them repeats); 200 of 200 sampled chains resolve. Fine stone per person by cells from the source: 0.50, 0.10, 0.025, 0.0088, 0.0030, 0.0014, 0.00065, 0.00031, 0.0002, essentially unchanged; the thin tail stands. Codex's synthetic timings: exchange on 40,000 bands took 0.44 s (434,242 pairs); an arrival-heavy case took 3.9 s before fix 2. Rates are starting values.
+
+### Trade stage 4a, as built (15 November 2026)
+
+- **Partners trade working goods.** Partners who are not neighbours (up to two rings, about 120 km) exchange salt, fine stone, copper, tin and iron as neighbours do, at `PARTNER_TRADE_RATE` 0.1 of the gap each year. Shell and gold still pass only as gifts. A good that first reaches a band through a partner is recorded with `route="partner"`.
+- **Larger bands hold more links** (my choice, flagged for review): `PARTNERS_MAX` 4 at `PARTNER_SIZE_REF` 30 people, growing with the square root of size, at most `PARTNERS_CAP` 16. With a fixed cap of four, a well-supplied village could never gather links, so no hub could form. The cap of 16 follows hxaro's average partners per person (Wiessner 2007); the square root is a guess.
+- **Settled bands trade up.** A settled band with no room left, with a yearly chance `PARTNER_SWITCH` 0.1, drops its worst-supplied partner for the best-supplied band within reach that has room, if that band is at least `PARTNER_SWITCH_GAIN` 2 times as well supplied (Ben, 15 November 2026). Supply is holdings per person of the working goods, each relative to its mean, summed.
+- **Gift records** (Ben, 15 November 2026). Each partnership keeps running totals of what each side gave (`w.partner_gave`, saved and in the digest). The first exchange is a `gift_exchange` event; a lapse event carries the totals; yearly gifts go into a thinned `gift_log`. In the first 1,200-year trial, yearly gift events were 9.9 million of 11.7 million events, and the full test suite ran out of memory (the 1,500-year event-store test passed 6 GB). With totals, that trial's record holds 2.0 million events and the test peaks at about 1.7 GB.
+- Older saves widen to 16 links per band and start their gift totals at zero.
+
+**Trial** (planet 3, year-8,500 save, 1,200 years, 36 min, after both of Ben's decisions):
+- no ledger failures; 10,689 first arrivals, none repeated, 2,332 of them through partners; 20 of 20 sampled chains resolve;
+- 4,221 bands, about 499,000 people; links per band average 6.9 (settled 7.5, others 3.6), at most 14;
+- fine stone per person by cells from the source: 0.40, 0.10, 0.049, 0.017, 0.0066, 0.0037, 0.0013, 0.00049, 0.00021 (8 cells), then 5.3e-5, 1.6e-5, 4.6e-6 at 9–11 cells, and 1.8e-6 at 12 cells (about 720 km), about 0.0005% of the source level against roughly 0.6% for obsidian;
+- beyond 5 cells, the largest tenth of bands hold about 5 times as much fine stone per person as the smaller half (Ibáñez et al. 2015: about 33 times beyond 500 km in the PPNB).
+
+So hubs form, but the tail is still far too thin: partner links of two rings shorten chains only a little, and the fall-off is set mainly by wear against exchange (`GOOD_WEAR` 0.2 for fine stone against 0.1 of the gap a year). Directed trade (stage 4b) is meant to add long links between centres; if the tail is still thin after it, the wear and exchange rates go to Ben as a decision, not a quiet tuning. All values are starting values.
+
+Also: 409,196 partnerships formed and 214,808 lapsed in 1,200 years. Most formation follows bands moving, splitting and ending, not swaps. This is now the largest kind of event (about a fifth of the record).
