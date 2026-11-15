@@ -392,3 +392,13 @@ Trial: planet 3 forager world (year 8,500 save), 100 years, 39 s (unchanged): no
 ### After Codex review 013 (15 November 2026)
 
 Fixes: loading an older save keeps every goods row (`trade.grow`); help in need comes only from partners within reach at that moment; each yearly gift exchange is an event with its goods and quantities (specification 4.2); consolidation ends the absorbed band's partnerships at once. A lesson taken from a partner is recorded as route "partnership", so the gate can tell it from ordinary contact. The divide-by-zero warning in `foraging.move` (empty bands) is silenced without changing any value.
+
+### Trade stage 3: literature check on down-the-line exchange (15 November 2026)
+
+- **Fall-off.** Within about 240–320 km of an Anatolian source, about 80% of chipped stone at early Neolithic villages was obsidian; beyond it, the share fell as a "nearly perfect exponential function of distance" (Renfrew, Dixon & Cann 1966, 1968; summary in EBSCO Research Starters).
+- **Down-the-line alone is not enough.** If each village keeps half and passes half on, after eight exchanges only about 0.39% is left; yet obsidian reached southern Levant sites 700–800 km from its sources at about 0.5% of chipped stone. Simulations fit the data only with dense local links plus a few long-distance links among well-connected hub villages (Ibáñez et al. 2015). Larger sites far from sources held more: obsidian-to-flint ratios of 0.07 (small), 0.40 (medium) and 2.41 (large) at sites over 500 km away.
+- **What else shapes it.** The population of the receiving area predicts obsidian nearly as well as distance (Ericson 1977, 1981); routes follow paths and relief rather than straight lines (Findlow & Bolognese 1980, 1982); transport (boats; pack animals) changes effective distance (Hodder & Orton 1976; Renfrew 1977; Ammerman 1978, 1979), and weight mattered before cargo animals (Wright 1970). Summary in Weigand's study guide to exchange (mapaspects.org).
+
+### Source (added)
+
+- Ibáñez, J. J., Ortega, D., Campos, D., Khalidi, L., & Méndez, V. (2015). Testing complex networks of interaction at the onset of the Near Eastern Neolithic using modelling of obsidian exchange. *Journal of the Royal Society Interface*, 12(107), 20150210.
