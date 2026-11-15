@@ -271,5 +271,10 @@ GOOD_WEAR = {    # share of each stock used up or worn out each year
     "salt": 0.5, "fine_stone": 0.2, "copper": 0.05, "tin": 0.05, "iron": 0.05, "gold": 0.01,
     "textiles": 0.25, "pottery": 0.2, "shell": 0.02,
 }
+PARTNERS_MAX = 4                   # gift partners per band (hxaro: 16 per person, most in a few other camps; Wiessner 2007)
+PARTNER_FORM = 0.05                # yearly chance a pair within reach begins a partnership (x closeness of speech)
+PARTNER_SHARE = 0.2                # share of its spare food a partner gives in a bad season (Ben, 15 Nov 2026: starting value)
+GIFT_GOODS = ("shell", "gold")     # lasting goods exchanged as gifts each year
+GIFT_SHARE = 0.05                  # share of each such good a partner gives the other each year
 TECH_FARMING = 0.2                 # farm (or herd) share a people needs before farming techniques apply to them
 

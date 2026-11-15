@@ -1,4 +1,4 @@
-"""Trade (M4a; M4 specification section 4). Stage 1: goods and their ledgers.
+"""Trade (M4a; M4 specification section 4). Stage 1: goods and their ledgers. Stage 2: gift partnerships.
 
 Each good has a source, a stock held by each band, and a ledger, like food: every unit is produced at a source,
 worn out or used, lost when a band ends, or moved between bands (trade, migration, merging). sim/observe.py checks
@@ -13,8 +13,15 @@ Production is a yearly yield per skilled practitioner (technology.skilled) at a 
 the quality of the technique it needs; wear is a yearly share of each stock. Both are starting values in params.py.
 Production takes no food time yet (a simplification, recorded in the build notes).
 
-reads: bands (cell), planet minerals and coast, technology (practised quality, skilled practitioners)
-writes: w.goods (bands x goods), w.goods_ledger
+Stage 2, gift partnerships (hxaro; Wiessner 1982, 2007; Ben, 15 November 2026: links between bands): each band keeps
+up to PARTNERS_MAX partner bands within two rings (about 200 km). A link forms with a yearly chance, more readily
+between peoples who share words; partners exchange gifts of lasting goods each year (shell, gold); a link lapses
+when the two bands are no longer within reach or one ends. In a season when a band cannot meet its needs, partners
+with food to spare beyond their own needs give up to PARTNER_SHARE of the spare (food moved, not made). Partners
+teach techniques as readily as members of one's own people (technology.keep_and_spread).
+
+reads: bands (cell), planet minerals and coast, technology (practised quality, skilled practitioners), languages
+writes: w.goods (bands x goods), w.goods_ledger, w.partner_of, w.partner_since, band stores (help in need), events
 """
 from __future__ import annotations
 
@@ -41,6 +48,9 @@ FLOWS = ("produced", "worn", "lost", "moved_out", "moved_in")
 def init(w):
     w.goods = np.zeros((64, G), dtype=np.float64)
     w.goods_ledger = {g: {f: 0.0 for f in FLOWS} for g in GOODS}
+    k = int(getattr(P, "PARTNERS_MAX", 4))
+    w.partner_of = -np.ones((64, k), dtype=np.int64)
+    w.partner_since = -np.ones((64, k), dtype=np.int64)
 
 
 def ensure(w, band_id: int, parent: int):
@@ -54,7 +64,20 @@ def ensure(w, band_id: int, parent: int):
         out = np.zeros((cap, G), dtype=np.float64)
         out[:len(w.goods)] = w.goods
         w.goods = out
+    if getattr(w, "partner_of", None) is None:
+        k = int(P.PARTNERS_MAX)
+        w.partner_of = -np.ones((len(w.goods), k), dtype=np.int64)
+        w.partner_since = -np.ones((len(w.goods), k), dtype=np.int64)
+    if band_id >= len(w.partner_of):
+        cap = len(w.goods)
+        for name in ("partner_of", "partner_since"):
+            a = getattr(w, name)
+            out = -np.ones((cap, a.shape[1]), dtype=np.int64)
+            out[:len(a)] = a
+            setattr(w, name, out)
     w.goods[band_id] = 0.0
+    w.partner_of[band_id] = -1                 # a new band starts without partners of its own
+    w.partner_since[band_id] = -1
 
 
 def move_share(w, src_id: int, dst_id: int, frac: float):
@@ -73,9 +96,10 @@ def move_share(w, src_id: int, dst_id: int, frac: float):
 
 
 def band_ended(w, band_id: int):
-    """An ended band's goods are lost (scattered, buried, taken up by no one we follow)."""
+    """An ended band's goods are lost (scattered, buried, taken up by no one we follow); its partnerships end."""
     if getattr(w, "goods", None) is None or band_id >= len(w.goods):
         return
+    _unlink_all(w, band_id)
     for i, g in enumerate(GOODS):
         if w.goods[band_id, i]:
             w.goods_ledger[g]["lost"] += float(w.goods[band_id, i])
@@ -120,10 +144,151 @@ def yearly(w):
         made = P.GOOD_YIELD[g] * skilled * level * ok
         w.goods[ids, i] += made
         w.goods_ledger[g]["produced"] += float(made.sum())
+    partnerships_yearly(w, live)
     worn = w.goods[ids] * np.array([P.GOOD_WEAR[g] for g in GOODS])[None, :]
     w.goods[ids] -= worn
     for i, g in enumerate(GOODS):
         w.goods_ledger[g]["worn"] += float(worn[:, i].sum())
+
+
+# --- stage 2: gift partnerships -------------------------------------------------------------------------------------
+
+def partners(w, band_id: int) -> list:
+    if getattr(w, "partner_of", None) is None or band_id >= len(w.partner_of):
+        return []
+    return [int(x) for x in w.partner_of[band_id] if x >= 0]
+
+
+def _link(w, a: int, b: int):
+    ia = int(np.nonzero(w.partner_of[a] < 0)[0][0])
+    ib = int(np.nonzero(w.partner_of[b] < 0)[0][0])
+    w.partner_of[a, ia], w.partner_since[a, ia] = b, w.t
+    w.partner_of[b, ib], w.partner_since[b, ib] = a, w.t
+
+
+def _unlink(w, a: int, b: int):
+    for x, y in ((a, b), (b, a)):
+        hit = w.partner_of[x] == y
+        w.partner_of[x, hit] = -1
+        w.partner_since[x, hit] = -1
+
+
+def _unlink_all(w, a: int):
+    if getattr(w, "partner_of", None) is None or a >= len(w.partner_of):
+        return
+    for b in partners(w, a):
+        _unlink(w, a, b)
+
+
+def move_good(w, src_id: int, dst_id: int, i: int, amount: float):
+    """Move an amount of one good between bands (a gift); recorded as moved out and in."""
+    amount = float(min(max(amount, 0.0), w.goods[src_id, i]))
+    if amount <= 0:
+        return 0.0
+    w.goods[src_id, i] -= amount
+    w.goods[dst_id, i] += amount
+    w.goods_ledger[GOODS[i]]["moved_out"] += amount
+    w.goods_ledger[GOODS[i]]["moved_in"] += amount
+    return amount
+
+
+def _closeness(w, a, b) -> float:
+    from .language import shared_roots
+    la, lb = w.languages.get(a.language), w.languages.get(b.language)
+    same = shared_roots(la, lb) if (la is not None and lb is not None) else 1.0
+    return P.TECH_FOREIGN + (1.0 - P.TECH_FOREIGN) * same
+
+
+def partnerships_yearly(w, live):
+    """Lapse, gifts, then new links. Draws from the 'trade' stream only."""
+    from .language import ring2
+    rng = w.rng["trade"]
+    r2 = ring2(w)
+    reach = {b.id: {int(c) for c in r2[b.cell] if c >= 0} for b in live}
+    alive = {b.id: b for b in live}
+    # lapse: a partner that has ended or is no longer within reach
+    for b in live:
+        for o in partners(w, b.id):
+            if o not in alive:
+                _unlink(w, b.id, o)                      # the partner's end is its own record
+            elif alive[o].cell not in reach[b.id] and o > b.id:
+                _unlink(w, b.id, o)
+                w.event("partnership_lapsed", cell=b.cell, band=b.id, partner=o,
+                        causes=[{"band": o}, {"note": f"{w.band_name(b)} and {w.band_name(alive[o])} were no longer "
+                                                          f"within reach of each other"}])
+    # gifts: lasting goods pass both ways each year, keeping the link alive and carrying goods along chains
+    for b in live:
+        for o in partners(w, b.id):
+            if o > b.id:
+                for g in P.GIFT_GOODS:
+                    i = GI[g]
+                    x, y = P.GIFT_SHARE * w.goods[b.id, i], P.GIFT_SHARE * w.goods[o, i]
+                    move_good(w, b.id, o, i, x)
+                    move_good(w, o, b.id, i, y)
+    # new links: pairs within reach with room, drawn in band order, likelier between peoples who share words
+    by_cell: dict = {}
+    for b in live:
+        by_cell.setdefault(b.cell, []).append(b)
+    free = {b.id: int((w.partner_of[b.id] < 0).sum()) for b in live}
+    for b in sorted(live, key=lambda x: x.id):
+        if free[b.id] <= 0:
+            continue
+        mine = set(partners(w, b.id))
+        cands = sorted((o for c in sorted(reach[b.id]) for o in by_cell.get(c, ())
+                        if o.id > b.id and o.id not in mine and free[o.id] > 0), key=lambda x: x.id)
+        if not cands:
+            continue
+        draws = rng.random(len(cands))
+        for o, u in zip(cands, draws.tolist()):
+            if free[b.id] <= 0:
+                break
+            if free[o.id] <= 0:
+                continue
+            close = _closeness(w, b, o)
+            if u < P.PARTNER_FORM * close:
+                _link(w, b.id, o.id)
+                free[b.id] -= 1
+                free[o.id] -= 1
+                w.event("partnership_formed", cell=b.cell, band=b.id, partner=o.id,
+                        causes=[{"band": o.id}, {"note": f"{w.band_name(b)} and {w.band_name(o)} lived within reach "
+                                                          f"of each other ({close:.0%} closeness of speech) and began "
+                                                          f"to exchange gifts"}])
+
+
+def share_in_need(w, bands, ids, avail, need_now, keep_need):
+    """Within a season, before eating: a band that cannot meet this season's needs draws on partners with food to
+    spare beyond their own needs (keep_need), each giving up to PARTNER_SHARE of its spare. Food moves between
+    bands' food in hand; nothing is made. Returns the new food in hand."""
+    if not getattr(P, "TRADE", False) or getattr(w, "partner_of", None) is None or not len(ids):
+        return avail
+    pos = {int(b): k for k, b in enumerate(ids.tolist())}
+    short = np.maximum(need_now - avail, 0.0)
+    if not (short > 0).any():
+        return avail
+    avail = avail.copy()
+    spare = np.maximum(avail - keep_need, 0.0) * P.PARTNER_SHARE
+    for k in np.nonzero(short > 0)[0].tolist():
+        bid = int(ids[k])
+        if bid >= len(w.partner_of):
+            continue
+        givers, got = [], 0.0
+        for o in partners(w, bid):
+            j = pos.get(o)
+            if j is None or spare[j] <= 0 or short[k] - got <= 1e-9:
+                continue
+            give = min(spare[j], short[k] - got)
+            spare[j] -= give
+            avail[j] -= give
+            got += give
+            givers.append(o)
+        if got > 0:
+            avail[k] += got
+            b = bands[k]
+            w.event("helped_by_partners", cell=b.cell, band=bid, amount=round(got, 3), givers=givers,
+                    causes=[{"band": g} for g in givers] + [{"note": f"{w.band_name(b)} could not meet its needs this "
+                                                                    f"season; its gift partners gave food they could "
+                                                                    f"spare"}])
+    return avail
 
 
 def check_begin(w):

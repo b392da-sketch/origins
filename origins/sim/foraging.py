@@ -121,6 +121,11 @@ def forage_and_eat(w):
     store = np.fromiter((b.store for b in bands), dtype=float, count=L)
     farming.record_forage_return_live(w, ids, raw_effort, band_h)
     avail = store + band_h + farm_food
+    # gift partners help in a bad season (M4a trade, stage 2): food moves before eating, nothing is made
+    from . import trade
+    _horizon = ((P.HARVEST_QUARTER - w.quarter - 1) % P.TICKS_PER_YEAR) + 1
+    _need = need_child + need_rest
+    avail = trade.share_in_need(w, bands, ids, avail, _need, _need * (1 + w.farm_share[ids] * (_horizon - 1)))
     give_c = np.minimum(avail, need_child)
     give_r = np.minimum(avail - give_c, need_rest)
     frac_c = np.where(need_child > 0, give_c / np.maximum(need_child, 1e-12), 1.0)

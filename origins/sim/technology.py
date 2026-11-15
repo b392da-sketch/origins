@@ -537,6 +537,10 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
         la, lb = w.languages.get(b.language), w.languages.get(src.language)
         same = shared_roots(la, lb) if (la is not None and lb is not None) else 1.0
         close = P.TECH_FOREIGN + (1.0 - P.TECH_FOREIGN) * same
+        if getattr(P, "TRADE", False):
+            from . import trade as _trade
+            if src.id in _trade.partners(w, b.id):
+                close = 1.0                  # gift partners live together for months: they teach as one people
         if rng.random() >= close:
             continue
         level = P.TECH_ADOPT_SHARE * float(new[j, k])                # learners fall short of their teacher

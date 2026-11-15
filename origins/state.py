@@ -30,7 +30,7 @@ C = {name: i for i, name in enumerate(CAUSES)}
 STREAMS = ["climate", "deaths", "partners", "births", "movement", "fission", "names", "founding",
            "language", "customs", "hazards", "crossing",
            "farming", "surplus", "polity", "conflict",
-           "technology"]   # new streams are appended, never inserted
+           "technology", "trade"]   # new streams are appended, never inserted
 
 # ids, ticks and cells all fit in 32 bits; people are never removed, so their rows are kept compact
 FIELDS = {

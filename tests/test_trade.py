@@ -81,5 +81,53 @@ class Review012(unittest.TestCase):
         self.assertIn("trade.move_share(w, t.id, b.id, P.RAID_TAKE)", src)
 
 
+
+class Partnerships(unittest.TestCase):
+    """Trade stage 2: gift partnerships (Ben, 15 November 2026)."""
+
+    def _world(self):
+        w = World.new(1, 1, generate(1))
+        a = w.living_bands()[0]
+        b = w.new_band(a.cell, parent=a.id)
+        return w, a, b
+
+    def test_partners_form_within_reach_and_lapse_out_of_it(self):
+        w, a, b = self._world()
+        old = P.PARTNER_FORM
+        P.PARTNER_FORM = 10.0                       # certain, for the test
+        try:
+            trade.partnerships_yearly(w, w.living_bands())
+        finally:
+            P.PARTNER_FORM = old
+        self.assertIn(b.id, trade.partners(w, a.id))
+        self.assertIn(a.id, trade.partners(w, b.id))
+        from origins.sim.language import ring2
+        far = [c for c in range(w.planet.n) if w.planet.land[c] and c not in set(int(x) for x in ring2(w)[a.cell])]
+        b.cell = far[0]
+        w.bands_changed()
+        trade.partnerships_yearly(w, [a, b])
+        self.assertNotIn(b.id, trade.partners(w, a.id))
+
+    def test_partners_share_food_in_need_without_making_any(self):
+        w, a, b = self._world()
+        trade._link(w, a.id, b.id)
+        ids = np.array([a.id, b.id])
+        avail = np.array([5.0, 100.0])
+        need = np.array([10.0, 10.0])
+        out = trade.share_in_need(w, [a, b], ids, avail, need, need)
+        self.assertAlmostEqual(out.sum(), avail.sum())                 # moved, not made
+        self.assertAlmostEqual(out[0], 10.0)                           # the shortfall met from the partner's spare
+        self.assertGreaterEqual(out[1], 10.0)                          # the giver keeps its own needs
+
+    def test_partnerships_round_trip(self):
+        w, a, b = self._world()
+        trade._link(w, a.id, b.id)
+        engine.step(w, 8)
+        d0 = persist.digest(w)
+        w2 = persist.from_bytes(persist.to_bytes(w), w.planet)
+        self.assertEqual(persist.digest(w2), d0)
+        self.assertEqual(w.invariant_failures, [])
+
+
 if __name__ == "__main__":
     unittest.main()

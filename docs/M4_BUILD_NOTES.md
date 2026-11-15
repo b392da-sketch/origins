@@ -382,3 +382,9 @@ From the literature check (hxaro; Wiessner 1982, 2007) and Ben's decisions 3–4
 
 - **Fix:** marriage moves carry the movers' share of their band's goods (the spouse and any young children).
 - **Decisions (Ben):** a winning raid takes `RAID_TAKE` of the loser's goods as loot, as of its food store, and captives carry none; producing goods costs no food time until the effects stage (stage 5). Until then, goods stocks embody free labour: keep that in mind when judging trade results.
+
+### Trade stage 2: gift partnerships, as built (15 November 2026)
+
+Built as designed above (`trade.partnerships_yearly`, `trade.share_in_need`; new random stream "trade", appended). Partnerships are pairs of bands within two rings, up to `PARTNERS_MAX` (4) each, forming with yearly chance `PARTNER_FORM` (0.05) x closeness of speech, lapsing when out of reach or when a partner ends. Each year partners give each other `GIFT_SHARE` (5%) of their shell and gold. In a season when a band's food in hand falls short of its needs, before eating, each partner gives up to `PARTNER_SHARE` (20%) of what it holds beyond its own needs (for farmers, the needs until the next harvest). Partners teach techniques at closeness 1. A new band starts without partners; Wiessner (2007) describes partnerships being inherited, which can follow if the gate shows it matters. Events: partnership formed, lapsed, and help received (naming the givers). Saves keep the links; replay digest includes them.
+
+Trial: planet 3 forager world (year 8,500 save), 100 years, 39 s (unchanged): no ledger failures; 898 bands averaging 2.8 partners (438 with four, 101 with none); 6,874 partnerships formed and 1,939 lapsed; help in 15,715 band-seasons, median 557 units of food each; 200 of 200 sampled cause chains resolve. Gifts carried shell to every band.

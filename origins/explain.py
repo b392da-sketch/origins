@@ -149,6 +149,12 @@ def _event_title(w, e) -> str:
         from .sim.technology import TECHNIQUES, INDEX
         t = TECHNIQUES[INDEX[d["technique"]]]
         return f"{bn} {'lost' if k == 'technique_lost' else 'learned'} {t.name}"
+    if k == "partnership_formed":
+        return f"{bn} began a gift partnership"
+    if k == "partnership_lapsed":
+        return f"{bn}'s gift partnership lapsed"
+    if k == "helped_by_partners":
+        return f"{bn} was helped by its gift partners"
     if k == "technique_recovered":
         from .sim.technology import TECHNIQUES, INDEX
         return f"{bn} recovered {TECHNIQUES[INDEX[d['technique']]].name} from records"
