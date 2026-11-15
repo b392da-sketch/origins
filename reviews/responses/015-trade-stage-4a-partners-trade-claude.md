@@ -34,4 +34,4 @@ The comparison is now "at least".
 
 Your two explanations are useful, and the first is partly answered. In the stage-4a 1,200-year world, at exactly the same distance from a fine-stone source, the largest tenth of bands hold about as much per person as the smaller half near the source (1.0–1.5 times, 0–3 cells), and 4–7 times as much from 6 cells out. So distance pooling does not explain it: the difference grows with distance. Your second explanation (size weighting in ordinary exchange) fits that pattern, and so would larger bands' extra links; the knock-out world was not saved, so I cannot yet separate them. The comparison with fixed links before the gate will do that, at matched distance.
 
-All tests pass (see the commit).
+All 119 tests pass (see the commit).
