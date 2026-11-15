@@ -551,3 +551,25 @@ Ben's decisions (15 November 2026):
 - fine stone per person by cells from the source: 0.41, 0.12, 0.045, 0.023, 0.0085, 0.0043, 0.0024, 0.00056, 0.00034, 0.00034 (9 cells), then 2.2e-5 at 10 and 3.5e-6 at 11. Against stage 4a's 1,200-year world, about the same out to 8 cells, about 6 times more at 9 cells, and about 1.4 times at 10. These are different starting worlds, so this is only a rough comparison.
 
 **The tail is still far too thin** after stage 4b (at 12 cells about 0.0003% of the source level, against roughly 0.6% for obsidian). As promised, the wear and exchange rates go to Ben as a decision. All values are starting values.
+
+### The thin tail: literature check (15 November 2026; Ben: research, then propose)
+
+- **What sets the tail in the model.** With neighbours exchanging a share r of the gap each year and goods wearing at k a year, holdings fall off by roughly exp(−√(k/r)) per cell. Fine stone has k = 0.2 and r = 0.1, which predicts a fall of about a quarter per cell; we see about 0.4. The obsidian curve falls from about 80% to 0.5% over 12 cells, about 0.65 per cell. Matching it needs k/r about six times smaller than now, or a different mechanism.
+- **Discard and movement have the same effect.** In stone-procurement models, how likely a tool is to be thrown away and how far foragers move have similar effects on how far stone ends up from its source, and distance-to-source data alone cannot tell them apart (Lin & Premo 2021). A neutral random-walk model, with no exchange and no choices, already gives distance-decay and reduction-intensity patterns qualitatively like the archaeological ones (Brantingham 2003). So the shape of the curve alone cannot fix our wear rate; a rate has to come from other evidence.
+- **Curation.** Binford (1979) distinguishes curated technologies (tools made, carried, maintained and kept) from expedient ones, made and thrown away where used. Ericson (1984, as summarised by Tripcevich) links how far stone was reduced before exchange to the social distance between giver and receiver. What follows for the model: wear need not be one constant; a scarce, valued material can be used more sparingly. *I have not found a source I could read that gives the direction and size of the reduction-intensity-with-distance pattern; that needs checking before it is built on.*
+- **Use-life figures.** Ethnographic use-lives of tools exist (Shott 1989, !Kung San and Ingalik; Shott & Sillitoe 2004, Wola of New Guinea), but the figures are behind paywalls I cannot read, so I give none.
+
+Options for Ben:
+1. **Curation:** wear of a band's working goods falls as its holdings per person fall (people use scarce stone sparingly). It is mechanism-based and makes the far tail fall more slowly without changing wear near the source. Its form and starting values would be guesses until the reduction-intensity evidence is checked.
+2. **Lower wear for fine stone,** once a use-life source can be read.
+3. **Journeys to the source:** bands within a few cells of a source fetch stone directly, a supply zone (Renfrew's term), up to about 300 km, about 5 cells. Ben chose not to build this for stage 4a.
+4. **Leave it,** and report it as an open item at the gate.
+
+### Sources (added)
+
+- Binford, L. R. (1979). Organization and formation processes: looking at curated technologies. *Journal of Anthropological Research*, 35(3), 255–273.
+- Brantingham, P. J. (2003). A neutral model of stone raw material procurement. *American Antiquity*, 68(3). (Page numbers not checked.)
+- Lin, S. C., & Premo, L. S. (2021). Forager mobility and lithic discard probability similarly affect the distance of raw material discard from source. *American Antiquity*, 86(4), 845–863.
+- Shott, M. J. (1989). On tool-class use lives and the formation of archaeological assemblages. *American Antiquity*, 54(1), 9–30.
+- Shott, M. J., & Sillitoe, P. (2004). Modeling use-life distributions in archaeology using New Guinea Wola ethnographic data. *American Antiquity*, 69(2), 339–355.
+- Tripcevich, N. (2007). *Quarries, Caravans, and Routes to Complexity: Prehispanic Obsidian in the South-Central Andes* (PhD dissertation, University of California, Santa Barbara), section 2.2.5, online at mapaspects.org (summarising Ericson 1984).
