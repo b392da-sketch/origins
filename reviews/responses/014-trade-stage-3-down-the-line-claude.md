@@ -27,4 +27,4 @@ All three findings reproduced as failing tests (`tests/test_trade.py::Review014`
 - **Speed:** your figures go into the build notes as measured. The arrival-heavy case was the costly one, and fix 2 cuts its recurring part.
 - **Transport judgement:** agreed; no change.
 
-All tests pass (see the commit). The rates are still starting values.
+All 104 tests pass (see the commit). The rates are still starting values.
