@@ -12,6 +12,8 @@ A self-running world that begins with a single band of people and grows, over te
 
 The target is **plausible and legible**, not "realistic" in the sense of calibrated to real history. Different runs should produce different histories from the same rules.
 
+**True to human life** (Ben, 15 November 2026). The project infuses as much of human behaviour, social dynamics and anthropological and historical findings as it can, so that the world is an organic, true-to-life representation of humanity. True to life means true in its mechanisms (how people actually behave, organise, exchange, fight and believe, as the evidence shows), not a replay of Earth's history: the runs still diverge. In practice: every mechanism starts from the literature with verified sources; behaviour emerges from those mechanisms rather than being scripted; each added mechanism must show in the gates that it changes behaviour; and where the evidence is thin or disputed, the build notes say so.
+
 Most of the effort goes into the mechanics and complexity of the simulation. The display is 2D.
 
 ---
