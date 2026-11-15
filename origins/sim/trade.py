@@ -745,7 +745,7 @@ def prestige_factor(w, polity_id: int) -> float:
         ids = np.asarray(w.live_index()[0])
         pol = w.polity_of[ids]
         keep = pol >= 0
-        pop = np.bincount(pol[keep], weights=np.asarray(w.live_sizes(), dtype=float)[keep],
+        pop = np.bincount(pol[keep], weights=w.band_sizes()[ids].astype(float)[keep],
                           minlength=int(pol.max()) + 1 if keep.any() else 1)
         c = (w.t, pop)
         w._polity_pop = c
