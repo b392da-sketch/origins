@@ -520,3 +520,34 @@ Ben's decisions (15 November 2026):
 - partnership events are not thinned.
 
 **Size difference at matched distance** (stage-4a 1,200-year world; largest tenth of bands against the smaller half at exactly the same distance from a fine-stone source): about 1.0–1.5 times near the sources (0–3 cells), rising to 4–7 times from 6 cells out. So the difference is not an artefact of pooling distances, as Codex suggested it might be. Its cause is not yet separated. Codex shows ordinary size-weighted exchange can produce it, and larger bands' extra links might add to it; the fixed-four comparison will separate them.
+
+### Trade stage 4b, as built (15 November 2026)
+
+`origins/sim/traders.py`, called in the yearly trade phase after neighbours' exchange and before wear.
+
+- **Traders:** `TRADER_SHARE` 0.2 of the specialists at a polity's seat, fed from surplus as specialists are.
+- **Routes by gravity:** each polity's traders serve up to `ROUTES_MAX` 3 other seats, chosen among the 12 nearest by polity size × size / cost².
+- **Travel cost:** A* over the cells, at most `TRADE_RANGE` 30:
+  - a land cell on foot costs 1, divided by 1 + pack animals and carts;
+  - climbing costs `MOUNTAIN_COST` 2 per 1,000 m, and high ground (above 2,000 m) adds `HIGH_COST` 0.5 per step;
+  - rivers and coasts cost down to `RIVER_COST` 0.5 with canoes;
+  - lakes need canoes; sea cells cost `SEA_COST` 2 / sail quality, and none can be crossed without sail.
+  Costs are cached as a pure function of the planet and the transport qualities (rounded to tenths).
+- **Carried:** all goods (textiles and pottery included: Ben, 15 November 2026, after Kanesh), `TRADER_RATE` 0.5 of the gap in holdings per person between the two seats, within the traders' load (`TRADER_LOAD` 2 units per trader a year, more with pack animals and carts), at most half of what the giver holds.
+- **On the way:**
+  - road loss is 1 − exp(−`ROAD_LOSS` 0.01 × cost);
+  - each polity holding cells on the road takes `TOLL` 0.05, unless going round all its land loses less (recorded once per route and polity as `toll_evaded`);
+  - the destination's ruler takes `FIRST_PICK` 0.1;
+  - the traders keep `TRADER_KEEP` 0.25 of what is delivered and take it home.
+- **Rulers' stores** (`w.treasury`, per polity; saved, in the digest and in the goods ledger): they wear as everyone's goods do; they pass to the seat when a polity ends (lost if the seat has gone), and to the conqueror when it is conquered.
+- **Records:** `trade_route_opened` once per pair of polities; `good_arrived` with `route="trader"`; a thinned `route_log` (moved, lost, tolls, first picks, kept, tolls paid and gone round).
+- **A bug found by its own test:** going round a polity first avoided only its cells on the road, not its land beside it.
+
+**Trial** (planet 3, year 9,700 world: 1,502 polities, 1,158 seats with traders; 100 years; 439 s, of which traders 108 s, about a quarter):
+- no ledger failures;
+- 12,060 routes opened (polities come and go); 57 goods first reached a band with traders;
+- tolls were paid on 4 sampled route-years and gone round on 146: polities are mostly small, so a way round them is cheap; the bottleneck effect Earle describes does not appear at this scale;
+- rulers' stores after 100 years: about 150 units of salt and 21,800 of shell (shell wears 2% a year, so it builds into a hoard);
+- fine stone per person by cells from the source: 0.41, 0.12, 0.045, 0.023, 0.0085, 0.0043, 0.0024, 0.00056, 0.00034, 0.00034 (9 cells), then 2.2e-5 at 10 and 3.5e-6 at 11. Against stage 4a's 1,200-year world, about the same out to 8 cells, about 6 times more at 9 cells, and about 1.4 times at 10. These are different starting worlds, so this is only a rough comparison.
+
+**The tail is still far too thin** after stage 4b (at 12 cells about 0.0003% of the source level, against roughly 0.6% for obsidian). As promised, the wear and exchange rates go to Ben as a decision. All values are starting values.
