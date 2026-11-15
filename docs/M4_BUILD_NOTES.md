@@ -638,3 +638,12 @@ The specification (section 4.3) asks four things of trade: move goods to where t
 - Penn Museum, *Expedition* magazine: "A tree falls in Philadelphia" (on Mathieu & Meyer's experiments).
 - Putz, F. E., Fletcher, T., & Magee, L. (2023). Tree felling with stone axes: pre-bending matters but feller sex does not. *Forests*, 14(2), 202.
 - Hallstatt research notes, "Social organisation and hierarchy in the Hallstatt culture" (maptism.github.io), for the criticisms of the prestige-goods model; the primary critique (Wells) is not yet read.
+
+**Ben's decision (16 November 2026): build stage 5 as set out.** Seven effects, with war over trade left for M4b, all as starting values:
+1. Materials held as goods count as in reach, so a band can lose a technique when its imports stop.
+2. Metal techniques help only bands that hold metal.
+3. Salt cuts spoiling and helps herds.
+4. Rulers' prestige goods help hold a polity together a little, with a knock-out.
+5. Making goods costs ordinary members food time; specialists' goods come from surplus.
+6. Traders' routes spread techniques.
+7. Trade-driven inventions respond to the band's real trade.
