@@ -647,3 +647,30 @@ The specification (section 4.3) asks four things of trade: move goods to where t
 5. Making goods costs ordinary members food time; specialists' goods come from surplus.
 6. Traders' routes spread techniques.
 7. Trade-driven inventions respond to the band's real trade.
+
+### Trade stage 5, as built (16 November 2026)
+
+All seven of Ben's effects; `GOODS_EFFECTS` False switches all of them off. Values are starting values.
+
+1. **Materials held as goods** (`trade.goods_materials`, in `technology._possible`): a band holding `MATERIAL_HELD` 0.005 per person of fine stone, salt, copper, tin, iron or gold counts as having that material. Each year `technology._cut_off` notes which techniques a band practises only because of goods; when those goods run out and the material is not within reach, a `technique_cut_off` event says the trade's supply ran out. Saved as `w.tech_import`. Inventions name each material as "within reach" or "held, brought by trade".
+2. **Metal tools need metal:** copper-working's food effects scale with metal held (copper + tin + iron), full at `METAL_NEED` 0.02 per person.
+3. **Salt:** spoiling of stored food × (1 − `SALT_SPOIL` 0.2 × s) and food from herds × (1 + `SALT_HERD` 0.1 × s), where s is salt held over `SALT_NEED` 0.05 per person, at most 1.
+4. **Prestige goods:** polity capacity × (1 + `PRESTIGE_HOLD` 0.1 × p), where p is gold and shell in the ruler's store per member over `PRESTIGE_NEED` 0.05, at most 1.
+5. **Craft time** (`trade.craft_share`, applied to foraging effort): for each good a band makes, `CRAFT_TIME` 0.05 × the share of ordinary members who practise × the technique's quality, at most half of their work. Specialists' share of the making costs no food time.
+6. **Traders' roads teach** (`technology._trade_lessons`): along each route travelled the year before (`w.trade_links`, saved and in the digest), each seat can learn what the other practises, with chance `TECH_SPREAD` × `TRADE_TEACH` 0.5 × (need floor + need) × closeness of speech. Recorded with route "trade".
+7. **The trade need** (`trade.trade_need`): imported goods held (goods with a source the band lacks), each relative to the mean, summed, over `TRADE_NEED_REF` 1. With effects off, the old stand-in.
+
+**Knock-out** (planet 3, year-9,700 world, 300 years each, side by side; no ledger failures either way):
+
+| | Effects on | Effects off |
+|---|---|---|
+| People at the end | 505,630 | 498,501 |
+| Techniques learned along traders' roads | 1,205 | 0 |
+| Learned by contact / partnership | 2,054 / 134 | 2,565 / 171 |
+| Techniques lost | 2,904 | 3,354 |
+| Techniques cut off by lost imports | 0 | 0 |
+| Fine stone per person at 8 / 12 cells | 0.0014 / 0.00018 | 0.0018 / 0.00017 |
+
+- **What shows:** trade becomes a channel for techniques; fewer techniques are lost; the population is about 1.4% larger after 300 years. This is one history, so these are indications, not results.
+- **What cannot show here:** no band in this world practises any metal-working (no copper-working, smelting, bronze or iron in either run), and only 3 inventions happened in 300 years. So dependence on imported metal, and metal tools, are tested only by the unit tests. A world with metal-working is needed before the gate.
+- **Speed:** the first version doubled run time (2,633 s against 1,323 s), almost all of it in the prestige check working out every band's size thousands of times a year. Fixed by working out polities' populations once a tick, which changes no result: 10 years now take 52 s with effects against 48 s without.
