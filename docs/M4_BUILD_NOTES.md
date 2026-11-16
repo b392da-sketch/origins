@@ -674,3 +674,18 @@ All seven of Ben's effects; `GOODS_EFFECTS` False switches all of them off. Valu
 - **What shows:** trade becomes a channel for techniques; fewer techniques are lost; the population is about 1.4% larger after 300 years. This is one history, so these are indications, not results.
 - **What cannot show here:** no band in this world practises any metal-working (no copper-working, smelting, bronze or iron in either run), and only 3 inventions happened in 300 years. So dependence on imported metal, and metal tools, are tested only by the unit tests. A world with metal-working is needed before the gate.
 - **Speed:** the first version doubled run time (2,633 s against 1,323 s), almost all of it in the prestige check working out every band's size thousands of times a year. Fixed by working out polities' populations once a tick, which changes no result: 10 years now take 52 s with effects against 48 s without.
+
+### After Codex review 018 (16 November 2026)
+
+Five fixes, each reproduced first (`tests/test_trade.py::Review018`):
+- **Road teachers:** a band teaches along a road only if it has skilled practitioners.
+- **Craft time:** none where there are no ordinary adults.
+- **Dependence:** judged against the end of last year's technology pass. `technology._mark` records what each band practises and which materials it holds as goods; a lapse is a cut-off only if those goods would still have made the technique practicable. So a failed prerequisite is not called a supply failure, and techniques acquired during the year are covered.
+- **Prerequisite check:** `prerequisites_met` accepts imported materials.
+- **Prestige goods:** polity members are looked up fresh each call.
+
+The toll cap (`ROAD_TOLLS_MAX`) bounds the search for a cheaper road, not every toll paid: where no road within eight tolls exists, the original road is used and pays them all.
+
+Ben's decisions (16 November 2026):
+- **Trade need:** measured from goods actually received last year per person, by every route and of every good, against `TRADE_NEED_REF` 0.05.
+- **Dependence:** a small controlled case now (`local/scripts/dependence_case.py`), with the full experiment across metal-working histories at the gate. In the case, a band given 100 specialists, so knowledge cannot be lost, practises bronze on imported tin. With supply continuing it practises bronze for 40 years; with supply cut, bronze stops in year 26, when tin falls below the threshold, with a `technique_cut_off` event naming tin, and is still remembered afterwards. Imported tin wears slowly once scarce (curation), about 3% a year at these holdings, which is why the threshold is crossed only after about 25 years.
