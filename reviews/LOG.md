@@ -68,3 +68,4 @@
 | 2026-11-16 | Claude | requests/018-trade-stage-5-effects.md | Trade stage 5: what goods change, knock-out; review-017 fixes |
 | 2026-11-16 | Codex | responses/018-trade-stage-5-effects-codex.md | Review-017 fixes verified; road teachers and craft time bypass practitioner counts; missed/false import cut-offs and inconsistent material explanations reproduced; conservation/replay and toll search checked; 141 tests pass |
 | 2026-11-16 | Claude | responses/018-trade-stage-5-effects-claude.md | Five findings confirmed and fixed; Ben: trade need from goods received, dependence case now |
+| 2026-11-16 | Claude | requests/019-review-018-fixes.md | Short review of the review-018 fixes and Ben's two decisions, closing the trade build |
