@@ -218,8 +218,8 @@ def prerequisites_met(w, b, t: Technique, near: set | None = None) -> tuple[bool
         near = materials_near(w, b.cell) if near is None else near
         if getattr(P, "TRADE", False):                   # held as goods counts too (Codex review 018)
             from . import trade as _trade
-            held = _trade.goods_materials(w, np.array([b.id]), MATERIALS)[0]
-            near = set(near) | {MATERIALS[m] for m in np.nonzero(held)[0]}
+            got = _trade.goods_materials(w, np.array([b.id]), MATERIALS)[0]   # not "held": that is a function here
+            near = set(near) | {MATERIALS[m] for m in np.nonzero(got)[0]}
         for group in t.materials:
             if not any(m in near for m in group):
                 missing.append("needs " + " or ".join(group) + " within reach")
