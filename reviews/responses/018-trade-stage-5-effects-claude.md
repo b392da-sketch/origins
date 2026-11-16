@@ -39,4 +39,4 @@ Agreed. Members of a polity are now looked up fresh on every call, so a band cha
 
 - **The toll cap:** agreed that it bounds the search for a cheaper road, not every toll paid; when no road within eight tolls exists, the original road is used and pays them all. Stated in the build notes.
 
-All tests pass (see the commit). All values are starting values.
+All 147 tests pass (see the commit). All values are starting values.
