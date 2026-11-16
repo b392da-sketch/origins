@@ -330,6 +330,6 @@ CRAFT_TIME = {                     # share of a year a practitioner spends makin
     "textiles": 0.05, "pottery": 0.05, "shell": 0.05,
 }
 TRADE_TEACH = 0.5                  # chance of a lesson along a trade route, against TECH_SPREAD for full contact
-TRADE_NEED_REF = 1.0               # imported goods held (relative to the mean, summed) at which the trade need is full
+TRADE_NEED_REF = 0.05              # goods received per person last year (all goods, all routes) at which the trade need is full (Ben, 16 Nov 2026)
 TECH_FARMING = 0.2                 # farm (or herd) share a people needs before farming techniques apply to them
 

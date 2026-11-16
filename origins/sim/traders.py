@@ -420,8 +420,12 @@ def _carry(w, A, B, cost, cells, bcost, bcells, cap, tq, holder, cols, sizes_all
         arrive -= kp
         reached_before = bool(w.goods_reached[dst, col])
         w.goods[dst, col] += arrive
+        from . import trade as _trade
+        _trade._trade_in_size(w)
+        w.trade_in[dst] += arrive                       # received from traders (stage 5's trade need)
         home = _travel(w, kp, col, back, led, acc) if outbound else kp
         w.goods[a, col] += home
+        w.trade_in[a] += home
         led["moved_out"] += m
         led["moved_in"] += m - (acc["lost"] - lost0)       # whatever was not lost reached a band or a ruler's store
         moved += m

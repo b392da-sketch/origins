@@ -190,6 +190,8 @@ def yearly(w):
     ids = np.asarray(w.live_index()[0])
     if len(w.goods) <= ids.max():
         ensure(w, int(ids.max()), -1)
+    _trade_in_size(w)
+    w.trade_in[:] = 0.0                                 # this year's goods received by exchange, gifts and traders
     cells = np.array([b.cell for b in live])
     skilled = technology.skilled(w, live, ids)
     q = technology.practised_quality(w)
@@ -351,6 +353,9 @@ def partnerships_yearly(w, live):
                     i = GI[g]
                     x, y = P.GIFT_SHARE * w.goods[b.id, i], P.GIFT_SHARE * w.goods[o, i]
                     gx, gy = move_good(w, b.id, o, i, x), move_good(w, o, b.id, i, y)
+                    _trade_in_size(w)
+                    w.trade_in[o] += gx
+                    w.trade_in[b.id] += gy
                     w.partner_gave[b.id, kb, j] += gx
                     w.partner_gave[o, ko, j] += gy
                     if gx > 0:
@@ -643,6 +648,8 @@ def down_the_line(w, live, ids, cells):
                     causes=[{"band": o.id}, {"note": f"{good.replace('_', ' ')} first reached {w.band_name(b)} "
                                                       f"from {w.band_name(o)}, {how}, by exchange"}])
     w.goods_reached[ids] = reached
+    _trade_in_size(w)
+    w.trade_in[ids] += received                         # goods received by exchange (stage 5's trade need)
     from ..state import log_row
     for k in np.nonzero((received > 0) | (given > 0))[0].tolist():
         log_row(w, "exchange_log", [w.year, int(ids[k]), round(float(received[k]), 4), round(float(given[k]), 4),
@@ -740,16 +747,14 @@ def prestige_factor(w, polity_id: int) -> float:
     held = float(w.treasury[polity_id, [GI[g] for g in P.PRESTIGE_GOODS]].sum())
     if held <= 0:
         return 0.0
-    c = getattr(w, "_polity_pop", None)               # members' people per polity, once a tick (speed)
-    if c is None or c[0] != w.t:
-        ids = np.asarray(w.live_index()[0])
-        pol = w.polity_of[ids]
-        keep = pol >= 0
-        pop = np.bincount(pol[keep], weights=w.band_sizes()[ids].astype(float)[keep],
-                          minlength=int(pol.max()) + 1 if keep.any() else 1)
-        c = (w.t, pop)
-        w._polity_pop = c
-    n = float(c[1][polity_id]) if polity_id < len(c[1]) else 0.0
+    # Members are looked up fresh each call, so a band changing polity within a tick counts at once (Codex review
+    # 018); only band sizes are kept for the tick (speed), so births and deaths within a tick are not seen here.
+    c = getattr(w, "_sizes_tick", None)
+    if c is None or c[0] != w.t or len(c[1]) != len(w.bands):
+        c = (w.t, w.band_sizes().astype(float))
+        w._sizes_tick = c
+    members = np.nonzero(w.polity_of[:len(c[1])] == polity_id)[0]
+    n = float(c[1][members].sum()) if len(members) else 0.0
     return float(np.clip(held / max(n, 1.0) / P.PRESTIGE_NEED, 0.0, 1.0))
 
 
@@ -774,27 +779,31 @@ def craft_share(w, ids) -> np.ndarray:
         ok = _deposit(w, cells, where) if where else np.ones(len(ids), dtype=bool)
         level = q[ids, technology.INDEX[tech]].astype(float) if tech else np.ones(len(ids))
         share += P.CRAFT_TIME[g] * P.TECH_PRACTISE_SHARE * level * ok
-    share = np.clip(share, 0.0, 0.5)
+    # only ordinary adults make goods (as technology.skilled counts them); with none, nobody's food time is spent
+    # on goods (Codex review 018)
+    spec = np.asarray(w.spec[ids], dtype=float) if hasattr(w, "spec") else np.zeros(len(ids))
+    ordinary = np.maximum(technology._adults(w, live, ids) - spec, 0.0)
+    share = np.where(ordinary > 0, np.clip(share, 0.0, 0.5), 0.0)
     w._craft = (w.t, ids.copy(), share)
     return share
 
 
+def _trade_in_size(w):
+    a = getattr(w, "trade_in", None)
+    if a is None or len(a) < len(w.goods):
+        out = np.zeros(len(w.goods))
+        if a is not None:
+            out[:len(a)] = a
+        w.trade_in = out
+
+
 def trade_need(w, ids, cells) -> np.ndarray:
-    """0..1: how much a band trades, from the goods it holds that it has no source for (imports), each relative to
-    the mean over the bands given, summed, over TRADE_NEED_REF (Ben, 16 November 2026: trade-driven inventions
-    respond to the band's real trade)."""
+    """0..1: how much a band trades: goods it received last year by exchange with neighbours and partners, as
+    gifts and from traders, all goods, per person, over TRADE_NEED_REF (Ben, 16 November 2026, after Codex review
+    018: real exchange, not imported stock). The technology pass runs before trade, so it reads last year's."""
     ids = np.asarray(ids)
     if getattr(w, "goods", None) is None or not len(ids):
         return np.zeros(len(ids))
+    _trade_in_size(w)
     n = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
-    tot = np.zeros(len(ids))
-    for g in GOODS:
-        where, _tech = SOURCES[g]
-        if not where:
-            continue                                   # made anywhere: not an import
-        local = _deposit(w, cells, where)
-        per = w.goods[ids, GI[g]] / n
-        mean = per.mean()
-        if mean > 0:
-            tot += np.where(local, 0.0, per / mean)
-    return np.clip(tot / P.TRADE_NEED_REF, 0.0, 1.0)
+    return np.clip(w.trade_in[ids] / n / P.TRADE_NEED_REF, 0.0, 1.0)

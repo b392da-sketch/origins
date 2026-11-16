@@ -958,8 +958,8 @@ class GoodsEffects(unittest.TestCase):
         self.assertFalse(T._possible(w, ids, cells)[0, k])          # no copper within reach
         w.goods[b.id, trade.GI["copper"]] = 2.0                       # 0.02 per person, brought by trade
         self.assertTrue(T._possible(w, ids, cells)[0, k])
-        T._cut_off(w, w.living_bands(), ids, cells)
-        self.assertTrue(w.tech_import[b.id, k])
+        T._mark(w, w.living_bands(), ids, cells)                      # end of the year: practised on imports
+        self.assertTrue(w.tech_prev_prac[b.id, k])
         w.goods[b.id, trade.GI["copper"]] = 0.0                       # the trade stops and the stock is gone
         n0 = len(w.events)
         T._cut_off(w, w.living_bands(), ids, cells)
@@ -999,9 +999,10 @@ class GoodsEffects(unittest.TestCase):
         self.assertAlmostEqual(T.capacity_multiplier(w, b.id), base * (1 + P.PRESTIGE_HOLD), places=9)
 
     def test_making_goods_costs_food_time(self):
-        w, b, T = self._one()
-        if not trade._deposit(w, np.array([b.cell]), "salt|coast")[0]:
-            w, b, T = self._at_source()
+        w = World.new(1, 1, generate(1))                   # a real band with adults, moved to the coast (salt, shell)
+        b = w.living_bands()[0]
+        b.cell = int(np.nonzero(w.planet.coast)[0][0])
+        w.bands_changed()
         share = trade.craft_share(w, np.array([b.id]))[0]
         self.assertGreater(share, 0.0)
         self.assertLessEqual(share, 0.5)
@@ -1036,14 +1037,26 @@ class GoodsEffects(unittest.TestCase):
         ev = [e for e in w.events if e["kind"] == "technique_adopted" and e["data"].get("route") == "trade"]
         self.assertEqual(len(ev), 1)
 
-    def test_trade_need_follows_imports(self):
-        w, b, T = self._one(need_no="tin")
-        if trade._deposit(w, np.array([b.cell]), "tin")[0]:
-            self.skipTest("tin here")
-        ids, cells = np.array([b.id]), np.array([b.cell])
-        self.assertEqual(trade.trade_need(w, ids, cells)[0], 0.0)
-        w.goods[b.id, trade.GI["tin"]] = 5.0
-        self.assertGreater(trade.trade_need(w, ids, cells)[0], 0.0)
+    def test_trade_need_follows_goods_received(self):
+        w0 = World.new(1, 1, generate(1))
+        c = self._line_cells(w0, 2)
+        w, (a, b) = self._bands_on(c)
+        sizes = np.zeros(len(w.bands) + 64, dtype=int)
+        sizes[a.id] = sizes[b.id] = 100
+        w.band_sizes = lambda: np.resize(sizes, len(w.bands))
+        ids, cells = np.array([a.id, b.id]), np.array([a.cell, b.cell])
+        self.assertEqual(trade.trade_need(w, ids, cells).tolist(), [0.0, 0.0])
+        w.goods[a.id, trade.GI["pottery"]] = 100.0                 # pottery counts too
+        old = P.GOOD_YIELD
+        P.GOOD_YIELD = {g: 0.0 for g in P.GOOD_YIELD}
+        try:
+            trade.yearly(w)
+        finally:
+            P.GOOD_YIELD = old
+        got = 0.1 * 100.0 / 2                                       # one year's exchange towards equal holdings
+        need = trade.trade_need(w, ids, cells)
+        self.assertAlmostEqual(need[1], min(1.0, got / 100 / P.TRADE_NEED_REF), places=9)
+        self.assertEqual(need[0], 0.0)
 
     def test_the_knock_out_switches_every_effect_off(self):
         w, b, T = self._one(need_no="copper")
@@ -1059,6 +1072,127 @@ class GoodsEffects(unittest.TestCase):
             self.assertEqual(trade.craft_share(w, ids)[0], 0.0)
         finally:
             P.GOODS_EFFECTS = old
+
+
+class Review018(unittest.TestCase):
+    """Codex review 018."""
+    _bands_on, _line_cells = Review014._bands_on, Review014._line_cells
+
+    def _children(self, w, band_id):
+        idx = w.alive_idx()
+        mine = idx[w.people.band[idx] == band_id]
+        w.people.birth[mine] = w.t - 10 * P.TICKS_PER_YEAR
+        w._live = None
+
+    def test_a_band_of_children_cannot_teach_along_a_road(self):
+        from origins.sim import technology as T
+        w = World.new(1, 1, generate(1))
+        live = w.living_bands()
+        a, b = live[0], live[1]
+        self._children(w, a.id)
+        k = T.INDEX["fire_hardening"]
+        w.tech[:, k] = 0.0
+        w.tech[a.id, k] = 1.0
+        w.trade_links = [[a.id, b.id]]
+        ids = np.array([x.id for x in live]); cells = np.array([x.cell for x in live])
+        self.assertEqual(T.skilled(w, live, ids)[0], 0.0)
+        old = (P.TRADE_TEACH, P.TECH_FOREIGN, P.TECH_SPREAD)
+        P.TRADE_TEACH, P.TECH_FOREIGN, P.TECH_SPREAD = 1e9, 1.0, 1.0
+        try:
+            T.keep_and_spread(w, live, ids, cells, w.band_sizes()[ids], np.full(len(ids), 1e6), np.ones((len(ids), T.K)))
+        finally:
+            P.TRADE_TEACH, P.TECH_FOREIGN, P.TECH_SPREAD = old
+        ev = [e for e in w.events if e["kind"] == "technique_adopted" and e["data"].get("route") == "trade"]
+        self.assertEqual(ev, [])
+
+    def test_children_who_make_nothing_lose_no_food_time(self):
+        w = World.new(1, 1, generate(1))
+        b = w.living_bands()[0]
+        self._children(w, b.id)
+        w.spec[b.id] = 0.0
+        coast = int(np.nonzero(w.planet.coast)[0][0])
+        b.cell = coast
+        w.bands_changed()
+        self.assertEqual(trade.craft_share(w, np.array([b.id]))[0], 0.0)
+
+    def _copper_world(self, per_person):
+        """A real founding band moved to a cell with clay and forest but no copper within reach, holding copper."""
+        from origins.sim import technology as T
+        w = World.new(1, 1, generate(1))
+        mats = T._cell_materials(w)
+        M = T.MATERIALS
+        cell = next(c for c in range(w.planet.n) if w.planet.land[c] and not mats[c, M.index("copper")]
+                    and mats[c, M.index("clay")] and mats[c, M.index("forest")])
+        b = w.living_bands()[0]
+        b.cell = cell
+        w.bands_changed()
+        n = float(w.band_sizes()[b.id])
+        w.goods[b.id, trade.GI["copper"]] = per_person * n
+        return w, b, T
+
+    def test_a_technique_learned_this_year_on_imports_is_recorded_when_cut_off(self):
+        w, b, T = self._copper_world(0.00505)
+        k = T.INDEX["copper_working"]
+        real = T.keep_and_spread
+
+        def learn(w_, live, ids, cells, sizes, connected, need=None):
+            real(w_, live, ids, cells, sizes, connected, need)
+            w_.tech[b.id, k] = 0.8                           # acquired during the year, after the yearly sample
+        T.keep_and_spread = learn
+        try:
+            T.yearly(w)
+        finally:
+            T.keep_and_spread = real
+        w.goods[b.id, trade.GI["copper"]] = 0.0049 * float(w.band_sizes()[b.id])   # worn below the threshold
+        n0 = len(w.events)
+        T.yearly(w)
+        ev = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "technique_cut_off"]
+        self.assertEqual([e["data"]["technique"] for e in ev], ["copper_working"])
+
+    def test_a_failed_prerequisite_is_not_called_imports_running_out(self):
+        w, b, T = self._copper_world(0.02)
+        for key in ("pottery", "kilns", "copper_working", "smelting"):
+            w.tech[b.id, T.INDEX[key]] = 0.8
+        ids, cells = np.array([b.id]), np.array([b.cell])
+        T._mark(w, w.living_bands(), ids, cells)
+        w.tech[b.id, T.INDEX["kilns"]] = P.TECH_WORKING * 0.5
+        n0 = len(w.events)
+        T._cut_off(w, w.living_bands(), ids, cells)
+        ev = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "technique_cut_off"]
+        self.assertEqual(ev, [])
+
+    def test_the_prerequisite_check_accepts_imported_materials(self):
+        w, b, T = self._copper_world(0.02)
+        t = T.TECHNIQUES[T.INDEX["copper_working"]]
+        self.assertTrue(T._possible(w, np.array([b.id]), np.array([b.cell]))[0, T.INDEX["copper_working"]])
+        self.assertEqual(T.prerequisites_met(w, b, t), (True, []))
+
+
+class DependenceCase(unittest.TestCase):
+    """Ben, 16 November 2026: a small controlled case of dependence on imports (local/scripts/dependence_case.py)."""
+
+    def _case(self):
+        import importlib.util, os
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "local", "scripts", "dependence_case.py")
+        spec = importlib.util.spec_from_file_location("dependence_case", path)
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        return m
+
+    def test_cutting_the_tin_stops_bronze_with_the_cause_and_supply_keeps_it(self):
+        m = self._case()
+        m.START_TIN = 0.0052                                     # just above the threshold: the cut comes soon
+        kept, ev_kept = m.run(12, supply=True)
+        cut, ev_cut = m.run(12, supply=False)
+        self.assertTrue(all(prac for _, _, prac, _ in kept))
+        self.assertEqual([e for e in ev_kept if e["kind"] == "technique_cut_off"], [])
+        stop = next(y for y, _, prac, _ in cut if not prac)
+        tin_at_stop = next(t for y, t, _, _ in cut if y == stop)
+        self.assertLess(tin_at_stop, P.MATERIAL_HELD)
+        cuts = [e for e in ev_cut if e["kind"] == "technique_cut_off"]
+        self.assertEqual([e["data"]["technique"] for e in cuts], ["bronze"])
+        self.assertIn("tin", cuts[0]["causes"][-1]["note"])
+        self.assertGreater(cut[-1][3], 0.0)                       # remembered, though no longer practised
 
 
 if __name__ == "__main__":

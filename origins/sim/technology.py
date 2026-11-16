@@ -170,6 +170,10 @@ def ensure(w, band_id: int, parent: int):
         w.tech = _grow(w.tech, band_id)
         w.tech_record = _grow(w.tech_record, band_id)
     w.tech[band_id] = w.tech[parent] if parent >= 0 else 0.0            # a daughter knows what her mother knew
+    if getattr(w, "tech_prev_prac", None) is not None:                  # ... and what was practised on imports
+        _prev_arrays(w)
+        w.tech_prev_prac[band_id] = w.tech_prev_prac[parent] if parent >= 0 else False
+        w.tech_prev_mats[band_id] = w.tech_prev_mats[parent] if parent >= 0 else False
     w._tech_eff = None                                                    # effects judged afresh (review 010)
     w.tech_record[band_id] = w.tech_record[parent] if parent >= 0 else 0.0   # and keeps her records
 
@@ -212,6 +216,10 @@ def prerequisites_met(w, b, t: Technique, near: set | None = None) -> tuple[bool
         missing.append("needs a people who farm or herd")
     if t.materials:
         near = materials_near(w, b.cell) if near is None else near
+        if getattr(P, "TRADE", False):                   # held as goods counts too (Codex review 018)
+            from . import trade as _trade
+            held = _trade.goods_materials(w, np.array([b.id]), MATERIALS)[0]
+            near = set(near) | {MATERIALS[m] for m in np.nonzero(held)[0]}
         for group in t.materials:
             if not any(m in near for m in group):
                 missing.append("needs " + " or ".join(group) + " within reach")
@@ -283,9 +291,12 @@ def _possible(w, ids, cells, lvl=None) -> np.ndarray:
     farms = np.clip(w.farm_share[ids], 0, 1) >= P.TECH_FARMING
     crop = sk[:, farming.PLANTS].any(axis=1)
     mats = _cell_materials(w)[cells]
-    if getattr(P, "TRADE", False) and not getattr(w, "_no_goods_materials", False):
-        from . import trade as _trade
-        mats = mats | _trade.goods_materials(w, ids, MATERIALS)     # held as goods (stage 5: dependence on imports)
+    if getattr(P, "TRADE", False):
+        held = getattr(w, "_goods_mats_override", None)   # set only by _cut_off: last year's holdings
+        if held is None:
+            from . import trade as _trade
+            held = _trade.goods_materials(w, ids, MATERIALS)
+        mats = mats | held                                # held as goods (stage 5: dependence on imports)
     land = _cell_terrain(w)[cells]
     settled = _settled(w, ids)
     ok = np.ones((len(ids), K), dtype=bool)
@@ -355,34 +366,61 @@ def _material_source(w, b, group) -> str:
     return "/".join(group) + " (source not found)"
 
 
-def _cut_off(w, live, ids, cells):
-    """Techniques a band could practise only with materials held as goods, judged each year. When the goods run out,
-    the technique stops being practised and the record says so (M4 spec 4.3: dependence; Ben, 16 November 2026)."""
+def _prev_arrays(w):
+    """What each band practised, and which materials it held as goods, at the end of last year's technology pass
+    (Codex review 018). Grown to the size of w.tech."""
+    M = len(MATERIALS)
+    for name, width in (("tech_prev_prac", K), ("tech_prev_mats", M)):
+        a = getattr(w, name, None)
+        if a is None or len(a) < len(w.tech):
+            out = np.zeros((len(w.tech), width), dtype=bool)
+            if a is not None:
+                out[:len(a)] = a
+            setattr(w, name, out)
+
+
+def _mark(w, live, ids, cells):
+    """End of the year's technology pass, after every acquisition: remember what is practised and which materials
+    are held as goods, so next year's _cut_off can tell a lapse caused by imports running out."""
     if not getattr(P, "TRADE", False):
         return
-    if getattr(w, "tech_import", None) is None or len(w.tech_import) < len(w.tech):
-        old = getattr(w, "tech_import", None)
-        w.tech_import = np.zeros(w.tech.shape, dtype=bool)
-        if old is not None:
-            w.tech_import[:len(old)] = old
+    from . import trade as _trade
+    _prev_arrays(w)
+    w.tech_prev_prac[ids] = (w.tech[ids] > 0) & _possible(w, ids, cells)
+    w.tech_prev_mats[ids] = _trade.goods_materials(w, ids, MATERIALS)
+
+
+def _cut_off(w, live, ids, cells):
+    """Techniques that stopped being practised because materials held as goods ran out (M4 spec 4.3: dependence;
+    Ben, 16 November 2026). A lapse counts only if the technique was practised at the end of last year, cannot be
+    practised now, and could be with the goods-held materials of last year: so a failed prerequisite or a lost
+    skill is not called a supply failure (Codex review 018)."""
+    if not getattr(P, "TRADE", False):
+        return
+    from . import trade as _trade
+    _prev_arrays(w)
     known = w.tech[ids] > 0
-    with_goods = _possible(w, ids, cells)
-    w._no_goods_materials = True
+    now = _possible(w, ids, cells)
+    prev_mats = w.tech_prev_mats[ids]
+    w._goods_mats_override = prev_mats
     try:
-        without = _possible(w, ids, cells)
+        with_last = _possible(w, ids, cells)
     finally:
-        w._no_goods_materials = False
-    now = known & with_goods & ~without
-    was = w.tech_import[ids]
-    cut = was & known & ~with_goods
+        w._goods_mats_override = None
+    cut = w.tech_prev_prac[ids] & known & ~now & with_last
+    if not cut.any():
+        return
+    held_now = _trade.goods_materials(w, ids, MATERIALS)
     for i, k in np.argwhere(cut).tolist():
         b = live[i]
         t = TECHNIQUES[k]
-        gone = [m for group in t.materials for m in group if m in P.GOOD_MATERIAL.values()]
-        why = (f"{w.band_name(b)} could no longer practise {t.name}: the "
-               + "/".join(gone or ["materials"]) + " it had by trade ran out, and none is within reach")
-        w.event("technique_cut_off", cell=b.cell, band=b.id, technique=t.key, causes=[{"note": why}])
-    w.tech_import[ids] = now
+        gone = [MATERIALS[m] for m in np.nonzero(prev_mats[i] & ~held_now[i])[0]]
+        mine = [m for group in t.materials for m in group if m in gone]
+        what = "/".join(mine) if mine else ("/".join(gone) + ", which a technique it depends on needs")
+        why = (f"{w.band_name(b)} could no longer practise {t.name}: the {what} it had by trade ran out, "
+               f"and none is within reach")
+        w.event("technique_cut_off", cell=b.cell, band=b.id, technique=t.key, materials=gone,
+                causes=[{"note": why}])
 
 
 def yearly(w):
@@ -430,6 +468,7 @@ def yearly(w):
             firsts[t.key] = len(w.events) - 1
             w.tech_firsts = firsts
     keep_and_spread(w, live, ids, cells, sizes, connected, need)
+    _mark(w, live, ids, cells)                          # after every acquisition this year (Codex review 018)
 
 
 from .. import params as P  # noqa: E402  (after the data, which does not depend on parameters)
@@ -572,7 +611,7 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
     hits = np.argwhere(can & (draw < chance)).tolist()
     w._tech_eff = None
     if not hits:
-        _trade_lessons(w, live, ids, new, possible_now, practising_now, need, rng)
+        _trade_lessons(w, live, ids, new, possible_now, practising_now, need, rng, skilled_people)
         w.tech[ids] = new.astype(np.float32)
         w._tech_eff = None
         return
@@ -614,12 +653,12 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
                 causes=[{"band": src.id}, {"note": why + ("; they were gift partners" if via_partner else "")}],
                 source=src.id, route="partnership" if via_partner else "contact",
                 level=round(level, 3), closeness=round(close, 3))
-    _trade_lessons(w, live, ids, new, possible_now, practising_now, need, rng)   # after contact (stage 5)
+    _trade_lessons(w, live, ids, new, possible_now, practising_now, need, rng, skilled_people)   # after contact (stage 5)
     w.tech[ids] = new.astype(np.float32)
     w._tech_eff = None                                  # effects are judged afresh after the year's changes
 
 
-def _trade_lessons(w, live, ids, new, possible_now, practising_now, need, rng):
+def _trade_lessons(w, live, ids, new, possible_now, practising_now, need, rng, skilled_people=None):
     """Traders' routes carry techniques between the two seats (M4 spec 4.2: trade creates contact; Ben, 16 November
     2026): along each route travelled last year, each seat can learn what the other practises, with chance
     TECH_SPREAD x TRADE_TEACH x (need floor + need) x closeness of speech. Recorded with route "trade"."""
@@ -636,6 +675,8 @@ def _trade_lessons(w, live, ids, new, possible_now, practising_now, need, rng):
             i, j = pos.get(int(x)), pos.get(int(y))
             if i is None or j is None:
                 continue
+            if skilled_people is not None and skilled_people[j] <= 0:
+                continue                                  # no skilled practitioner to teach (Codex review 018)
             can = possible_now[i] & (new[i] <= 0) & practising_now[j]
             ks = np.nonzero(can)[0]
             if not len(ks):
