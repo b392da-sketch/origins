@@ -163,34 +163,28 @@ def note_crops(w, ids, cells, worked, animal_part, need=None):
 
 
 def note_fuel(w, cells, units, coal_ok=False):
-    """trade: goods made with fire. The wood is taken from the best-wooded cell within two rings, the one that
-    supplies it, not the cell where the goods are made; goods smelted with coal within reach take no wood (Codex
-    review 021, finding 1)."""
+    """trade: goods made with fire. The wood is gathered from every wooded cell within two rings, in proportion to
+    its living cover, not from the cell where the goods are made (Codex review 021, finding 1; Ben, 20 November
+    2026: spread it and keep it small, after Iles 2020). Goods smelted with coal within reach take no wood."""
     if getattr(w, "game", None) is None:
         return
     cells = np.asarray(cells)
     units = np.asarray(units, dtype=float)
-    src = wood_source(w, cells)
-    take = units * (src >= 0)
     if coal_ok:
         from . import technology
         coal = technology._cell_materials(w)[cells, technology.MATERIALS.index("coal")]
-        take = np.where(coal, 0.0, take)
-    ok = take > 0
-    np.add.at(w.land_fuel, src[ok], take[ok])
-
-
-def wood_source(w, cells) -> np.ndarray:
-    """Per given cell: the best-wooded cell within two rings (-1 where there is no living forest)."""
+        units = np.where(coal, 0.0, units)
+    on = units > 0
+    if not on.any():
+        return
     idx, ok = _ring2_padded(w)
-    cells = np.asarray(cells)
-    f = np.where(ok[cells], w.forest[idx[cells]], -1.0)
-    j = f.argmax(axis=1)
-    best = idx[cells, j]
-    return np.where(f[np.arange(len(cells)), j] > 0, best, -1)
+    c, u = cells[on], units[on]
+    cover = np.where(ok[c], w.forest[idx[c]], 0.0)
+    tot = cover.sum(axis=1)
+    has = tot > 0
+    share = cover[has] / tot[has, None]
+    np.add.at(w.land_fuel, idx[c[has]].ravel(), (share * u[has, None]).ravel())
 
-
-# ------------------------------------------------------------------ the yearly update
 
 def use(w) -> np.ndarray:
     """Per cell: the share of its farmland worked for crops this year (0 where it was not farmed)."""

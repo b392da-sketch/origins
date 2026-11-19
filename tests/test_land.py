@@ -378,9 +378,21 @@ class Review021(unittest.TestCase):
         T.refresh(w)
         trade.yearly(w)
         self.assertEqual(float(w.land_fuel[5020]), 0.0)
-        self.assertGreater(float(w.land_fuel[5039]), 0.0)
+        self.assertGreater(float(w.land_fuel[5039]), 0.0)          # the only wooded cell within reach
         land.yearly(w)
         self.assertLess(float(w.forest[5039]), keep)
+
+    def test_wood_is_gathered_across_the_woods_within_reach(self):
+        w, _ = world()
+        fm = land.forest_max(w)
+        c = int(np.nonzero(fm > 0)[0][0])
+        land.note_fuel(w, np.array([c]), np.array([1000.0]))
+        from origins.sim.language import ring2
+        near = [int(x) for x in ring2(w)[c] if w.forest[int(x)] > 0]
+        self.assertGreater(len(near), 1)
+        self.assertAlmostEqual(float(w.land_fuel.sum()), 1000.0)
+        self.assertLess(float(w.land_fuel.max()), 1000.0)            # spread, not all on one cell
+        self.assertLessEqual(P.FOREST_FUEL * 1000.0, 0.005)
 
     def test_a_band_that_left_farming_judges_fresh_land_afresh(self):
         from origins.sim import farming
