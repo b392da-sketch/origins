@@ -345,9 +345,9 @@ GAME_CATCH = 0.18         # yearly loss of game per unit of hunting pressure (th
                           # (0.49, planet 3, year 9,700) faster game settles near 0.7 and slow breeders are lost
 GAME_SPREAD = 0.05        # yearly drift of game towards the mean of neighbouring land cells
 FOREST_WILD = 0.3         # share of wild food in forest biomes that depends on the forest
-FOREST_CLEAR = 0.3        # yearly share of forest cleared on a cell fully used for crops
+FOREST_CLEAR = 0.3        # yearly share of the forest standing on land taken for crops that is cleared
 FOREST_FUEL = 0.001       # forest share cleared per unit of goods made with fire on the cell (Iles 2020: modest)
-FOREST_REGROW = 0.01      # yearly share of the gap to natural cover regrown where land is unused (centuries)
+FOREST_REGROW = 0.01      # yearly share of the gap to the cover the unworked land can hold that regrows (centuries)
 FERT_DRAIN = 0.03         # yearly loss of fertility under full cropping, before manure
 MANURE_SAVE = 0.7         # share of that loss manuring prevents, at full quality with herds
 FERT_RECOVER = 0.1        # yearly share of the gap to natural fertility recovered in fallow
@@ -365,6 +365,12 @@ LAND_SOIL_LOW, LAND_SOIL_BACK = 0.6, 0.8
 LAND_SALT_HIGH, LAND_SALT_BACK = 0.3, 0.15
 # fallow by crowding (Ben, 19 Nov 2026; Boserup 1965: forest fallow of 15-20 years shortens to a few months as
 # population grows, at more labour per unit of output). Starting values.
-FALLOW_MAX = 0.8          # share of farmland resting where land is plentiful (long fallow)
-FALLOW_MIN = 0.1          # share resting at full crowding (annual cropping)
-FALLOW_CROWD_FULL = 2.0   # crowding (people / wild-food capacity of the cell and its neighbours) at which fallow is shortest
+FALLOW_MAX = 0.8          # share of farmland resting where farmers need little of it (long fallow); fallow gives way
+                          # to need between these (Ben, 19 Nov 2026, after Codex review 020)
+FALLOW_MIN = 0.1          # share resting where farmers need all of it (annual cropping)
+FUEL_FULL = 0.3           # living forest cover of the best-wooded cell within two rings that gives full fuel for smelting (Ben, 19 Nov
+                          # 2026: fuel limits output). Starting value
+FUEL_MIN = 0.1            # below it (best-wooded cell within two rings), no wood for smelting, iron, canoes or carts
+REAL_YIELDS = True        # farmers' choices see real yields (Ben, 19 Nov 2026); False is the knock-out
+LAND_FELT = 0.9           # a land event is named in a famine or a move only where the land gives at most this share
+                          # of its natural yield (Codex review 020, finding 5). Starting value

@@ -61,6 +61,16 @@ def kill(w, ids: np.ndarray, causes: np.ndarray):
     p.death_cell[ids] = c
     p.death_bad[ids] = np.where(c >= 0, w.region_bad_event[w.planet.region[np.clip(c, 0, None)]], -1)
     p.death_interv[ids] = np.where(c >= 0, w.intervention_event[np.clip(c, 0, None)], -1)
+    hungry = (causes == C["hunger"]) | (p.condition[ids] < 0.5)
+    if hungry.any() and getattr(w, "land_flags", None) is not None:
+        from . import land                               # the land's loss behind a hunger death (review 020)
+        felt = {}
+        for i in np.nonzero(hungry & (c >= 0))[0].tolist():
+            key = (int(c[i]), int(b[i]))
+            if key not in felt:
+                fe = land.felt(w, key[0], bool(w.farm_share[key[1]] > 0) if key[1] < len(w.farm_share) else False)
+                felt[key] = fe[0] if fe else -1
+            p.death_land[ids[i]] = felt[key]
     rich = ids[p.wealth[ids] > 0]
     if len(rich):
         from .surplus import inherit

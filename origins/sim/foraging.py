@@ -52,11 +52,45 @@ def move(w):
             occ[best] += sz
             from . import land
             b.last_move = (f"moved for food: {v[j] / P.SEASON_DAYS:.2f} vs "
-                           f"{here / P.SEASON_DAYS:.2f} food units per person-day available"
-                           + land.history(w, b.cell))   # the land's recorded state where they left (M4a land)
+                           f"{here / P.SEASON_DAYS:.2f} food units per person-day available")
+            ev = _land_move(w, b, here, float(v[j]))
+            if ev >= 0:
+                b.last_move += f"; the land: event {ev}"
             b.cell = best
             b.trail = (b.trail + [(w.t, best)])[-40:]
             w.reveal_pending.add(b.id)
+
+
+def _land_move(w, b, here, there) -> int:
+    """If the land's loss decided a move, record it as an event citing the land events (Codex review 020, finding 5):
+    lost game or forest where the band left, without which it would have stayed (its food there at the natural
+    level would have been enough); or, for a band that farms, worn or salted fields that lowered what its farming
+    gave. Returns the event id, or -1."""
+    from . import land
+    if not getattr(P, "LAND", False) or getattr(w, "land_flags", None) is None:
+        return -1
+    c = b.cell
+    farms = bool(w.farm_share[b.id] > 0)
+    events = land.felt(w, c, farms)
+    if not events:
+        return -1
+    wf = land.wild_factor(w)
+    wf = float(wf[c]) if np.ndim(wf) else 1.0
+    stay_wild = there <= (here / max(wf, 1e-9)) * P.MOVE_THRESHOLD     # natural game and forest: no move
+    kinds = {int(w.land_event[c, j]): k for j, k in enumerate(land.KINDS)}
+    wild_ev = [e for e in events if kinds.get(e) in ("game", "forest")]
+    soil_ev = [e for e in events if kinds.get(e) in ("soil", "salt")]
+    cited = (wild_ev if stay_wild else []) + soil_ev
+    if not cited:
+        return -1
+    note = (f"{w.band_name(b)} left: {here / P.SEASON_DAYS:.2f} food units per person-day where it was, against "
+            f"{there / P.SEASON_DAYS:.2f} next door")
+    if stay_wild and wild_ev:
+        note += f"; with game and forest as they once were it would have had {here / max(wf, 1e-9) / P.SEASON_DAYS:.2f}"
+    if soil_ev:
+        note += (f"; its fields there gave {float(land.crop_factor(w, np.array([c]))[0]):.0%} of what fresh soil "
+                 f"gives")
+    return w.event("land_move", cell=c, band=b.id, causes=[{"note": note}] + [{"event": e} for e in cited])
 
 
 def forage_and_eat(w):

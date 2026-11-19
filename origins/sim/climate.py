@@ -34,19 +34,26 @@ def broad_share(w) -> np.ndarray:
 
 
 def broad_max(w, quarter=None):
-    return seasonal_max(w, quarter) * broad_share(w)
+    """The broad-spectrum pool is not scaled by the land's game and forest factors: those are parts of the ordinary
+    wild food (Codex review 020, finding 3)."""
+    return seasonal_max(w, quarter, land=False) * broad_share(w)
 
 
 def _factor(z):
     return np.clip(np.exp(P.CLIMATE_SIGMA * z), P.CLIMATE_MIN, P.CLIMATE_MAX)
 
 
-def seasonal_max(w, quarter=None):
+def seasonal_max(w, quarter=None, land=True):
+    """Ordinary wild food at its seasonal level; with land=True, after what lost game and forest take from it
+    (M4a land)."""
     p = w.planet
     q = w.quarter if quarter is None else quarter
-    from . import land
-    return (p.capacity * P.SEASON_DAYS * P.STOCK_MULTIPLIER * p.season_food[:, q]
-            * w.region_factor[p.region] * w.food_modifier * w.hazard_food * land.wild_factor(w))
+    base = (p.capacity * P.SEASON_DAYS * P.STOCK_MULTIPLIER * p.season_food[:, q]
+            * w.region_factor[p.region] * w.food_modifier * w.hazard_food)
+    if not land:
+        return base
+    from . import land as _land
+    return base * _land.wild_factor(w)
 
 
 def yearly(w):
@@ -66,8 +73,9 @@ def yearly(w):
 
 
 def regrow(w):
-    target = seasonal_max(w)
+    natural = seasonal_max(w, land=False)
     from . import land
+    target = natural * land.wild_factor(w)
     land.note_wild(w, None, None, target)               # the year's maxima, for hunting pressure (M4a land)
     before = w.stock.sum()
     w.stock += P.REGROWTH * (target - w.stock)
@@ -75,6 +83,6 @@ def regrow(w):
     w.ledger["regrowth"] += float(w.stock.sum() - before)
     if getattr(w, "stock_broad", None) is not None:
         before = w.stock_broad.sum()
-        w.stock_broad += P.REGROWTH * (target * broad_share(w) - w.stock_broad)
+        w.stock_broad += P.REGROWTH * (natural * broad_share(w) - w.stock_broad)
         np.maximum(w.stock_broad, 0.0, out=w.stock_broad)
         w.ledger["regrowth"] += float(w.stock_broad.sum() - before)

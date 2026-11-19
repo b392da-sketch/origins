@@ -200,6 +200,9 @@ def yearly(w):
         ok = _deposit(w, cells, where) if where else np.ones(len(ids), dtype=bool)
         level = q[ids, technology.INDEX[tech]].astype(float) if tech else np.ones(len(ids))
         made = P.GOOD_YIELD[g] * skilled * level * ok
+        if g in ("tin", "iron"):                            # smelted: output limited by fuel within reach (M4a land;
+            from . import land                              # Ben, 19 November 2026; Codex review 020, finding 2)
+            made = made * land.fuel(w, cells)
         w.goods[ids, i] += made
         w.goods_ledger[g]["produced"] += float(made.sum())
         if g in ("pottery", "copper", "tin", "iron"):       # made with fire: fuel from the cell's forest (M4a land)
