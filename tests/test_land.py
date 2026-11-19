@@ -14,13 +14,18 @@ def world():
     return w, w.living_bands()[0].cell
 
 
+def hunt(w, pressure):
+    """A peopled region: every land cell hunted at this pressure."""
+    w.land_wild[w.planet.land] = 100.0
+    w.land_take[w.planet.land] = 100.0 * pressure
+
+
 class Land(unittest.TestCase):
 
     def test_hunting_draws_game_down_and_it_recovers_slowly(self):
         w, c = world()
-        for _ in range(40):
-            w.land_wild[c] = 100.0
-            w.land_take[c] = 60.0                      # heavy hunting: 60% of the year's maxima
+        for _ in range(60):
+            hunt(w, 0.49)                              # ordinary pressure on lived-in land
             land.yearly(w)
         low = float(w.game[c])
         self.assertLess(low, P.LAND_GAME_LOW)
@@ -33,12 +38,11 @@ class Land(unittest.TestCase):
 
     def test_faster_breeders_hold_up_under_the_same_hunting(self):
         w, c = world()
-        for _ in range(40):
-            w.land_wild[c] = 100.0
-            w.land_take[c] = 60.0
+        for _ in range(60):
+            hunt(w, 0.49)
             land.yearly(w)
         self.assertLess(float(w.game[c]), P.LAND_GAME_LOW)
-        self.assertGreater(float(w.game_fast[c]), 0.2)
+        self.assertGreater(float(w.game_fast[c]), 0.6)              # calibrated to settle near 0.7
 
     def test_fields_clear_forest_which_regrows_over_centuries(self):
         w, _ = world()
@@ -89,11 +93,11 @@ class Land(unittest.TestCase):
     def test_a_crossing_is_recorded_once_with_its_history_and_named_when_people_leave(self):
         w, c = world()
         n0 = len(w.events)
-        for _ in range(40):
-            w.land_wild[c] = 100.0
-            w.land_take[c] = 60.0
+        for _ in range(60):
+            hunt(w, 0.49)
             land.yearly(w)
-        ev = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "land_game"]
+        ev = [w.events[i] for i in range(n0, len(w.events))
+              if w.events[i]["kind"] == "land_game" and w.events[i]["cell"] == c]
         self.assertEqual(len(ev), 1)
         self.assertIn("since year", ev[0]["causes"][0]["note"])
         self.assertIn("game hunted out", land.history(w, c))
@@ -101,7 +105,7 @@ class Land(unittest.TestCase):
     def test_save_and_load_keep_the_land(self):
         from origins import persist
         w, c = world()
-        w.land_wild[c], w.land_take[c] = 100.0, 60.0
+        hunt(w, 0.49)
         land.yearly(w)
         w.land_take[c] = 5.0                           # mid-year accounts are kept too
         w2 = persist.from_bytes(persist.to_bytes(w), planet=w.planet)

@@ -340,7 +340,9 @@ GAME_SHARE = 0.1          # share of ordinary wild food that is slow-breeding la
 GAME_GROWTH = 0.05        # yearly logistic regrowth of slow breeders (Johnson 2002)
 GAME_FAST_SHARE = 0.2     # share of ordinary wild food that is faster-breeding game (Ben, 19 Nov 2026: split)
 GAME_FAST_GROWTH = 0.3    # yearly logistic regrowth of faster breeders: they mostly hold up under hunting
-GAME_CATCH = 0.5          # yearly loss of game per unit of hunting pressure (the year's take / the year's maxima)
+GAME_CATCH = 0.18         # yearly loss of game per unit of hunting pressure (the year's take / the year's maxima).
+                          # Calibrated, not measured (Ben, 19 Nov 2026): at the median pressure on lived-in cells
+                          # (0.49, planet 3, year 9,700) faster game settles near 0.7 and slow breeders are lost
 GAME_SPREAD = 0.05        # yearly drift of game towards the mean of neighbouring land cells
 FOREST_WILD = 0.3         # share of wild food in forest biomes that depends on the forest
 FOREST_CLEAR = 0.3        # yearly share of forest cleared on a cell fully used for crops
