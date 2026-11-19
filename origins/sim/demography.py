@@ -68,8 +68,7 @@ def kill(w, ids: np.ndarray, causes: np.ndarray):
         for i in np.nonzero(hungry & (c >= 0))[0].tolist():
             key = (int(c[i]), int(b[i]))
             if key not in felt:
-                fe = land.felt(w, key[1], key[0])
-                felt[key] = fe[0] if fe else -1
+                felt[key] = land.hunger_event(w, key[1], key[0])   # all land events and the amounts (review 022)
             p.death_land[ids[i]] = felt[key]
     rich = ids[p.wealth[ids] > 0]
     if len(rich):

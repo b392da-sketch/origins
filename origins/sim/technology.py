@@ -175,6 +175,7 @@ def ensure(w, band_id: int, parent: int):
         _prev_arrays(w)
         w.tech_prev_prac[band_id] = w.tech_prev_prac[parent] if parent >= 0 else False
         w.tech_prev_mats[band_id] = w.tech_prev_mats[parent] if parent >= 0 else False
+        w.tech_prev_wood[band_id] = w.tech_prev_wood[parent] if parent >= 0 else False
     w._tech_eff = None                                                    # effects judged afresh (review 010)
     w.tech_record[band_id] = w.tech_record[parent] if parent >= 0 else 0.0   # and keeps her records
 
@@ -221,6 +222,10 @@ def prerequisites_met(w, b, t: Technique, near: set | None = None) -> tuple[bool
             from . import trade as _trade
             got = _trade.goods_materials(w, np.array([b.id]), MATERIALS)[0]   # not "held": that is a function here
             near = set(near) | {MATERIALS[m] for m in np.nonzero(got)[0]}
+        if "forest" in near:                              # the same wood rule as _possible (Codex review 022, finding 6)
+            ok = _wood_ok(w, np.array([b.id]), np.array([b.cell]))
+            if ok is not None and not ok[0]:
+                near = set(near) - {"forest"}
         for group in t.materials:
             if not any(m in near for m in group):
                 missing.append("needs " + " or ".join(group) + " within reach")
@@ -280,6 +285,35 @@ def _mats_now(w, cells) -> np.ndarray:
     return m
 
 
+def _wood_ok(w, ids, cells):
+    """Whether each band has wood enough to work, by its own history (None when the rule does not apply): taking up
+    wood work again needs more forest than keeping it going (Ben, 20 November 2026, after Codex review 021). Bands
+    that worked with wood last year keep wood down to FUEL_MIN; others need FUEL_RESUME, the time to restore a
+    reliable supply. Wood work means a practised technique whose fuel was wood: smelting with coal does not count
+    (Codex review 022, finding 6)."""
+    if not (getattr(P, "LAND", False) and getattr(w, "forest", None) is not None
+            and not getattr(w, "_static_forest", False) and getattr(w, "tech_prev_wood", None) is not None
+            and len(w.tech_prev_wood) > int(np.max(ids, initial=0))):
+        return None
+    from . import land
+    near = land.forest_near(w)[cells]
+    return near >= np.where(w.tech_prev_wood[ids], P.FUEL_MIN, P.FUEL_RESUME)
+
+
+def _wood_used(w, ids, cells, practised) -> np.ndarray:
+    """Per band: whether a technique it practises took its fuel or timber from wood (a technique needing only wood, or
+    one that could use coal with no coal within reach or held)."""
+    coal = _cell_materials(w)[cells, MATERIALS.index("coal")]
+    if getattr(P, "TRADE", False):
+        from . import trade as _trade
+        coal = coal | _trade.goods_materials(w, ids, MATERIALS)[:, MATERIALS.index("coal")]
+    out = np.zeros(len(ids), dtype=bool)
+    for k in WOOD_TECHS:
+        alt = any(len(g) > 1 for g in TECHNIQUES[k].materials if "forest" in g)
+        out |= practised[:, k] & (~coal if alt else True)
+    return out
+
+
 def _cell_terrain(w) -> np.ndarray:
     """cells x TERRAIN, judged on the cell itself (cached): hills = relief to a neighbour of at least
     TECH_HILL_RELIEF metres; water = a river or lake in the cell."""
@@ -306,16 +340,10 @@ def _possible(w, ids, cells, lvl=None) -> np.ndarray:
     farms = np.clip(w.farm_share[ids], 0, 1) >= P.TECH_FARMING
     crop = sk[:, farming.PLANTS].any(axis=1)
     mats = _mats_now(w, cells)
-    if (getattr(P, "LAND", False) and getattr(w, "forest", None) is not None and not getattr(w, "_static_forest", False)
-            and getattr(w, "tech_prev_prac", None) is not None and len(w.tech_prev_prac) > int(np.max(ids, initial=0))):
-        # taking up wood work again needs more forest than keeping it going (Ben, 20 November 2026, after Codex
-        # review 021): bands that practised a technique needing wood last year keep wood down to FUEL_MIN; others
-        # need FUEL_RESUME, the time to restore a reliable supply
-        from . import land
-        near = land.forest_near(w)[cells]
-        kept = w.tech_prev_prac[ids][:, WOOD_TECHS].any(axis=1)
+    wood = _wood_ok(w, ids, cells)
+    if wood is not None:
         mats = mats.copy()
-        mats[:, MATERIALS.index("forest")] &= near >= np.where(kept, P.FUEL_MIN, P.FUEL_RESUME)
+        mats[:, MATERIALS.index("forest")] &= wood
     if getattr(P, "TRADE", False):
         held = getattr(w, "_goods_mats_override", None)   # set only by _cut_off: last year's holdings
         if held is None:
@@ -395,10 +423,10 @@ def _prev_arrays(w):
     """What each band practised, and which materials it held as goods, at the end of last year's technology pass
     (Codex review 018). Grown to the size of w.tech."""
     M = len(MATERIALS)
-    for name, width in (("tech_prev_prac", K), ("tech_prev_mats", M)):
+    for name, width in (("tech_prev_prac", K), ("tech_prev_mats", M), ("tech_prev_wood", 0)):
         a = getattr(w, name, None)
         if a is None or len(a) < len(w.tech):
-            out = np.zeros((len(w.tech), width), dtype=bool)
+            out = np.zeros((len(w.tech), width) if width else len(w.tech), dtype=bool)
             if a is not None:
                 out[:len(a)] = a
             setattr(w, name, out)
@@ -413,6 +441,7 @@ def _mark(w, live, ids, cells):
     _prev_arrays(w)
     w.tech_prev_prac[ids] = (w.tech[ids] > 0) & _possible(w, ids, cells)
     w.tech_prev_mats[ids] = _trade.goods_materials(w, ids, MATERIALS)
+    w.tech_prev_wood[ids] = _wood_used(w, ids, cells, w.tech_prev_prac[ids])
 
 
 def _cut_off(w, live, ids, cells):
@@ -841,6 +870,7 @@ def combine(w, src, dst, route: str, carriers: float | None = None):
         _prev_arrays(w)
         w.tech_prev_prac[dst.id] |= w.tech_prev_prac[src.id]
         w.tech_prev_mats[dst.id] |= w.tech_prev_mats[src.id]
+        w.tech_prev_wood[dst.id] |= w.tech_prev_wood[src.id]
     for k in np.nonzero(gained)[0].tolist():
         t = TECHNIQUES[k]
         how = {"combined": "combined with", "merge": "took in the remnant of", "marriage": "took in by marriage someone from",
