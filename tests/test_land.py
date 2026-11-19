@@ -318,6 +318,15 @@ class Review020(unittest.TestCase):
               if e["kind"] == "technique_cut_off" and e["band"] == b.id}
         self.assertEqual(sorted(ev["bronze"]), ["copper", "tin"])
 
+    def test_fields_clear_only_the_land_they_take(self):
+        w, _ = world()
+        fm = land.forest_max(w)
+        c = int(np.nonzero(fm > 0)[0][0])
+        for _ in range(40):
+            w.land_work[c], w.land_seasons[c] = 0.3, 1.0
+            land.yearly(w)
+        self.assertAlmostEqual(float(w.forest[c]), 0.7, delta=0.02)
+
     def test_switched_off_the_accounts_do_not_pile_up(self):
         w, c = world()
         old = P.LAND

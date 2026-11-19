@@ -256,9 +256,13 @@ def yearly(w):
     # crops: use of the cell's capacity
     u = use(w)
     fm = forest_max(w)
-    # forest: fields clear, fuel clears a little, regrowth where unused
+    # forest: fields clear the land they take, fast; fuel clears a little; the rest regrows over centuries. The
+    # forest left under fields tends to the unworked share of the cell, not to nothing (corrected 19 November 2026:
+    # a cell worked at 30% lost about 93% of its forest before)
     f = w.forest
-    f = f - P.FOREST_CLEAR * u * f - P.FOREST_FUEL * w.land_fuel * fm + P.FOREST_REGROW * (1 - u) * (fm - f)
+    room = fm * (1.0 - u)
+    f = (f - P.FOREST_CLEAR * np.maximum(f - room, 0.0) - P.FOREST_FUEL * w.land_fuel * fm
+         + P.FOREST_REGROW * np.maximum(room - f, 0.0))
     w.forest = np.clip(f, 0.0, fm)
     w._forest_near = None
     # fertility: drawn down by cropping (less with manure), recovering in fallow, lost to erosion on cleared slopes

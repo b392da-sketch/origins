@@ -33,10 +33,16 @@ people = int(w.band_sizes()[[b.id for b in live]].sum()) if live else 0
 print("people at end", people, "secs", round(time.time() - t0), "invariant failures", len(fails), fails[:3])
 ev = collections.Counter(w.events[i]["kind"] for i in range(n0, len(w.events)))
 print("events", {k: ev[k] for k in sorted(ev) if k.startswith(("land_", "technique_", "group_hunger"))})
+nf = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "technique_no_fuel"]
+print("no-fuel lapses by technique", dict(collections.Counter(e["data"]["technique"] for e in nf)))
 if P.LAND:
     cells = np.array([b.cell for b in live])
+    from origins.sim import land as _land
+    fm = _land.forest_max(w)
+    fc = cells[fm[cells] > 0]
     print("lived-in cells: game", round(float(w.game[cells].mean()), 3), "fast game", round(float(w.game_fast[cells].mean()), 3),
-          "forest/natural", round(float((w.forest[cells] / np.maximum(__import__("origins.sim.land", fromlist=["x"]).forest_max(w)[cells], 1e-9)).mean()), 3),
+          "forest (forest cells only)", round(float(w.forest[fc].mean()), 3) if len(fc) else None,
+          "wood within reach below FUEL_MIN", round(float((_land.forest_near(w)[cells] < P.FUEL_MIN).mean()), 3),
           "fertility", round(float(w.fertility[cells].mean()), 3), "salt", round(float(w.salt[cells].mean()), 3),
           "fallow", round(float(w.fallow[cells].mean()), 3))
     farms = cells[w.farm_share[[b.id for b in live]] > 0.2]
