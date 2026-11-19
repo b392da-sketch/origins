@@ -688,7 +688,7 @@ The toll cap (`ROAD_TOLLS_MAX`) bounds the search for a cheaper road, not every 
 
 Ben's decisions (16 November 2026):
 - **Trade need:** measured from goods actually received last year per person, by every route and of every good, against `TRADE_NEED_REF` 0.05.
-- **Dependence:** a small controlled case now (`local/scripts/dependence_case.py`), with the full experiment across metal-working histories at the gate. In the case, a band given 100 specialists, so knowledge cannot be lost, practises bronze on imported tin. With supply continuing it practises bronze for 40 years; with supply cut, bronze stops in year 26, when tin falls below the threshold, with a `technique_cut_off` event naming tin, and is still remembered afterwards. Imported tin wears slowly once scarce (curation), about 3% a year at these holdings, which is why the threshold is crossed only after about 25 years.
+- **Dependence:** a small controlled case now (`local/scripts/dependence_case.py`), with the full experiment across metal-working histories at the gate. In the case, a band given 100 specialists, so knowledge cannot be lost, practises bronze on imported tin. With supply continuing it practises bronze for 40 years. With supply cut, tin is below the threshold after the year-25 wear, and the year-26 technology pass records a `technique_cut_off` naming tin; bronze is still remembered afterwards. *This is a narrow control of the stock threshold, not a viable society or a trade-route experiment: 100 specialists in a 30-person band is outside the population constraint, food and demography do not run, and the tin top-up has no source in the goods ledger (Codex review 019).* Imported tin wears slowly once scarce (curation), about 3% a year at these holdings, which is why the threshold is crossed only after about 25 years.
 
 ### The land answers back: literature check (16 November 2026)
 
@@ -710,3 +710,23 @@ The specification (section 5; gate check 9) asks for five things: overhunting lo
 - Kaplan, J. O., Krumhardt, K. M., & Zimmermann, N. (2009). The prehistoric and preindustrial deforestation of Europe. *Quaternary Science Reviews* (doi 10.1016/j.quascirev.2009.09.028).
 - Powell, M. A. (1985). Salt, seed, and yields in Sumerian agriculture: a critique of the theory of progressive salinization. *Zeitschrift für Assyriologie*, 75(1), 7–38.
 - Sandom, C., et al. (2014). Global late Quaternary megafauna extinctions linked to humans, not climate change. *Proceedings of the Royal Society B*, doi 10.1098/rspb.2013.3254. Read through Aarhus University's report; the other authors not checked.
+
+### After Codex review 019 (19 November 2026)
+
+Three fixes, each reproduced first (`tests/test_trade.py::Review019`):
+- **The cut-off test:** asks whether the technique would be practicable with the imports held now plus those lost, so a newly imported material is not dropped.
+- **Joining:** people joining in numbers (migration, merge, consolidation) bring the record of last year's practice and imports to the band they join.
+- **The explanation:** a cut-off names the lost import, not within reach, whose return alone would restore the technique, and says whether it is the technique's own material or a prerequisite's.
+
+Ben's decision (19 November 2026): craft time scales with the makers. Ordinary practitioners' craft years are taken from the band's food effort at a full adult's work each, at most half of it.
+
+### The land answers back: Ben's decision (19 November 2026)
+
+Build as set out, after the review-019 fixes:
+1. Large game per cell, recovering slowly and hunted down.
+2. Forest per cell, cleared mostly by fields and partly by kilns and smelting, regrowing over centuries, with erosion when slopes are cleared.
+3. Soil fertility per cell, falling under continuous cropping, recovering with fallow, falling more slowly with manuring where there are herds.
+4. Salt building up on irrigated dry land, cutting yields above a threshold.
+5. Each recorded where it leads to famine or a move.
+
+All values are starting values.
