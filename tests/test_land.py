@@ -290,13 +290,22 @@ class Review020(unittest.TestCase):
         w._binfo = None
         idx = w.alive_idx()
         mine = idx[w.people.band[idx] == b.id]
-        land.note_account(w, np.array([b.id]), np.array([5.0]), np.array([2.0]))   # loss short of the shortfall
+        # the land as a contributing cause, with the amounts (Ben, 20 November 2026, after Codex review 022): a
+        # loss short of the shortfall is cited too, through one land_hunger event that states both
+        land.note_account(w, np.array([b.id]), np.array([5.0]), np.array([2.0]))
         demography.kill(w, mine[:1], np.array([demography.C["hunger"]]))
-        self.assertNotIn({"event": ev}, explain.describe(w, {"death": int(mine[0])})["causes"])
-        land.note_account(w, np.array([b.id]), np.array([5.0]), np.array([6.0]))   # restoring it covers the shortfall
+        lh = int(w.people.death_land[mine[0]])
+        self.assertGreaterEqual(lh, 0)
+        self.assertEqual(w.events[lh]["kind"], "land_hunger")
+        self.assertIn({"event": lh}, explain.describe(w, {"death": int(mine[0])})["causes"])
+        self.assertIn({"event": ev}, w.events[lh]["causes"])
+        self.assertIn("40% of what it lacked", w.events[lh]["causes"][0]["note"])
+        self.assertTrue(explain.resolvable(w, {"death": int(mine[0])}))
+        w.t += 1                                                        # next season: no land loss, no citation
+        land.note_account(w, np.array([b.id]), np.array([5.0]), np.array([0.0]))
         w._binfo = None
         demography.kill(w, mine[1:2], np.array([demography.C["hunger"]]))
-        self.assertIn({"event": ev}, explain.describe(w, {"death": int(mine[1])})["causes"])
+        self.assertEqual(int(w.people.death_land[mine[1]]), -1)
 
     def test_the_cut_off_names_only_what_was_needed(self):
         from origins.sim import technology as T, trade
@@ -526,9 +535,176 @@ class Review021(unittest.TestCase):
             self.skipTest("no forest near this band")
         i = list(ids).index(b.id)
         w.tech_prev_prac[b.id, :] = False
+        w.tech_prev_wood[b.id] = False
         self.assertFalse(T._possible(w, ids, cells)[i, k])            # not practised: needs 20%
         w.tech_prev_prac[b.id, k] = True
+        w.tech_prev_wood[b.id] = True
         self.assertTrue(T._possible(w, ids, cells)[i, k])             # practised: keeps going down to 10%
+
+
+class Review022(unittest.TestCase):
+    """Codex review 022 and Ben's decision of 20 November 2026 (the land as a contributing cause of hunger)."""
+
+    def test_a_herd_does_not_enlarge_the_fields(self):
+        from origins.sim import farming
+        w, _ = world()
+        b = w.living_bands()[0]
+        b.cell = 778
+        w.bands_changed()
+        w.skill[:] = 0
+        w.skill[b.id, farming.SPECIES.index("wild_grain")] = 3
+        w.skill[b.id, farming.SPECIES.index("wild_goat")] = 1.0      # tended goats, wild here (Codex's case)
+        w.farm_share[:] = 0
+        w.farm_share[b.id] = 1.0
+        wild, suit = farming.land_tables(w)
+        wild = wild.copy()
+        wild[778, farming.SPECIES.index("wild_goat")] = True
+        real = farming.land_tables
+        farming.land_tables = lambda _w: (wild, suit)
+        try:
+            kp, vp, ka, va = farming.best_all(w, np.array([b.id]), np.array([778]))
+            self.assertGreater(va[0], 0)
+            self.assertGreater(suit[778, int(ka[0])], suit[778, int(kp[0])])
+            w.fallow[:] = 0.2
+            land._clear_year(w)
+            farming.season_food_live(w, np.array([b.id]), np.array([778]), np.array([1e12]))
+        finally:
+            farming.land_tables = real
+        self.assertLessEqual(float(w.land_work[778]), 0.8 + 1e-9)     # no more than the land under crops
+        self.assertLessEqual(float(w.land_need[778]), 1.0)
+
+    def test_the_wild_loss_is_the_same_harvest_run_again(self):
+        from origins.sim import foraging
+        dm, db = foraging.wild_gain(np.array([100.0]), np.array([20.0]), np.array([100.0]), np.array([0.0]),
+                                    np.array([0.0]))
+        self.assertAlmostEqual(float(dm[0]), 4.64, places=2)           # Codex's figure, not 12.64
+        self.assertEqual(float(db[0]), 0.0)
+        dm, db = foraging.wild_gain(np.array([100.0]), np.array([20.0]), np.array([300.0]), np.array([300.0]),
+                                    np.array([100.0]))
+        self.assertLess(float(db[0]), 0.0)                              # more ordinary food, less effort left for broad
+
+    def test_the_harvest_turns_the_year_even_when_nobody_farms(self):
+        from origins.sim import farming
+        w, c = world()
+        b = w.living_bands()[0]
+        land._band_rows(w, b.id + 1)
+        w.land_lost_crop[b.id] = 10.0
+        w.farm_share[:] = 0
+        w.t += (P.HARVEST_QUARTER - w.quarter) % P.TICKS_PER_YEAR
+        farming.season_food_live(w, np.array([b.id]), np.array([c]), np.array([100.0]))
+        self.assertEqual(float(w.land_lost_crop[b.id]), 0.0)
+
+    def test_the_crop_loss_goes_with_the_people(self):
+        w, c = world()
+        a, d = w.living_bands()[0], w.living_bands()[1]
+        land._band_rows(w, max(a.id, d.id) + 1)
+        w.land_crop_acc[a.id], w.land_lost_crop[a.id], w.land_crop_cell[a.id] = 40.0, 10.0, c
+        w.land_crop_cell[d.id] = -1
+        land.move_crop_loss(w, a.id, d.id, 0.25)
+        self.assertAlmostEqual(float(w.land_crop_acc[d.id]), 10.0)
+        self.assertAlmostEqual(float(w.land_crop_acc[a.id]), 30.0)
+        self.assertAlmostEqual(float(w.land_lost_crop[d.id]), 2.5)
+        self.assertEqual(int(w.land_crop_cell[d.id]), c)
+
+    def test_abandonment_restores_only_what_the_soil_took(self):
+        from origins.sim import farming
+        w, c = world()
+        b = w.living_bands()[0]
+        b.village = True
+        js = land.KINDS.index("soil")
+        w.land_flags[c, js], w.land_event[c, js] = True, 0
+        w.fertility[c] = 0.0
+        w.forage_rr[b.id] = 0.5
+        n0 = len(w.events)
+        # Codex's case: 0.50 realised, of which 0.02 from crops at a crop factor of 0.4, so 0.03 lost; fresh soil
+        # gives 0.53, not 0.7143
+        farming._land_abandoned(w, b, 0, 1.0, 0.7, 1.0, 0.50, 0.03, 0.5)
+        self.assertEqual([e for e in w.events[n0:] if e["kind"] == "land_abandoned"], [])
+        farming._land_abandoned(w, b, 0, 1.0, 0.7, 1.0, 0.50, 0.40, 0.5)
+        self.assertEqual(len([e for e in w.events[n0:] if e["kind"] == "land_abandoned"]), 1)
+
+    def test_soil_is_cited_where_the_crops_grew_and_every_loss_is_kept(self):
+        from origins.sim import demography
+        from origins import explain
+        w, c = world()
+        b = w.living_bands()[0]
+        nb = int(w.planet.grid.neighbours[c][0])
+        js, jg = land.KINDS.index("soil"), land.KINDS.index("game")
+        w.fertility[[c, nb]] = 0.5
+        e_old = w.event("land_soil", cell=c)
+        e_new = w.event("land_soil", cell=nb)
+        e_game = w.event("land_game", cell=nb)
+        w.land_flags[c, js], w.land_event[c, js] = True, e_old
+        w.land_flags[nb, js], w.land_event[nb, js] = True, e_new
+        w.game[nb] = 0.1
+        w.land_flags[nb, jg], w.land_event[nb, jg] = True, e_game
+        land._band_rows(w, b.id + 1)
+        w.land_lost_crop[b.id], w.land_crop_cell[b.id] = 6.0, c         # crops grown on the land it left
+        b.cell = nb
+        w.bands_changed()
+        land.note_account(w, np.array([b.id]), np.array([10.0]), np.array([5.0]))
+        self.assertEqual(sorted(land.felt(w, b.id, nb)), sorted([e_old, e_game]))
+        idx = w.alive_idx()
+        mine = idx[w.people.band[idx] == b.id]
+        w._binfo = None
+        demography.kill(w, mine[:1], np.array([demography.C["hunger"]]))
+        lh = int(w.people.death_land[mine[0]])
+        cited = [x["event"] for x in w.events[lh]["causes"] if "event" in x]
+        self.assertEqual(sorted(cited), sorted([e_old, e_game]))      # both pools, not only the first
+        self.assertTrue(explain.resolvable(w, {"death": int(mine[0])}))
+
+    def test_coal_smelting_is_not_wood_work(self):
+        from origins.sim import technology as T
+        w, _ = world()
+        coal = T._cell_materials(w)[:, T.MATERIALS.index("coal")]
+        if not coal.any():
+            self.skipTest("no coal on this planet")
+        c = int(np.nonzero(coal)[0][0])
+        b = w.living_bands()[0]
+        prac = np.zeros((1, T.K), dtype=bool)
+        prac[0, T.INDEX["smelting"]] = True
+        self.assertFalse(T._wood_used(w, np.array([b.id]), np.array([c]), prac)[0])
+        nc = int(np.nonzero(~coal)[0][0])
+        self.assertTrue(T._wood_used(w, np.array([b.id]), np.array([nc]), prac)[0])
+        prac[0] = False
+        prac[0, T.INDEX["canoes"]] = True
+        self.assertTrue(T._wood_used(w, np.array([b.id]), np.array([c]), prac)[0])
+
+    def test_the_explanation_uses_the_same_wood_rule(self):
+        from origins.sim import technology as T
+        w, _ = world()
+        b = w.living_bands()[0]
+        b.cell = int(np.nonzero(land.forest_max(w) > 0)[0][0])
+        w.bands_changed()
+        T._prev_arrays(w)
+        w.forest[:] = 0.15 * land.forest_max(w)
+        w._forest_near = None
+        if float(land.forest_near(w)[b.cell]) < P.FUEL_MIN:
+            self.skipTest("no forest near this band")
+        live = w.living_bands()
+        ids = np.array([x.id for x in live])
+        cells = np.array([x.cell for x in live])
+        i = list(ids).index(b.id)
+        t = T.TECHNIQUES[T.INDEX["canoes"]]
+        for wood in (False, True):
+            w.tech_prev_wood[b.id] = wood
+            ok, missing = T.prerequisites_met(w, b, t)
+            self.assertEqual(ok, bool(T._possible(w, ids, cells)[i, T.INDEX["canoes"]]))
+            self.assertEqual(ok, wood)
+
+    def test_fuel_cutting_starts_the_forest_record(self):
+        w, _ = world()
+        fm = land.forest_max(w)
+        c = int(np.nonzero(fm > 0)[0][0])
+        b = w.living_bands()[0]
+        b.cell = c
+        w.bands_changed()
+        w.forest[c] = 0.01
+        w.land_fuel[c] = 1.0
+        land.yearly(w)
+        ev = [e for e in w.events if e["kind"] == "land_forest" and e["cell"] == c]
+        self.assertEqual(len(ev), 1)
+        self.assertEqual(ev[0]["data"]["since"], w.year)
 
 
 if __name__ == "__main__":

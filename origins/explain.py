@@ -124,6 +124,10 @@ def _event_title(w, e) -> str:
     if k in ("land_game", "land_forest", "land_soil", "land_salt"):
         return {"land_game": "Large game hunted out", "land_forest": "Forest cleared", "land_soil": "Soil worn",
                 "land_salt": "Land salted"}[k] + f" ({d.get('value', 0):.0%})"
+    if k == "land_hunger":
+        return f"{bn} went short where the land had been worn ({d.get('short', 0):,.0f} lacking)"
+    if k == "land_abandoned":
+        return f"{bn} turned from its worn fields"
     if k == "technique_no_fuel":
         return f"{bn} gave up {d.get('technique', '').replace('_', ' ')}: no wood left within reach"
     if k == "fission":

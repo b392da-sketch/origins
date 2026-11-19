@@ -197,16 +197,20 @@ def forage_and_eat(w):
     margin = np.where(total_need > 0, avail / np.maximum(total_need * seasons, 1e-12), 1.6)
     ratio_b = np.where(total_need > 0, eaten / np.where(total_need > 0, total_need, 1.0), 1.0)
     if getattr(P, "LAND", False) and getattr(w, "game", None) is not None:
-        # the food account (Ben, 20 November 2026, after Codex review 021): the wild food lost game and forest took
-        # from each band this season, as this season's regrowth short of its natural level, times the share of the
-        # stock harvested on its cell and the band's share of that harvest; and its shortfall against needs
+        # the food account (Ben, 20 November 2026, after Codex reviews 021 and 022): the wild food lost game and
+        # forest took from each band this season: the same harvest run again, at the same effort, on the ordinary
+        # stock with this season's regrowth at its natural level, the broad-spectrum food then taken with the effort
+        # left over; less what was actually got, shared among the bands as the harvest was
         from . import climate
         natural = climate.seasonal_max(w, land=False)
         missing = P.REGROWTH * np.maximum(natural - natural * land.wild_factor(w), 0.0)
-        frac = np.zeros(w.planet.n)
-        frac[used] = np.where(am > 1e-9, hm / np.maximum(am, 1e-9), 0.0)
-        lost_wild = (missing[cells] * frac[cells]
-                     * np.where(cell_effort[cells] > 0, effort / np.maximum(cell_effort[cells], 1e-12), 0.0))
+        d_m = np.zeros(w.planet.n)
+        d_b = np.zeros(w.planet.n)
+        d_m[used], d_b[used] = wild_gain(am, missing[used], e, cell_reach[used], ab_all)
+        lost_wild = np.maximum(
+            np.where(cell_effort[cells] > 0, d_m[cells] * effort / np.maximum(cell_effort[cells], 1e-12), 0.0)
+            + np.where(cell_reach[cells] > 0, d_b[cells] * effort * access / np.maximum(cell_reach[cells], 1e-12), 0.0),
+            0.0)
         land.note_account(w, ids, np.maximum(total_need - eaten, 0.0), lost_wild)
     mg = np.minimum(margin, 3.0).tolist()
     kp = kept.tolist()
@@ -226,3 +230,17 @@ def forage_and_eat(w):
     p.condition[idx] = c
     w.season_stats = {"ratio": float(eaten.sum() / max(total_need.sum(), 1e-9)),
                       "harvest": float(H.sum()), "need": float(total_need.sum())}
+
+
+def wild_gain(am, add, e, reach, ab):
+    """The food account (Codex review 022, finding 2): what the same effort would have got with `add` more ordinary
+    wild food on each cell, against what it got; the broad-spectrum food is taken with the effort left over in both.
+    Returns the change in ordinary and in broad-spectrum food per cell (the second is zero or negative)."""
+    def run(a):
+        hm = np.where(a > 1e-9, a * (1 - np.exp(-e / np.maximum(a, 1e-9))), 0.0)
+        left = np.maximum(e - hm, 0.0) * np.clip(reach / np.maximum(e, 1e-12), 0, 1)
+        hb = np.where(ab > 1e-9, ab * (1 - np.exp(-left * P.TECH_BROAD_RETURN / np.maximum(ab, 1e-9))), 0.0)
+        return hm, hb
+    hm, hb = run(am)
+    hm2, hb2 = run(am + add)
+    return hm2 - hm, hb2 - hb

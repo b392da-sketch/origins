@@ -78,11 +78,13 @@ def to_file(w: World, f, fast: bool = False) -> None:
               "skill": w.skill, "farm_share": w.farm_share, "crop_store": w.crop_store,
               "still_years": w.still_years, "forage_rr": w.forage_rr, "spec": w.spec,
               "polity_of": w.polity_of, "polity_via": w.polity_via, "conquered_at": w.conquered_at,
-              "herder_since": w.herder_since, "farm_rr_real": w.farm_rr_real, "farm_rr_cell": w.farm_rr_cell, "tech": w.tech, "tech_record": w.tech_record,
+              "herder_since": w.herder_since, "farm_rr_real": w.farm_rr_real, "farm_rr_cell": w.farm_rr_cell,
+              "farm_rr_lost": w.farm_rr_lost if getattr(w, "farm_rr_lost", None) is not None else np.zeros(0), "tech": w.tech, "tech_record": w.tech_record,
               "goods": w.goods, "partner_of": w.partner_of, "partner_since": w.partner_since,
               "goods_reached": w.goods_reached, "partner_gave": w.partner_gave, "treasury": w.treasury,
               "tech_prev_prac": w.tech_prev_prac if getattr(w, "tech_prev_prac", None) is not None else np.zeros((0, 0), bool),
               "tech_prev_mats": w.tech_prev_mats if getattr(w, "tech_prev_mats", None) is not None else np.zeros((0, 0), bool),
+              "tech_prev_wood": w.tech_prev_wood if getattr(w, "tech_prev_wood", None) is not None else np.zeros(0, bool),
               "trade_in": w.trade_in if getattr(w, "trade_in", None) is not None else np.zeros(0)}
     from .sim import land as _land
     arrays.update({"land_" + k: getattr(w, k) for k in _land.ARRAYS if getattr(w, k, None) is not None})
@@ -168,13 +170,15 @@ def from_bytes(data: bytes, planet=None) -> World:
     for k in ("stock", "known", "discovered_by", "discovered_at", "food_modifier", "intervention_event",
               "cell_hunger", "cell_births", "customs", "neutral", "hazard_food", "hazard_event", "immune",
               "skill", "farm_share", "crop_store", "still_years", "forage_rr", "spec", "polity_of", "polity_via", "conquered_at",
-              "herder_since", "stock_broad", "farm_rr_real", "farm_rr_cell"):
+              "herder_since", "stock_broad", "farm_rr_real", "farm_rr_cell", "farm_rr_lost"):
         if k in arrays:                      # older saves of this schema may lack optional arrays
             setattr(w, k, arrays[k])
     if getattr(w, "farm_rr_real", None) is None or len(w.farm_rr_real) != len(w.farm_share):
         w.farm_rr_real = np.full(len(w.farm_share), np.nan)      # before choices saw real yields (19 Nov 2026)
     if getattr(w, "farm_rr_cell", None) is None or len(w.farm_rr_cell) != len(w.farm_rr_real):
         w.farm_rr_cell = np.full(len(w.farm_rr_real), -1, dtype=np.int64)   # before review 021 (20 Nov 2026)
+    if getattr(w, "farm_rr_lost", None) is None or len(w.farm_rr_lost) != len(w.farm_rr_real):
+        w.farm_rr_lost = np.zeros(len(w.farm_rr_real))                  # before review 022 (20 Nov 2026)
     if getattr(w, "stock_broad", None) is None or len(w.stock_broad) != len(w.stock):
         from .sim import climate as _climate            # saves from before the broad-spectrum pool (14 Nov 2026)
         w.stock_broad = _climate.broad_max(w).copy()
@@ -228,9 +232,12 @@ def from_bytes(data: bytes, planet=None) -> World:
             setattr(w, k, np.array(arrays["land_" + k], dtype=getattr(w, k).dtype))
     if "trade_in" in arrays and np.asarray(arrays["trade_in"]).size:   # last year's goods received (stage 5)
         w.trade_in = np.array(arrays["trade_in"], dtype=np.float64)
-    for n_ in ("tech_prev_prac", "tech_prev_mats"):     # last year's practice and goods-held materials (review 018)
-        if n_ in arrays and np.asarray(arrays[n_]).size:
+    for n_ in ("tech_prev_prac", "tech_prev_mats", "tech_prev_wood"):   # last year's practice, goods-held materials
+        if n_ in arrays and np.asarray(arrays[n_]).size:                # (review 018) and wood work (review 022)
             setattr(w, n_, np.array(arrays[n_], dtype=bool))
+    if getattr(w, "tech_prev_prac", None) is not None and getattr(w, "tech_prev_wood", None) is None:
+        from .sim import technology as _tech                            # older saves: any wood technique practised
+        w.tech_prev_wood = w.tech_prev_prac[:, _tech.WOOD_TECHS].any(axis=1)
     if "treasury" in arrays:                            # rulers' stores (trade stage 4b)
         w.treasury = np.array(arrays["treasury"], dtype=np.float64)
     if led:
@@ -301,10 +308,12 @@ def digest(w: World) -> str:
         h.update(k.encode())
         h.update(np.ascontiguousarray(v).tobytes())
     for arr in (w.stock, w.stock_broad, w.known, w.region_z, w.customs, w.neutral, w.hazard_food, w.immune, w.skill, w.farm_share,
-                w.crop_store, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since, w.farm_rr_real, w.farm_rr_cell, w.tech,
+                w.crop_store, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since, w.farm_rr_real, w.farm_rr_cell,
+                getattr(w, "farm_rr_lost", None) if getattr(w, "farm_rr_lost", None) is not None else np.zeros(0), w.tech,
                 w.tech_record, w.goods, w.partner_of, w.partner_since, w.goods_reached, w.partner_gave, w.treasury,
               *[getattr(w, n_, None) if getattr(w, n_, None) is not None else np.zeros((0, 0), bool)
                 for n_ in ("tech_prev_prac", "tech_prev_mats")],
+              getattr(w, "tech_prev_wood", None) if getattr(w, "tech_prev_wood", None) is not None else np.zeros(0, bool),
               getattr(w, "trade_in", None) if getattr(w, "trade_in", None) is not None else np.zeros(0),
               *[getattr(w, k) for k in __import__("origins.sim.land", fromlist=["ARRAYS"]).ARRAYS
                 if getattr(w, k, None) is not None]):
