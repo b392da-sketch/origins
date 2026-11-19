@@ -68,4 +68,4 @@ On the land-on run: forest on lived-in forest cells 0.34 of natural; fertility 0
 
 The land costs about 37% of the people in this history. The food account test links far fewer hunger deaths to the land than the exposure rule did (150 against 644 of a similar number), as it should: most hunger here is not caused by the land's losses alone. One history; the gate runs these arms over several.
 
-All tests pass (see the commit). All values are starting values.
+All 179 tests pass (see the commit). All values are starting values.
