@@ -764,3 +764,21 @@ All values are starting values.
 
 - Boserup, E. (1965). *The Conditions of Agricultural Growth: The Economics of Agrarian Change under Population Pressure*. London: Allen & Unwin; Chicago: Aldine. (Read through G. Federico's review, EH.net.)
 - Robinson, J. G., & Redford, K. H. (1991). Sustainable harvest of Neotropical forest animals. In J. G. Robinson & K. H. Redford (eds), *Neotropical Wildlife Use and Conservation*, 415–429. University of Chicago Press. (Citation only; its figures not read.)
+
+### After Codex review 020 (19–20 November 2026)
+
+All seven findings reproduced and fixed (`reviews/responses/020-land-answers-back-claude.md`). In short:
+
+- **Land use** is the share of farmland worked for crops, before fertility and salt (`land_work`, `land_seasons`), so a poor harvest is no longer counted as resting land.
+- **Fuel limits output** (Ben, 19 November 2026): tin and iron at a cell scale with the fuel within two rings, from coal or the living cover of the best-wooded cell (`FUEL_FULL` 0.3); below `FUEL_MIN` 0.1 there is no wood for smelting, iron working, canoes or carts. A `technique_no_fuel` event records each such lapse. Pottery and native copper still use forest but are not limited by it (dung, grass and brush can fire them).
+- **Broad-spectrum food** is no longer scaled by lost game and forest.
+- **Crossings** are flagged only when recorded on a lived-in cell; recovery clears the event.
+- **Cause links:** a move decided by the land is a `land_move` event citing the land events; hunger deaths carry `death_land`, group hunger events cite it. The rule (`LAND_FELT` 0.9) is an attribution, not a counterfactual.
+- **Cut-offs** name the smallest set of relevant lost imports.
+- **Switched off**, the land's yearly accounts are cleared each harvest.
+- **Choices see real yields** (Ben, 19 November 2026; switch `REAL_YIELDS`): crops weighed by fertility and salt; the realised return per worker-day caps the expected one; daughter villages judge cells after fertility, salt and fallow. This changes farming behaviour beyond the land; G2 and G3 will show it.
+- **Fallow gives way to need** (Ben, 19–20 November 2026, after review 020's design question and a first rule by farmers on cropland): farmers crop as much land as they could work the year before, and the rest rests, between 0.1 and 0.8. **Not modelled:** the extra labour per unit of crop that shorter fallow costs (Boserup 1965).
+
+**Two more errors of mine, found in the trials:** fields cleared nearly all of any farmed cell's forest (now they clear the land they take; the earlier forest knock-out had this error), and wood within reach as a mean over two rings ran out far too soon (now the best-wooded cell).
+
+**Trials** (planet 3, `snap_p3s1_8500_plus1200.zip` at year 9,700, 300 years, `local/scripts/knockout_land.py`; no invariant failures): land off 498,241; land on as built 321,477; with fallow by farmers on cropland 312,138, and with fallow at its shortest 341,774; real yields off 308,430; fuel unlimited 320,452 (an upper bound). The land costs about 35% of the people here. One history: the gate must run the arms over several. **Hunting pressure:** at steady stock `REGROWTH` 0.55 bounds the sustainable take against the year's targets; the median 0.49 is near that ceiling (Codex). The soil values `FERT_DRAIN` and `FERT_FLOOR` remain unmeasured; they are an open question in the Notion research-questions database.

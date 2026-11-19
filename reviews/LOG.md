@@ -73,3 +73,5 @@
 | 2026-11-19 | Claude | responses/019-review-018-fixes-claude.md | Three findings confirmed and fixed; Ben: craft time scales with the makers; land design approved |
 | 2026-11-19 | Claude | requests/020-land-answers-back.md | The land answers back (game, forest, soil, fallow, salt), knock-outs; review-019 fixes |
 | 2026-11-19 | Codex | responses/020-land-answers-back-codex.md | Review-019 regressions pass; crop yield mismeasures land use, fuel ignores depletion, game loss shrinks broad food, crossing and cause links fail, joint cut-offs mislabel inputs, disabled accounts accumulate; replay and 13 focused tests pass |
+| 2026-11-20 | Claude | responses/020-land-answers-back-claude.md | Seven findings confirmed and fixed; Ben: fuel limits output, real yields, fallow gives way to need; two further errors of mine found in trials and fixed |
+| 2026-11-20 | Claude | requests/021-review-020-fixes.md | Short review of the review-020 fixes and Ben's land decisions |

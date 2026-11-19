@@ -10,8 +10,8 @@ Use is now the share of the cell's farmland worked for crops, judged before fert
 
 ## 2. Clearing the forest never raised the fuel cost. **Confirmed; fixed (Ben, 19 November 2026: fuel limits output).**
 
-- **Output:** smelted goods (tin, iron) at a cell are multiplied by its fuel: 1 with coal within two rings, otherwise the mean living forest cover within two rings against `FUEL_FULL` 0.3 (`land.fuel`).
-- **Practice:** wood counts as within reach only while that mean is at least `FUEL_MIN` 0.05 (`technology._mats_now`). This applies to every technique that needs forest: smelting, iron working, canoes and carts. With the land switched off, forest is the biome, as before.
+- **Output:** smelted goods (tin, iron) at a cell are multiplied by its fuel: 1 with coal within two rings, otherwise the living cover of the best-wooded cell within two rings against `FUEL_FULL` 0.3 (`land.fuel`; first built as a mean over two rings, see the trials).
+- **Practice:** wood counts as within reach only while that cover is at least `FUEL_MIN` 0.1 (`technology._mats_now`). This applies to every technique that needs forest: smelting, iron working, canoes and carts. With the land switched off, forest is the biome, as before.
 - **Record:** when a technique practised last year can no longer be practised for want of wood, a `technique_no_fuel` event names the forest within reach and cites up to three forest-clearing events within two rings. The knowledge is not wiped; it fades as any unpractised technique does.
 - **Not limited:** pottery and native copper still draw on the forest where it exists (`FOREST_FUEL`), but their output is not limited by it: they can be fired with dung, grass or brush. I can extend the limit to them if you see a reason.
 
@@ -43,12 +43,28 @@ With `LAND` off, the yearly phase still clears the accounts at each harvest.
 
 ## Ben's decisions (19 November 2026)
 
-- **Fallow: farmers on cropland.** `land.farm_crowding`: crop farmers (people × farm share × the crop part of their farming) in the cell and its ring, against what the farmland there feeds under annual cropping (`FARM_CAPACITY` × the best crop suitability of each cell). Fallow is shortest at `FALLOW_CROWD_FULL` 1.0 (a starting value; it was 2.0 against wild food). Foragers no longer shorten a farmer's fallow. Test: as many foragers leave fallow at its maximum; as many crop farmers bring it to the minimum.
-- **Choices see real yields** (your trial note). The labour choice now weighs crops by the land's fertility and salt factor, and takes what fields and herds actually gave per worker-day (`w.farm_rr_real`, a moving average like `forage_rr`; saved and in the digest) when that is lower. So fallow and full fields cap the expected return, and farmers on worn land turn back to foraging, after which they can move. Daughter villages choose cells by crop yields after fertility, salt and fallow. **This changes behaviour beyond the land:** before, farmers on full fields kept choosing farm work at its nominal return. The G2 and G3 checks will show the effect at the gate.
+- **Fallow: farmers on cropland, then fallow gives way to need.** Your design question first led to a rule by farmers on cropland (crop farmers in the cell and its ring against what their farmland feeds under annual cropping). In the trial it kept fallow near 0.52 on farmed cells and cost about 30,000 people against fallow held at its shortest, because farmers were few against annual-cropping capacity, so resting land took crops they would have grown. Ben then decided (19 November 2026) that **fallow gives way to need**: each year farmers crop as much of the land as they could work in the year before (`land_need`: each band's crops with no land resting, against its farmland, summed per cell), and the rest rests, between `FALLOW_MIN` 0.1 and `FALLOW_MAX` 0.8. Foragers do not count. `FALLOW_CROWD_FULL` is gone. Not modelled: the extra labour per unit of crop that shorter fallow costs (Boserup). Test: nobody farming, long fallow; more hands than land, the minimum; a few hands, the maximum.
+- **Choices see real yields** (your trial note). The labour choice (switch `REAL_YIELDS`) now weighs crops by the land's fertility and salt factor, and takes what fields and herds actually gave per worker-day (`w.farm_rr_real`, a moving average like `forage_rr`; saved and in the digest) when that is lower. So fallow and full fields cap the expected return, and farmers on worn land turn back to foraging, after which they can move. Daughter villages choose cells by crop yields after fertility, salt and fallow. **This changes behaviour beyond the land:** before, farmers on full fields kept choosing farm work at its nominal return. The G2 and G3 checks will show the effect at the gate.
 
 ## The trials
 
-[TRIALS]
+One planet (3), the year-9,700 save `snap_p3s1_8500_plus1200.zip`, 300 years each, `local/scripts/knockout_land.py` (now in the repository; it prints every switch). No invariant failures in any run.
+
+| Run | People at the end | Notes |
+|---|---|---|
+| Land off (`LAND=0`) | 498,241 | identical to the earlier land-off arm: the fixes do not touch a switched-off world |
+| Land on, as answered here | **321,477** | fallow gives way to need: 0.33 on farmed cells, fertility 0.555 there; 1,005 game, 127 forest and 207 soil crossings; 35,307 land moves (20 of 20 sampled chains resolve); 644 of 3,682 hunger deaths cite a land event; 1,312 no-fuel lapses (canoes and sail) |
+| Land on, fallow by farmers on cropland | 312,138 | |
+| … with fallow held at its shortest (`FALLOW_MAX=0.1`) | 341,774 | |
+| … with real yields off (`REAL_YIELDS=0`) | 308,430 | real yields cost nothing here |
+| … with fuel unlimited (`FUEL_MIN=0`, `FUEL_FULL=1e-6`) | 320,452 | an upper bound: every cell then counts as wooded |
+| Before review 020 (for comparison) | 365,404 | |
+
+**Two more of my own errors, found by these trials:**
+- **Fields cleared almost all the forest of any farmed cell.** The forest tended to nothing under any use, not to the unworked share: a cell worked at 30% lost about 93% of its forest. On lived-in forest cells about 3% was left, wood was out of reach on 99% of lived-in cells, and canoes and sail lapsed 8,610 times. Fixed: fields clear the forest standing on the land they take (towards natural cover × (1 − use)), and the rest regrows towards that. Test: a cell worked at 30% settles at 70% forest. The forest knock-out reported before review 020 was measured with this error.
+- **Wood within reach as a mean over two rings** fell below the threshold as soon as the one forested cell nearby was partly cleared: 55% of lived-in cells had no wood, and one band lost and regained canoes 67 times. Now wood is judged from the best-wooded cell within two rings (`FUEL_MIN` 0.1, `FUEL_FULL` 0.3, starting values), close to the old biome rule until the forest is really cleared. Repeated lapses fell to at most 18 for one band; 36 band-techniques lapse more than three times, where forest hovers at the threshold.
+
+**Reading.** On this history the land costs about 35% of the people in 300 years (321,477 against 498,241). Fallow by need still costs about 20,000 against no fallow, because land rested last year limits this year's crop when the farmers grow. The remaining gap from the 365,404 before review 020 is not explained by any single switch here; as you said, one history is noisy, and the gate should run these arms over several histories. Soil remains the open question: `FERT_DRAIN` and `FERT_FLOOR` are unmeasured, and are now an open research question in the project's sources database.
 
 ## Smaller points
 
@@ -56,4 +72,4 @@ With `LAND` off, the yearly phase still clears the accounts at each harvest.
 - **Fallow in the trial:** agreed that 0.874 to 0.881 is about 0.45% on yield, and that a mean over lived-in cells is not crop-weighted. The new script reports farmed cells separately.
 - **Speed:** 13 ms a call on a founding world is noted; I will profile the land phase and the cut-off search on a mature history at the gate.
 
-All tests pass (see the commit). All values are starting values.
+All 170 tests pass (see the commit). All values are starting values.
