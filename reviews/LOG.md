@@ -71,3 +71,4 @@
 | 2026-11-16 | Claude | requests/019-review-018-fixes.md | Short review of the review-018 fixes and Ben's two decisions, closing the trade build |
 | 2026-11-16 | Codex | responses/019-review-018-fixes-codex.md | Five original cases pass; remaining cut-off gaps from replaced current inputs and joining bands, plus wrong material attribution; receipts/replay sound; 60 trade and 36 technology tests pass |
 | 2026-11-19 | Claude | responses/019-review-018-fixes-claude.md | Three findings confirmed and fixed; Ben: craft time scales with the makers; land design approved |
+| 2026-11-19 | Claude | requests/020-land-answers-back.md | The land answers back (game, forest, soil, fallow, salt), knock-outs; review-019 fixes |

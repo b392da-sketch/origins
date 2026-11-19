@@ -730,3 +730,37 @@ Build as set out, after the review-019 fixes:
 5. Each recorded where it leads to famine or a move.
 
 All values are starting values.
+
+### The land answers back, as built (19 November 2026)
+
+`origins/sim/land.py`, a yearly phase after trade, at the harvest, drawing no random numbers. Per cell, each 0..1. `LAND` False is the knock-out. All values are starting values.
+
+- **Large game, slow and fast** (Ben, 19 November 2026: split). Slow breeders (`GAME_SHARE` 0.1 of ordinary wild food, regrowth `GAME_GROWTH` 0.05 a year) and faster game (`GAME_FAST_SHARE` 0.2, `GAME_FAST_GROWTH` 0.3), each logistic, drawn down by hunting pressure (the year's take of ordinary wild food against the year's maxima) × `GAME_CATCH`, drifting towards neighbouring cells (`GAME_SPREAD` 0.05).
+  - **`GAME_CATCH` 0.18 is calibrated, not measured** (Ben's choice). The median hunting pressure on lived-in cells, planet 3 at year 9,700, is 0.49 (farmed and foraged cells alike; the 10th to 90th percentiles are 0.37 to 0.53). At that pressure faster game settles near 0.7 and slow breeders are lost, the pattern in Johnson (2002).
+  - Two corrections on the way: the first single pool lost all large game where people live; and my recommendation to count only the game share of the take would have changed nothing, because the take is proportional, so the game fraction taken equals the overall fraction taken.
+- **Forest** (forest biomes only): cleared by fields (`FOREST_CLEAR` 0.3 a year on a fully used cell) and by goods made with fire (`FOREST_FUEL`), regrowing at `FOREST_REGROW` 0.01 of the gap a year where land is unused. In forest biomes, `FOREST_WILD` 0.3 of wild food depends on it.
+- **Soil fertility:** falls by `FERT_DRAIN` 0.03 × use × fertility a year, less with manuring and herds (`MANURE_SAVE` 0.7); recovers by `FERT_RECOVER` 0.1 of the gap × unused share; erosion `EROSION` 0.02 × steepness × bare ground × use. Crop yields scale from `FERT_FLOOR` 0.4 to 1.
+- **Fallow by crowding** (Ben, 19 November 2026; Boserup 1965): each cell's resting share runs from `FALLOW_MAX` 0.8 with land to spare down to `FALLOW_MIN` 0.1 at crowding `FALLOW_CROWD_FULL` 2. Resting land is taken out of crop capacity, so land-short farmers lose crop and labour-short ones little; use is measured against full capacity, so rested land recovers.
+- **Salt:** rises by `SALT_RISE` 0.03 × irrigation × use × dryness (below `DRY_RAIN` 500 mm) and leaches by `SALT_LEACH` 0.02 × salt × unused share. Above `SALT_THRESH` 0.3 it cuts yields, by up to `SALT_MAX_LOSS` 0.9.
+- **Records:** a lived-in cell's first crossing (game below 0.3, forest below 0.3, fertility below 0.6, salt above 0.3) is an event (`land_game`, `land_forest`, `land_soil`, `land_salt`) naming the year its use began. It re-arms only after recovery. A band moving off such a cell has the land's events added to the reason for its move.
+
+**Trials** (planet 3, year-9,700 world, 300 years each; no ledger failures in any):
+
+| Run | People at the end | Notes |
+|---|---|---|
+| Land off | 498,241 | |
+| Land on, single game pool | 368,026 | slow game 0.017, faster 0.29 of natural, on lived-in cells |
+| Land on, calibrated catch | 376,886 | slow 0.057, fast 0.743 |
+| … with the forest effect off | 383,596 | |
+| … with the game effect off | 401,499 | |
+| … with the soil effect off | 480,367 | |
+| Land on, with fallow (as built) | 365,404 | fertility 0.88 on lived-in cells; 954 game, 138 forest and 212 soil crossings; 536 bands' last move cites the land |
+
+**Reading.** Soil causes most of the fall in population; game costs about 6% and forest about 2%. Fallow did not reduce it in this trial: the mean fertility of lived-in cells rose a little (0.874 to 0.881), but resting land takes crops away now. Where crowded farmers have no manure, they settle at roughly half the crop of fresh land. **The size of the soil effect rests on two unmeasured values, `FERT_DRAIN` and `FERT_FLOOR`**: I could not read long-term yields on unmanured land (Rothamsted's figures). Ben's decision (19 November 2026): send it to review as built, and judge the size at the gate across histories. Two cautions:
+- each land array starts at its natural level 9,700 years into a peopled world, so part of the fall is a jolt from switching the system on;
+- no band in this world irrigates, so salt is tested only by the unit tests.
+
+### Sources (added)
+
+- Boserup, E. (1965). *The Conditions of Agricultural Growth: The Economics of Agrarian Change under Population Pressure*. London: Allen & Unwin; Chicago: Aldine. (Read through G. Federico's review, EH.net.)
+- Robinson, J. G., & Redford, K. H. (1991). Sustainable harvest of Neotropical forest animals. In J. G. Robinson & K. H. Redford (eds), *Neotropical Wildlife Use and Conservation*, 415–429. University of Chicago Press. (Citation only; its figures not read.)
