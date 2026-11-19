@@ -25,7 +25,7 @@ resting land (Codex review 020, finding 1). The yearly update runs after trade, 
 numbers.
 
 Fuel: smelting and iron working need living forest (or coal) within two rings; their output scales with the forest
-left there (Ben, 19 November 2026: fuel limits output; Codex review 020, finding 2).
+left on the best-wooded cell there (Ben, 19 November 2026: fuel limits output; Codex review 020, finding 2).
 
 A cell's first crossing of a threshold is an event (game hunted out, forest cleared, soil worn, land salted) naming
 the land's history; it can recur only after the cell recovers. A band that moves off such a cell has the event added
@@ -164,7 +164,9 @@ def use(w) -> np.ndarray:
 
 def fuel(w, cells=None) -> np.ndarray:
     """Per cell (or for the given cells): the fuel within two rings for smelting, 0..1. Coal within reach gives
-    full fuel; otherwise the mean living forest cover within two rings against FUEL_FULL (Ben, 19 November 2026)."""
+    full fuel; otherwise the best-wooded cell within two rings, its living cover against FUEL_FULL (Ben, 19 November
+    2026). The best cell, not the mean: one well-wooded cell of some 3,000 km2 within reach is enough wood, as the
+    biome rule before it said."""
     n = w.planet.n
     cells = np.arange(n) if cells is None else np.asarray(cells)
     if not getattr(P, "LAND", False) or getattr(w, "forest", None) is None:
@@ -179,13 +181,14 @@ def fuel(w, cells=None) -> np.ndarray:
 
 
 def forest_near(w) -> np.ndarray:
-    """Per cell: mean living forest cover within two rings (cached per year)."""
+    """Per cell: the living forest cover of the best-wooded cell within two rings (cached until the forest
+    changes)."""
     key = (w.year, id(w.forest))
     c = getattr(w, "_forest_near", None)
     if c is not None and c[0] == key:
         return c[1]
     idx, ok = _ring2_padded(w)
-    f = np.where(ok, w.forest[idx], 0.0).sum(1) / ok.sum(1)
+    f = np.where(ok, w.forest[idx], 0.0).max(1)
     w._forest_near = (key, f)
     return f
 

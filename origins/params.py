@@ -370,8 +370,8 @@ FALLOW_MIN = 0.1          # share resting at full crowding (annual cropping)
 FALLOW_CROWD_FULL = 1.0   # crop farmers in the cell and its neighbours against what their farmland feeds under annual
                           # cropping, at which fallow is shortest (Ben, 19 Nov 2026, after Codex review 020: farmers
                           # on cropland; was all people against wild food, at 2.0)
-FUEL_FULL = 0.3           # mean living forest cover within two rings that gives full fuel for smelting (Ben, 19 Nov
+FUEL_FULL = 0.3           # living forest cover of the best-wooded cell within two rings that gives full fuel for smelting (Ben, 19 Nov
                           # 2026: fuel limits output). Starting value
-FUEL_MIN = 0.05           # below it, no wood for smelting, iron, canoes or carts within reach
+FUEL_MIN = 0.1            # below it (best-wooded cell within two rings), no wood for smelting, iron, canoes or carts
 LAND_FELT = 0.9           # a land event is named in a famine or a move only where the land gives at most this share
                           # of its natural yield (Codex review 020, finding 5). Starting value

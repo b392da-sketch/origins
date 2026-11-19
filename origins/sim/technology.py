@@ -266,8 +266,8 @@ def _cell_materials(w) -> np.ndarray:
 
 
 def _mats_now(w, cells) -> np.ndarray:
-    """_cell_materials for the given cells, with forest as it is now: wood within reach only while the mean living
-    forest within two rings is at least FUEL_MIN (Ben, 19 November 2026: fuel limits output; Codex review 020,
+    """_cell_materials for the given cells, with forest as it is now: wood within reach only while the best-wooded
+    cell within two rings keeps at least FUEL_MIN of its cover (Ben, 19 November 2026: fuel limits output; Codex review 020,
     finding 2). With the land switched off, forest is the biome, as before. _static_forest (set only by _cut_off)
     asks what would hold with the forest of the biome."""
     m = _cell_materials(w)[cells]
@@ -502,7 +502,7 @@ def _no_fuel(w, live, ids, cells, known, now):
         t = TECHNIQUES[k]
         near = [int(c) for c in ring2(w)[b.cell] if w.land_event[int(c), j] >= 0]
         causes = [{"note": f"{w.band_name(b)} could no longer practise {t.name}: the forest within reach is "
-                           f"{land.forest_near(w)[b.cell]:.0%} of the land, too little for fuel"}]
+                           f"at most {land.forest_near(w)[b.cell]:.0%} of a cell, too little for wood"}]
         causes += [{"event": int(w.land_event[c, j])} for c in near[:3]]
         w.event("technique_no_fuel", cell=b.cell, band=b.id, technique=t.key, causes=causes)
 
