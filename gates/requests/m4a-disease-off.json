@@ -1,0 +1,2 @@
+{"gate": "g3", "label": "m4a-disease-off", "jobs": ["4:10", "4:7", "5:7", "1:5"], "after_first": 1000, "params": {"DISEASE": false},
+ "note": "M4a trial: M1 outbreaks (named diseases off), same four histories as m4a-disease-on, code wip-disease 787937a. 20 Nov 2026."}
