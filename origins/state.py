@@ -421,6 +421,8 @@ class World:
         technology.init(self)
         from .sim import trade
         trade.init(self)
+        from .sim import land
+        land.init(self)
         self.people.languages = self.languages
         self.hazards: list = []                    # active hazards (sim/hazards.py)
         self.hazard_food = np.ones(n)              # hazard effect on wild food, recovering over years

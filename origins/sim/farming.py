@@ -395,6 +395,12 @@ def season_food_live(w, ids, cells, effort):
     room = caps * land_share
     herd = np.minimum(base * animal_part * hw_, room * animal_part * hf)
     crop = np.minimum(base * (1 - animal_part) * cw, room * (1 - animal_part) * cf)
+    from . import land
+    crop = crop * land.crop_factor(w, cells)            # worn or salted soil yields less (M4a land)
+    if on.any():
+        crop_cap = np.zeros(L)
+        crop_cap[on] = P.FARM_CAPACITY * suit[fcell, kp] * P.SEASON_DAYS
+        land.note_crops(w, ids[on], cells[on], crop[on], crop_cap[on], animal_part[on])
     grown = herd + crop
     w.crop_store[ids] += crop
     food = herd

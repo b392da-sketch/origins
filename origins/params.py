@@ -333,3 +333,29 @@ TRADE_TEACH = 0.5                  # chance of a lesson along a trade route, aga
 TRADE_NEED_REF = 0.05              # goods received per person last year (all goods, all routes) at which the trade need is full (Ben, 16 Nov 2026)
 TECH_FARMING = 0.2                 # farm (or herd) share a people needs before farming techniques apply to them
 
+
+# --- M4a: the land answers back (M4 specification section 5; Ben, 19 Nov 2026). All starting values. ---
+LAND = True
+GAME_SHARE = 0.3          # share of ordinary wild food that is large game
+GAME_GROWTH = 0.05        # yearly logistic regrowth of large game (slow breeders: Johnson 2002)
+GAME_CATCH = 0.5          # yearly loss of game per unit of hunting pressure (the year's take / the year's maxima)
+GAME_SPREAD = 0.05        # yearly drift of game towards the mean of neighbouring land cells
+FOREST_WILD = 0.3         # share of wild food in forest biomes that depends on the forest
+FOREST_CLEAR = 0.3        # yearly share of forest cleared on a cell fully used for crops
+FOREST_FUEL = 0.001       # forest share cleared per unit of goods made with fire on the cell (Iles 2020: modest)
+FOREST_REGROW = 0.01      # yearly share of the gap to natural cover regrown where land is unused (centuries)
+FERT_DRAIN = 0.03         # yearly loss of fertility under full cropping, before manure
+MANURE_SAVE = 0.7         # share of that loss manuring prevents, at full quality with herds
+FERT_RECOVER = 0.1        # yearly share of the gap to natural fertility recovered in fallow
+FERT_FLOOR = 0.4          # crop yields on fully worn soil, against fresh soil
+EROSION = 0.02            # yearly fertility lost on a fully steep, bare, fully cropped cell
+LAND_STEEP = 1000.0       # metres of rise to a neighbour that count as fully steep
+DRY_RAIN = 500.0          # mm a year below which irrigated land gathers salt (fully at 0 mm)
+SALT_RISE = 0.03          # yearly salt gained under full irrigation and cropping on fully dry land
+SALT_LEACH = 0.02         # yearly share of salt leached in fallow (slow)
+SALT_THRESH = 0.3         # salt above which yields fall
+SALT_MAX_LOSS = 0.9       # crop lost at full salt
+LAND_GAME_LOW, LAND_GAME_BACK = 0.3, 0.6         # crossings recorded, and recovery that re-arms them
+LAND_FOREST_LOW, LAND_FOREST_BACK = 0.3, 0.6
+LAND_SOIL_LOW, LAND_SOIL_BACK = 0.6, 0.8
+LAND_SALT_HIGH, LAND_SALT_BACK = 0.3, 0.15

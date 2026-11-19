@@ -50,8 +50,10 @@ def move(w):
             best = int(ns[j])
             occ[b.cell] -= sz
             occ[best] += sz
+            from . import land
             b.last_move = (f"moved for food: {v[j] / P.SEASON_DAYS:.2f} vs "
-                           f"{here / P.SEASON_DAYS:.2f} food units per person-day available")
+                           f"{here / P.SEASON_DAYS:.2f} food units per person-day available"
+                           + land.history(w, b.cell))   # the land's recorded state where they left (M4a land)
             b.cell = best
             b.trail = (b.trail + [(w.t, best)])[-40:]
             w.reveal_pending.add(b.id)
@@ -115,6 +117,8 @@ def forage_and_eat(w):
     hb = np.where(ab_all > 1e-9, ab_all * (1 - np.exp(-eb / np.maximum(ab_all, 1e-9))), 0.0)
     H = hm + hb
     w.stock[used] = am - hm
+    from . import land
+    land.note_wild(w, used, hm, None)                   # the year's take, for hunting pressure (M4a land)
     if broad is not None:
         broad[used] = ab_all - hb
     cell_hm = np.zeros(w.planet.n)

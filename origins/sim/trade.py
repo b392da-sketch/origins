@@ -202,6 +202,9 @@ def yearly(w):
         made = P.GOOD_YIELD[g] * skilled * level * ok
         w.goods[ids, i] += made
         w.goods_ledger[g]["produced"] += float(made.sum())
+        if g in ("pottery", "copper", "tin", "iron"):       # made with fire: fuel from the cell's forest (M4a land)
+            from . import land
+            land.note_fuel(w, cells, made)
     partnerships_yearly(w, live)
     down_the_line(w, live, ids, cells)
     from . import traders

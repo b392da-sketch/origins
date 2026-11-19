@@ -44,8 +44,9 @@ def _factor(z):
 def seasonal_max(w, quarter=None):
     p = w.planet
     q = w.quarter if quarter is None else quarter
+    from . import land
     return (p.capacity * P.SEASON_DAYS * P.STOCK_MULTIPLIER * p.season_food[:, q]
-            * w.region_factor[p.region] * w.food_modifier * w.hazard_food)
+            * w.region_factor[p.region] * w.food_modifier * w.hazard_food * land.wild_factor(w))
 
 
 def yearly(w):
@@ -66,6 +67,8 @@ def yearly(w):
 
 def regrow(w):
     target = seasonal_max(w)
+    from . import land
+    land.note_wild(w, None, None, target)               # the year's maxima, for hunting pressure (M4a land)
     before = w.stock.sum()
     w.stock += P.REGROWTH * (target - w.stock)
     np.maximum(w.stock, 0.0, out=w.stock)

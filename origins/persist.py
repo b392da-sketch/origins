@@ -84,6 +84,8 @@ def to_file(w: World, f, fast: bool = False) -> None:
               "tech_prev_prac": w.tech_prev_prac if getattr(w, "tech_prev_prac", None) is not None else np.zeros((0, 0), bool),
               "tech_prev_mats": w.tech_prev_mats if getattr(w, "tech_prev_mats", None) is not None else np.zeros((0, 0), bool),
               "trade_in": w.trade_in if getattr(w, "trade_in", None) is not None else np.zeros(0)}
+    from .sim import land as _land
+    arrays.update({"land_" + k: getattr(w, k) for k in _land.ARRAYS if getattr(w, k, None) is not None})
     arrays.update({"p_" + k: v for k, v in w.people.arrays().items()})
     arrays.update({"g_" + k: v for k, v in w.groups.arrays().items()})
     arrays.update({"b_" + k: v for k, v in w.bands.arrays().items()})
@@ -215,6 +217,11 @@ def from_bytes(data: bytes, planet=None) -> World:
     else:
         w.goods_reached = None
         _trade.grow(w, len(w.goods) - 1)             # older saves: what a band holds has reached it
+    from .sim import land as _land                       # the land answers back (M4a): older saves start untouched
+    _land.init(w)
+    for k in _land.ARRAYS:
+        if "land_" + k in arrays:
+            setattr(w, k, np.array(arrays["land_" + k], dtype=getattr(w, k).dtype))
     if "trade_in" in arrays and np.asarray(arrays["trade_in"]).size:   # last year's goods received (stage 5)
         w.trade_in = np.array(arrays["trade_in"], dtype=np.float64)
     for n_ in ("tech_prev_prac", "tech_prev_mats"):     # last year's practice and goods-held materials (review 018)
@@ -294,7 +301,9 @@ def digest(w: World) -> str:
                 w.tech_record, w.goods, w.partner_of, w.partner_since, w.goods_reached, w.partner_gave, w.treasury,
               *[getattr(w, n_, None) if getattr(w, n_, None) is not None else np.zeros((0, 0), bool)
                 for n_ in ("tech_prev_prac", "tech_prev_mats")],
-              getattr(w, "trade_in", None) if getattr(w, "trade_in", None) is not None else np.zeros(0)):
+              getattr(w, "trade_in", None) if getattr(w, "trade_in", None) is not None else np.zeros(0),
+              *[getattr(w, k) for k in __import__("origins.sim.land", fromlist=["ARRAYS"]).ARRAYS
+                if getattr(w, k, None) is not None]):
         h.update(np.ascontiguousarray(arr).tobytes())
     for k, v in sorted(w.bands.arrays().items()):
         h.update(k.encode())
