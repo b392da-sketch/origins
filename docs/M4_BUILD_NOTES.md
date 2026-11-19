@@ -821,3 +821,17 @@ Done alongside ChatGPT's independent check (Ben, 20 November 2026), which is pen
 3. Persistence emerging, not set: immunity per band by age (children, adults), births adding susceptibles, fade-out where too few are left, and re-introduction along the contacts the world already has (moves, marriage, partners, traders, war). No fixed critical community size and no fixed share of deaths.
 4. Deaths: by age; more where hunger is high, for diseases that depend on food; and crisis deaths when many adults are ill at once (care and food production collapse). No genetic weakness at first contact.
 5. Behaviour as customs: flight and dispersal; isolation protocols such as gemo; blame of outsiders or minorities, leading to violence (with M4b). Possibly a partial step now.
+
+### Diseases: comparing the two literature checks (20 November 2026)
+
+ChatGPT's independent check (written by ChatGPT into Notion; 19 sources, all Suggested) against Claude's (above). Claude checked two of ChatGPT's sources against their texts: the Kissidougou funeral cluster (Victory et al. 2015: 85 cases, 63 deaths, 18 from handling the body, 67 from contact with mourners) and the Bengal Famine Inquiry (1945: 1,873,749 registered deaths in 1943, 688,846 over the 1938–42 average, the true excess judged nearer one million; malaria and fever diagnoses unreliable).
+
+- **Both found, independently:** no fixed rate of new diseases from animals can be defended; the "no immunity" genetic account of first contact is weak, and whole communities falling ill at once, war, displacement and hunger explain more (both cite Jones 2003); hunger and infection reinforce each other unevenly, by disease (Mokyr & Ó Gráda 2002; Ó Gráda 2007; Scrimshaw); traditional responses to epidemics can help or harm, and should not be assumed to do either (Acholi gemo, both).
+- **Only ChatGPT found:**
+  - the Americas had their own diseases before contact: tuberculosis in Peru about 1,000 years ago, related to seal lineages (Bos et al. 2014), and treponemes in Brazil about 2,000 years ago (Majander et al. 2024, with an editorial note of concern; Barquera et al. 2025). So the asymmetry at contact is not absolute;
+  - spillover as stages: pressure from the animal source (its infection, contact with people, chance per contact), then a separate, chancy step to sustained spread among people (Lloyd-Smith et al. 2009);
+  - funerals as a disease-specific hazard (the Kissidougou cluster), communities blocking outsiders and distrust of responders (Fairhead 2016), Cherokee isolation and dispersal (Kelton 2004);
+  - iron supplements can raise death and admission where malaria is common (Sazawal et al. 2006): feeding does not protect against every infection.
+- **Only Claude found:** shared diseases rise with time since domestication (Morand et al. 2014); 58% of human pathogens are zoonotic and emerging ones are not tied to one host type (Woolhouse & Gowtage-Sequeria 2005); half of Irish famine deaths came from the famine's social effects (Mokyr & Ó Gráda 2002); scapegoating, most likely at moderate mortality (Jedwab, Johnson & Koyama).
+- **Disagreements:** none of substance. The two emergence ideas combine: spillover pressure grows with the number of animals and people in contact and with how long they have lived together; sustained spread among people is a separate, chancy step that depends on how many people can catch it.
+- **Corrections:** none needed in either check so far; ChatGPT flagged its own uncertainties (Majander's editorial note, the Cochrane version).
