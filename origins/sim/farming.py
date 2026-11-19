@@ -393,9 +393,10 @@ def season_food_live(w, ids, cells, effort):
     cw, cf, hw_, hf = technology.farm_multipliers(w, ids, cells)       # M4a: crops and herds separately (review 010)
     base = farm_eff / P.FORAGE_RATE * P.FARM_RATE * vals
     room = caps * land_share
-    herd = np.minimum(base * animal_part * hw_, room * animal_part * hf)
-    crop = np.minimum(base * (1 - animal_part) * cw, room * (1 - animal_part) * cf)
     from . import land
+    herd = np.minimum(base * animal_part * hw_, room * animal_part * hf)
+    rest = land.cropped_share(w, cells)                 # land resting in fallow grows nothing this year (M4a land)
+    crop = np.minimum(base * (1 - animal_part) * cw, room * (1 - animal_part) * cf * rest)
     crop = crop * land.crop_factor(w, cells)            # worn or salted soil yields less (M4a land)
     if on.any():
         crop_cap = np.zeros(L)

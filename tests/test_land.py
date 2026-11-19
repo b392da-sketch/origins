@@ -113,6 +113,19 @@ class Land(unittest.TestCase):
             self.assertTrue(np.array_equal(getattr(w2, k), getattr(w, k)), k)
         self.assertEqual(persist.digest(w2), persist.digest(w))
 
+    def test_crowding_shortens_fallow(self):
+        w, c = world()
+        land.yearly(w)
+        open_land = float(w.fallow[c])
+        sizes = np.zeros(len(w.bands) + 64, dtype=int)
+        b = w.living_bands()[0]
+        sizes[b.id] = int(5 * w.planet.capacity[c] * 7)        # far beyond the wild food of the cell and its ring
+        w.band_sizes = lambda: np.resize(sizes, len(w.bands))
+        land.yearly(w)
+        self.assertLess(float(w.fallow[c]), open_land)
+        self.assertAlmostEqual(float(w.fallow[c]), P.FALLOW_MIN)
+        self.assertAlmostEqual(float(land.cropped_share(w, np.array([c]))[0]), 1 - P.FALLOW_MIN)
+
     def test_switched_off_the_land_changes_nothing(self):
         w, c = world()
         w.game[c] = 0.1

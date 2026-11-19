@@ -363,3 +363,8 @@ LAND_GAME_LOW, LAND_GAME_BACK = 0.3, 0.6         # crossings recorded, and recov
 LAND_FOREST_LOW, LAND_FOREST_BACK = 0.3, 0.6
 LAND_SOIL_LOW, LAND_SOIL_BACK = 0.6, 0.8
 LAND_SALT_HIGH, LAND_SALT_BACK = 0.3, 0.15
+# fallow by crowding (Ben, 19 Nov 2026; Boserup 1965: forest fallow of 15-20 years shortens to a few months as
+# population grows, at more labour per unit of output). Starting values.
+FALLOW_MAX = 0.8          # share of farmland resting where land is plentiful (long fallow)
+FALLOW_MIN = 0.1          # share resting at full crowding (annual cropping)
+FALLOW_CROWD_FULL = 2.0   # crowding (people / wild-food capacity of the cell and its neighbours) at which fallow is shortest

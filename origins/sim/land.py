@@ -13,6 +13,8 @@ Four kinds of lasting change, per cell, each 0..1 and each a starting value to b
 - fertility: the soil's fertility under crops. It falls under continuous cropping, less with manuring where there
   are herds (Bogaard et al. 2013), recovers in fallow, and is lost to erosion where cleared slopes are farmed. Crop
   yields scale between FERT_FLOOR and 1 with it.
+- fallow: the share of farmland resting each year, long where land is plentiful and short where it is crowded
+  (Boserup 1965; Ben, 19 November 2026). Resting land is taken from crop capacity; it lets fertility recover.
 - salt: salt on irrigated dry land. It rises with irrigation in dry climates and falls only slowly in fallow;
   above SALT_THRESH it cuts crop yields (Jacobsen & Adams 1958; contested by Powell 1985).
 
@@ -45,6 +47,7 @@ def init(w):
     w.forest = forest_max(w).copy()
     w.fertility = np.ones(n)
     w.salt = np.zeros(n)
+    w.fallow = np.full(n, P.FALLOW_MAX)        # share of farmland resting, set each year by crowding (Boserup 1965)
     w.land_flags = np.zeros((n, len(KINDS)), dtype=bool)   # crossed and not yet recovered
     w.land_event = -np.ones((n, len(KINDS)), dtype=np.int64)
     w.land_since = -np.ones((n, len(KINDS)), dtype=np.int64)   # year the use began that led to the crossing
@@ -92,6 +95,13 @@ def wild_factor(w) -> np.ndarray:
     f = 1.0 - P.GAME_SHARE * (1.0 - w.game) - P.GAME_FAST_SHARE * (1.0 - w.game_fast)
     f = f * (1.0 - P.FOREST_WILD * forest_max(w) * (1.0 - w.forest / np.maximum(forest_max(w), 1e-9)))
     return f
+
+
+def cropped_share(w, cells) -> np.ndarray:
+    """Per band (by cell): the share of farmland under crops this year; the rest rests in fallow."""
+    if not getattr(P, "LAND", False) or getattr(w, "fallow", None) is None:
+        return np.ones(len(cells))
+    return 1.0 - w.fallow[cells]
 
 
 def crop_factor(w, cells) -> np.ndarray:
@@ -176,6 +186,10 @@ def yearly(w):
     S = w.salt + P.SALT_RISE * np.clip(w.land_irr, 0, 1) * u * dry - P.SALT_LEACH * w.salt * (1.0 - u)
     w.salt = np.clip(S, 0.0, 1.0)
     _crossings(w, u, h)
+    # fallow for the coming year: long where land is plentiful, short where it is crowded (Ben, 19 November 2026)
+    from . import farming
+    crowd = np.clip(farming.crowding(w) / P.FALLOW_CROWD_FULL, 0.0, 1.0)
+    w.fallow = P.FALLOW_MAX - (P.FALLOW_MAX - P.FALLOW_MIN) * crowd
     _clear_year(w)
 
 
@@ -229,5 +243,5 @@ def history(w, cell) -> str:
     return "; the land: " + ", ".join(parts) if parts else ""
 
 
-ARRAYS = ("game", "game_fast", "forest", "fertility", "salt", "land_flags", "land_event", "land_since", "land_take", "land_wild",
+ARRAYS = ("game", "game_fast", "forest", "fertility", "salt", "fallow", "land_flags", "land_event", "land_since", "land_take", "land_wild",
           "land_crop", "land_cap", "land_manure", "land_irr", "land_fuel")
