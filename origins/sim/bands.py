@@ -231,8 +231,9 @@ def carry(w, src, dst, route, carriers):
     """People joining another band bring what they know: techniques (technology.combine, at a quality that depends
     on how many bring it) and domestication skills (the better of the two, as farming's learning from neighbours
     already does without an event per band; Ben, 14 November 2026, decision 6: until then merges dropped them)."""
-    from . import technology
+    from . import technology, disease
     technology.combine(w, src, dst, route, carriers)
+    disease.combine(w, src, dst, carriers if carriers is not None else float(w.band_sizes()[src.id]))
     if hasattr(w, "skill"):
         w.skill[dst.id] = np.maximum(w.skill[dst.id], w.skill[src.id])
         cache = getattr(w, "_herder_cache", None)       # dst's way of life may have changed (Codex review 009, finding 2)

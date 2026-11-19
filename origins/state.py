@@ -30,7 +30,7 @@ C = {name: i for i, name in enumerate(CAUSES)}
 STREAMS = ["climate", "deaths", "partners", "births", "movement", "fission", "names", "founding",
            "language", "customs", "hazards", "crossing",
            "farming", "surplus", "polity", "conflict",
-           "technology", "trade"]   # new streams are appended, never inserted
+           "technology", "trade", "disease"]   # new streams are appended, never inserted
 
 # ids, ticks and cells all fit in 32 bits; people are never removed, so their rows are kept compact
 FIELDS = {
@@ -477,8 +477,9 @@ class World:
         polity.ensure(self, b.id, parent)
         conflict.ensure(self, b.id, parent)
         technology.ensure(self, b.id, parent)
-        from .sim import trade
+        from .sim import trade, disease
         trade.ensure(self, b.id, parent)
+        disease.ensure(self, b.id, parent)
         self.bands[b.id] = b
         if self._pool is not None:
             self._pool[b.id] = b

@@ -179,7 +179,11 @@ def yearly(w):
         for c in np.nonzero(u[3] < p_quake)[0]:
             struck([int(c)], 1.0, "an earthquake on a plate boundary", "earthquake", P.QUAKE_DEATHS,
                    ring_p=P.QUAKE_DEATHS / 4)
-    outbreaks(w, rng, occ)
+    if getattr(P, "DISEASE", False):
+        from . import disease
+        disease.yearly(w)                    # named diseases from animals (M4a) replace M1's anonymous outbreaks
+    else:
+        outbreaks(w, rng, occ)
     crossings(w)
 
 
