@@ -85,7 +85,10 @@ def forage_and_eat(w):
     effort *= surplus.work_share(w, ids, w.live_sizes())   # specialists eat but do not produce food
     if getattr(P, "TRADE", False):
         from . import trade as _trade
-        effort *= 1.0 - _trade.craft_share(w, ids)          # making goods costs ordinary members food time (stage 5)
+        # making goods costs ordinary makers food time: their craft years, at a full adult's work each, taken from
+        # the band's food effort, at most half of it (stage 5; Ben, 19 November 2026)
+        adult = float(P.work(np.array([30.0]), np.array([False]))[0]) * P.SEASON_DAYS * P.FORAGE_RATE
+        effort = np.maximum(effort - np.minimum(_trade.craft_share(w, ids) * adult, 0.5 * effort), 0.0)
     effort, farm_food = farming.season_food_live(w, ids, cells, effort)
     # Wild food: the ordinary stock, plus broad-spectrum food (small game, birds, fish, marginal plants) that only
     # foragers with the right gear can take (M4a; Ben, 14 November 2026: gear lets the land yield more to foragers,

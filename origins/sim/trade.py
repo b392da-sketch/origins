@@ -759,10 +759,12 @@ def prestige_factor(w, polity_id: int) -> float:
 
 
 def craft_share(w, ids) -> np.ndarray:
-    """Share of ordinary members' work that goes into making goods instead of food: for each good a band makes,
-    CRAFT_TIME x the share of ordinary members who practise x the technique's quality, at a source. Specialists'
-    share of the making comes from surplus and costs no food time (Ben, 16 November 2026; Costin 1991). Derived from
-    the current state, so nothing is saved; cached by tick."""
+    """Craft years: adult working years that ordinary members spend making goods instead of food. For each good a
+    band makes at a source, CRAFT_TIME x the technique's quality, times the ordinary practitioners (the practising
+    share of adults less specialists). Specialists' making comes from surplus and costs no food time (Ben, 16
+    November 2026; Costin 1991). foraging takes this many adults' work from the band's food effort, so the share
+    lost grows with the makers against everyone's food work (Ben, 19 November 2026). Derived from the current
+    state, so nothing is saved; cached by tick."""
     ids = np.asarray(ids)
     if not _effects_on() or not len(ids):
         return np.zeros(len(ids))
@@ -778,12 +780,12 @@ def craft_share(w, ids) -> np.ndarray:
         where, tech = SOURCES[g]
         ok = _deposit(w, cells, where) if where else np.ones(len(ids), dtype=bool)
         level = q[ids, technology.INDEX[tech]].astype(float) if tech else np.ones(len(ids))
-        share += P.CRAFT_TIME[g] * P.TECH_PRACTISE_SHARE * level * ok
-    # only ordinary adults make goods (as technology.skilled counts them); with none, nobody's food time is spent
-    # on goods (Codex review 018)
+        share += P.CRAFT_TIME[g] * level * ok
+    # craft years: ordinary practitioners (as technology.skilled counts them) x the time each spends (Codex
+    # reviews 018, 019; Ben, 19 November 2026: time scales with the makers, set against the band's food work)
     spec = np.asarray(w.spec[ids], dtype=float) if hasattr(w, "spec") else np.zeros(len(ids))
     ordinary = np.maximum(technology._adults(w, live, ids) - spec, 0.0)
-    share = np.where(ordinary > 0, np.clip(share, 0.0, 0.5), 0.0)
+    share = share * P.TECH_PRACTISE_SHARE * ordinary
     w._craft = (w.t, ids.copy(), share)
     return share
 

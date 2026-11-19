@@ -402,24 +402,42 @@ def _cut_off(w, live, ids, cells):
     known = w.tech[ids] > 0
     now = _possible(w, ids, cells)
     prev_mats = w.tech_prev_mats[ids]
-    w._goods_mats_override = prev_mats
-    try:
-        with_last = _possible(w, ids, cells)
-    finally:
-        w._goods_mats_override = None
+    held_now = _trade.goods_materials(w, ids, MATERIALS)
+
+    def possible_with(extra):
+        # current goods-held materials plus the given ones: a lost import is restored without dropping a newly
+        # available one (Codex review 019)
+        w._goods_mats_override = held_now | extra
+        try:
+            return _possible(w, ids, cells)
+        finally:
+            w._goods_mats_override = None
+    lost = prev_mats & ~held_now
+    with_last = possible_with(lost)
     cut = w.tech_prev_prac[ids] & known & ~now & with_last
     if not cut.any():
         return
-    held_now = _trade.goods_materials(w, ids, MATERIALS)
+    local = _cell_materials(w)[cells]
     for i, k in np.argwhere(cut).tolist():
         b = live[i]
         t = TECHNIQUES[k]
-        gone = [MATERIALS[m] for m in np.nonzero(prev_mats[i] & ~held_now[i])[0]]
-        mine = [m for group in t.materials for m in group if m in gone]
-        what = "/".join(mine) if mine else ("/".join(gone) + ", which a technique it depends on needs")
+        # the lost imports whose return alone makes the technique practicable again; failing that, all lost
+        # imports not within reach (Codex review 019: name the material that caused it)
+        cands = [m for m in np.nonzero(lost[i] & ~local[i])[0].tolist()]
+        named = []
+        for m in cands:
+            one = np.zeros_like(lost)
+            one[i, m] = True
+            if possible_with(one)[i, k]:
+                named.append(MATERIALS[m])
+        if not named:
+            named = [MATERIALS[m] for m in cands]
+        direct = {m for group in t.materials for m in group}
+        own = [m for m in named if m in direct]
+        what = "/".join(own) if own else "/".join(named) + ", which a technique it depends on needs,"
         why = (f"{w.band_name(b)} could no longer practise {t.name}: the {what} it had by trade ran out, "
                f"and none is within reach")
-        w.event("technique_cut_off", cell=b.cell, band=b.id, technique=t.key, materials=gone,
+        w.event("technique_cut_off", cell=b.cell, band=b.id, technique=t.key, materials=named,
                 causes=[{"note": why}])
 
 
@@ -726,6 +744,12 @@ def combine(w, src, dst, route: str, carriers: float | None = None):
     w._tech_eff = None
     if getattr(w, "tech_record", None) is not None:
         w.tech_record[dst.id] = np.maximum(w.tech_record[dst.id], w.tech_record[src.id])
+    if route in ("combined", "merge", "migration") and getattr(w, "tech_prev_prac", None) is not None:
+        # people joining in numbers bring last year's record of practising on imports, so a later cut-off in the
+        # band they join is recorded (Codex review 019)
+        _prev_arrays(w)
+        w.tech_prev_prac[dst.id] |= w.tech_prev_prac[src.id]
+        w.tech_prev_mats[dst.id] |= w.tech_prev_mats[src.id]
     for k in np.nonzero(gained)[0].tolist():
         t = TECHNIQUES[k]
         how = {"combined": "combined with", "merge": "took in the remnant of", "marriage": "took in by marriage someone from",

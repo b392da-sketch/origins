@@ -1004,8 +1004,7 @@ class GoodsEffects(unittest.TestCase):
         b.cell = int(np.nonzero(w.planet.coast)[0][0])
         w.bands_changed()
         share = trade.craft_share(w, np.array([b.id]))[0]
-        self.assertGreater(share, 0.0)
-        self.assertLessEqual(share, 0.5)
+        self.assertGreater(share, 0.0)                              # craft years of ordinary makers
 
     def _at_source(self):
         from origins.sim import technology as T
@@ -1193,6 +1192,99 @@ class DependenceCase(unittest.TestCase):
         self.assertEqual([e["data"]["technique"] for e in cuts], ["bronze"])
         self.assertIn("tin", cuts[0]["causes"][-1]["note"])
         self.assertGreater(cut[-1][3], 0.0)                       # remembered, though no longer practised
+
+
+class Review019(unittest.TestCase):
+    """Codex review 019."""
+
+    def _at(self, cell, chain, goods):
+        from origins.sim import technology as T
+        w = World.new(1, 1, generate(1))
+        b = w.living_bands()[0]
+        b.cell = cell
+        w.bands_changed()
+        n = float(w.band_sizes()[b.id])
+        for k in chain:
+            w.tech[b.id, T.INDEX[k]] = 0.9
+        for g, pp in goods.items():
+            w.goods[b.id, trade.GI[g]] = pp * n
+        return w, b, T, n
+
+    def _cuts(self, w, T, b):
+        n0 = len(w.events)
+        T._cut_off(w, w.living_bands(), np.array([x.id for x in w.living_bands()]),
+                   np.array([x.cell for x in w.living_bands()]))
+        return [w.events[i] for i in range(n0, len(w.events))
+                if w.events[i]["kind"] == "technique_cut_off" and w.events[i]["band"] == b.id]
+
+    def _mark(self, w, T):
+        live = w.living_bands()
+        T._mark(w, live, np.array([x.id for x in live]), np.array([x.cell for x in live]))
+
+    def test_restoring_a_lost_import_keeps_a_new_one(self):
+        chain = ("pottery", "kilns", "copper_working", "smelting", "bronze")
+        w, b, T, n = self._at(86, chain, {"tin": 0.01})
+        self._mark(w, T)
+        self.assertTrue(w.tech_prev_prac[b.id, T.INDEX["bronze"]])
+        b.cell = 2                                                   # no copper or tin within reach here
+        w.bands_changed()
+        w.goods[b.id, trade.GI["copper"]] = 0.01 * n                 # copper now imported
+        w.goods[b.id, trade.GI["tin"]] = 0.0                         # tin gone
+        ev = self._cuts(w, T, b)
+        self.assertIn("bronze", [e["data"]["technique"] for e in ev])
+        self.assertEqual([e for e in ev if e["data"]["technique"] == "bronze"][0]["data"]["materials"], ["tin"])
+
+    def test_joining_brings_the_record_of_practice(self):
+        from origins.sim import technology as T
+        w = World.new(1, 1, generate(1))
+        src, dst = w.living_bands()[0], w.living_bands()[1]
+        for b in (src, dst):
+            b.cell = 2
+        w.bands_changed()
+        k = T.INDEX["copper_working"]
+        w.tech[:, k] = 0.0
+        w.tech[src.id, k] = 0.9
+        w.goods[src.id, trade.GI["copper"]] = 0.02 * float(w.band_sizes()[src.id])
+        self._mark(w, T)
+        self.assertTrue(w.tech_prev_prac[src.id, k])
+        self.assertFalse(w.tech_prev_prac[dst.id, k])
+        T.combine(w, src, dst, "merge", 9)
+        trade.move_share(w, src.id, dst.id, 1.0)
+        n = float(w.band_sizes()[dst.id])
+        w.goods[dst.id, trade.GI["copper"]] = 0.003 * n             # taken in a raid, below the threshold
+        ev = self._cuts(w, T, dst)
+        self.assertEqual([e["data"]["technique"] for e in ev], ["copper_working"])
+
+    def test_the_cut_off_names_the_material_that_caused_it(self):
+        chain = ("pottery", "kilns", "copper_working", "smelting", "iron")
+        w, b, T, n = self._at(148, chain, {"copper": 0.01, "iron": 0.01})
+        mats = T._cell_materials(w)[148]
+        self.assertTrue(mats[T.MATERIALS.index("iron")])
+        self.assertFalse(mats[T.MATERIALS.index("copper")])
+        self._mark(w, T)
+        w.goods[b.id, trade.GI["copper"]] = 0.0
+        w.goods[b.id, trade.GI["iron"]] = 0.0
+        ev = {e["data"]["technique"]: e for e in self._cuts(w, T, b)}
+        self.assertIn("iron", ev)
+        self.assertEqual(ev["iron"]["data"]["materials"], ["copper"])
+        self.assertNotIn("the iron it had", ev["iron"]["causes"][0]["note"])
+
+    def test_craft_time_grows_with_the_makers(self):
+        w = World.new(1, 1, generate(1))
+        b = w.living_bands()[0]
+        b.cell = int(np.nonzero(w.planet.coast)[0][0])
+        w.bands_changed()
+        w.spec[b.id] = 0.0
+        one = trade.craft_share(w, np.array([b.id]))[0]
+        idx = w.alive_idx()
+        mine = idx[w.people.band[idx] == b.id]
+        adults = mine[w.ages(mine) >= 16]
+        w.people.birth[adults[: len(adults) // 2]] = w.t - 10 * P.TICKS_PER_YEAR   # half the adults made children
+        w._live = None
+        w._craft = None
+        fewer = trade.craft_share(w, np.array([b.id]))[0]
+        self.assertGreater(one, fewer)
+        self.assertGreater(fewer, 0.0)
 
 
 if __name__ == "__main__":
