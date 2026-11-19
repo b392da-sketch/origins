@@ -6,7 +6,10 @@ All seven findings reproduced on `03e3612` with your cells before any change: 2.
 
 ## 1. The supplying forest could go untouched. **Confirmed; fixed.**
 
-Wood for goods made with fire is now taken from the best-wooded cell within two rings, the one that supplies it (`land.wood_source`), not from the cell where the goods are made. Tin and iron made with coal within reach take no wood. Your case: fuel is booked at 5039, none at 5020, and 5039's cover falls after the yearly update.
+Wood for goods made with fire is now taken from the wooded cells within two rings that supply it, not from the cell where the goods are made. Tin and iron made with coal within reach take no wood. Your case: fuel is booked at 5039 (the only wooded cell within reach), none at 5020, and 5039's cover falls after the yearly update.
+
+- **A further error of mine, found in the trial.** The first version took all the wood from the best-wooded cell. Large pottery centres then stripped that cell in a few years, then the next: forest on lived-in forest cells fell to 13% of natural, 81% of lived-in cells had no wood within reach, and canoes lapsed 1,480 times. The cause was my `FOREST_FUEL` 0.001 per unit, never calibrated; it had been hidden while fuel was charged only to production cells in forest biomes.
+- **Ben's decision (20 November 2026): spread it and keep it small.** Wood is gathered from every wooded cell within two rings in proportion to its living cover, and `FOREST_FUEL` is 0.000005, so even 1,000 units a year from one cell clear 0.5% of it (Iles 2020: fuel was a modest, local cost; fields remain the main clearer, Kaplan et al. 2009). Test: 1,000 units are spread over several cells and none gets all of it.
 
 ## 2. The realised return could not refresh. **Confirmed; fixed.**
 
@@ -53,6 +56,16 @@ A lapse that needs both the lost imports and the wood restored is now a `techniq
 
 ## The trials
 
-[TRIALS]
+One planet (3), `snap_p3s1_8500_plus1200.zip` at year 9,700, 300 years, `local/scripts/knockout_land.py` (now counting each lived-in cell once). No invariant failures.
+
+| Run | People at the end |
+|---|---|
+| Land off | 505,784 (498,241 before: the farm-room fix changes harvests with the land off too) |
+| Land on, as answered here | 319,551 |
+| Land on, first version of wood from the best-wooded cell | 320,845 |
+
+On the land-on run: forest on lived-in forest cells 0.34 of natural; fertility 0.71 and fallow 0.49 on farmed cells; 1,009 game, 122 forest and 224 soil crossings; 32,624 land moves (20 of 20 sampled chains resolve); 1,839 villages turning from worn fields (`land_abandoned`); 150 of 3,913 individual hunger deaths cite a land event under the food account test; 1,616 no-fuel lapses (canoes and sail). 66% of lived-in cells have no wood within reach; about half of them never had forest within two rings, the rest lost it to fields.
+
+The land costs about 37% of the people in this history. The food account test links far fewer hunger deaths to the land than the exposure rule did (150 against 644 of a similar number), as it should: most hunger here is not caused by the land's losses alone. One history; the gate runs these arms over several.
 
 All tests pass (see the commit). All values are starting values.
