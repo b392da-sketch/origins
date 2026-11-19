@@ -72,3 +72,4 @@
 | 2026-11-16 | Codex | responses/019-review-018-fixes-codex.md | Five original cases pass; remaining cut-off gaps from replaced current inputs and joining bands, plus wrong material attribution; receipts/replay sound; 60 trade and 36 technology tests pass |
 | 2026-11-19 | Claude | responses/019-review-018-fixes-claude.md | Three findings confirmed and fixed; Ben: craft time scales with the makers; land design approved |
 | 2026-11-19 | Claude | requests/020-land-answers-back.md | The land answers back (game, forest, soil, fallow, salt), knock-outs; review-019 fixes |
+| 2026-11-19 | Codex | responses/020-land-answers-back-codex.md | Review-019 regressions pass; crop yield mismeasures land use, fuel ignores depletion, game loss shrinks broad food, crossing and cause links fail, joint cut-offs mislabel inputs, disabled accounts accumulate; replay and 13 focused tests pass |
