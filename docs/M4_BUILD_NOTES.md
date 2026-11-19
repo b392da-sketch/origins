@@ -835,3 +835,23 @@ ChatGPT's independent check (written by ChatGPT into Notion; 19 sources, all Sug
 - **Only Claude found:** shared diseases rise with time since domestication (Morand et al. 2014); 58% of human pathogens are zoonotic and emerging ones are not tied to one host type (Woolhouse & Gowtage-Sequeria 2005); half of Irish famine deaths came from the famine's social effects (Mokyr & Ó Gráda 2002); scapegoating, most likely at moderate mortality (Jedwab, Johnson & Koyama).
 - **Disagreements:** none of substance. The two emergence ideas combine: spillover pressure grows with the number of animals and people in contact and with how long they have lived together; sustained spread among people is a separate, chancy step that depends on how many people can catch it.
 - **Corrections:** none needed in either check so far; ChatGPT flagged its own uncertainties (Majander's editorial note, the Cochrane version).
+
+### After Codex review 022 (20 November 2026)
+
+All seven findings confirmed and fixed (`reviews/responses/022-review-021-fixes-claude.md`; tests `tests/test_land.py::Review022`, which fail on the code before the fix):
+- **Crops grow only on crop land:** a herd's pasture no longer enlarges the fields.
+- **The wild loss** is the season's harvest run again at the same effort with natural regrowth (`foraging.wild_gain`), broad-spectrum food included.
+- **Crop losses** turn at every harvest and move with the people (`land.move_crop_loss`); soil and salt are cited on the cell where the crops grew (`land_crop_cell`).
+- **Abandonment** restores only what the soil took (`farm_rr_lost`).
+- **Wood work** is recorded as such (`tech_prev_wood`; coal smelting does not count), and one rule serves practice and explanations.
+- **Fuel cutting** starts the forest's record.
+
+**Ben's decision (20 November 2026): the land is a contributing cause of hunger.** After three reviews found flaws in "cite the land only if its loss would have covered the shortfall", that claim is dropped. A band that went short, and from which the land took food, gets one `land_hunger` event per season. The event states what lost game and forest took from its wild food and what worn soil took from its crops, against what it lacked, and cites every land event behind both. Gate checks on land and famine will be stated as exposure, not cause.
+
+**Trial** (planet 3, year-9,700 save, 300 years; parameters are tunable starting values): land off 513,874; land on 324,815, so the land costs about 37% of the people here, as before.
+- No invariant failures; 20 of 20 sampled move chains resolve.
+- 7,439 `land_hunger` events: the land took a median 43% of what the band lacked (mean 50%).
+- 4,900 of those events were wild food only, none crops only.
+- 756 of 3,815 individual hunger deaths were in bands the land took food from.
+- 67% of lived-in cells have no wood within reach; many are in treeless biomes.
+- One history.

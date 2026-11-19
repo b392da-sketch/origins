@@ -9,6 +9,7 @@ import numpy as np
 
 from .. import params as P
 from . import trade
+from . import land
 
 
 def _households(w, members):
@@ -124,6 +125,7 @@ def fission_and_merge(w):
                 crop = w.crop_store[b.id] * frac
                 w.crop_store[dst.id] += crop
                 w.crop_store[b.id] -= crop
+                land.move_crop_loss(w, b.id, dst.id, frac)
                 trade.move_share(w, b.id, dst.id, frac)        # and their share of goods
                 occupied[b.cell] -= count
                 occupied[target] = occupied.get(target, 0) + count
@@ -157,6 +159,7 @@ def fission_and_merge(w):
         crop = w.crop_store[b.id] * frac               # the standing crop is shared with the people
         w.crop_store[nb_.id] += crop
         w.crop_store[b.id] -= crop
+        land.move_crop_loss(w, b.id, nb_.id, frac)
         trade.move_share(w, b.id, nb_.id, frac)            # and their share of goods
         nb_.last_ratio = b.last_ratio
         occupied[b.cell] -= count
@@ -266,6 +269,7 @@ def consolidate_groups(w):
         b.store = 0.0
         w.crop_store[o.id] += w.crop_store[b.id]     # the standing crop goes with the people
         w.crop_store[b.id] = 0.0
+        land.move_crop_loss(w, b.id, o.id, 1.0)
         b.alive = False
         b.ended = w.t
         del b.trail[:-3]

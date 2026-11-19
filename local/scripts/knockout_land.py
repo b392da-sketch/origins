@@ -22,6 +22,7 @@ w = persist.load(sys.argv[1])
 YEARS = int(sys.argv[2])
 n0 = len(w.events)
 p0 = w.people.n
+g0 = w.counts.get("group_hunger_deaths", 0)
 t0 = time.time()
 for y in range(YEARS):
     engine.step(w, 4)
@@ -53,8 +54,14 @@ dead = np.nonzero((p.death[:p.n] >= 0) & (np.arange(p.n) >= 0))[0]
 recent = dead[(p.death[dead] >= w.t - YEARS * P.TICKS_PER_YEAR)]
 from origins.sim.demography import C
 hung = recent[p.cause[recent] == C["hunger"]]
-print("hunger deaths (individuals)", len(hung), "with a land event", int((p.death_land[hung] >= 0).sum()),
-      "; grouped hunger deaths", w.counts.get("group_hunger_deaths", 0), "(cumulative)")
+print("hunger deaths (individuals)", len(hung), "in bands the land took food from", int((p.death_land[hung] >= 0).sum()),
+      "; grouped hunger deaths in the trial", w.counts.get("group_hunger_deaths", 0) - g0)
+lh = [w.events[i]["data"] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "land_hunger"]
+if lh:   # exposure, not cause (Ben, 20 November 2026, after Codex review 022)
+    took = np.array([min(d["lost_wild"] + d["lost_crop"], d["short"]) / max(d["short"], 1e-9) for d in lh])
+    print("land_hunger events", len(lh), "share of the lack the land took: median", round(float(np.median(took)), 3),
+          "mean", round(float(took.mean()), 3), "; wild only", sum(d["lost_crop"] == 0 for d in lh),
+          "crops only", sum(d["lost_wild"] == 0 for d in lh))
 moves = [i for i in range(n0, len(w.events)) if w.events[i]["kind"] == "land_move"]
 rng = np.random.default_rng(0)
 sample = rng.choice(moves, size=min(20, len(moves)), replace=False) if moves else []
