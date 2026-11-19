@@ -31,6 +31,15 @@ class Land(unittest.TestCase):
         self.assertLess(mid, 0.9)                      # slow breeders: not back in 20 years
         self.assertLess(float(land.wild_factor(w)[c]), 1.0)
 
+    def test_faster_breeders_hold_up_under_the_same_hunting(self):
+        w, c = world()
+        for _ in range(40):
+            w.land_wild[c] = 100.0
+            w.land_take[c] = 60.0
+            land.yearly(w)
+        self.assertLess(float(w.game[c]), P.LAND_GAME_LOW)
+        self.assertGreater(float(w.game_fast[c]), 0.2)
+
     def test_fields_clear_forest_which_regrows_over_centuries(self):
         w, _ = world()
         fm = land.forest_max(w)

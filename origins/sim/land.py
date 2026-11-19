@@ -3,8 +3,10 @@ answers back: literature check").
 
 Four kinds of lasting change, per cell, each 0..1 and each a starting value to be tuned:
 
-- game: large game against its natural level. Hunting draws it down; it recovers slowly (slow breeders: Johnson
-  2002) and drifts in from neighbouring cells. The large-game part of wild food (GAME_SHARE) scales with it.
+- game: slow-breeding large game against its natural level, and game_fast for faster breeders (Ben, 19 November
+  2026: the slow breeders were lost, the faster ones survived; Johnson 2002). Hunting draws both down; each regrows
+  at its own rate and drifts in from neighbouring cells. Their parts of wild food (GAME_SHARE, GAME_FAST_SHARE)
+  scale with them.
 - forest: tree cover against the cell's natural cover (forest biomes only). Fields clear it fast; fuel for kilns
   and smelting clears a little (Iles 2020: a modest, local cost); it regrows over centuries where land is left. In
   forest biomes part of the wild food (FOREST_WILD) scales with it.
@@ -39,6 +41,7 @@ FOREST_BIOMES = ("boreal_forest", "temperate_forest", "tropical_forest")
 def init(w):
     n = w.planet.n
     w.game = np.ones(n)
+    w.game_fast = np.ones(n)
     w.forest = forest_max(w).copy()
     w.fertility = np.ones(n)
     w.salt = np.zeros(n)
@@ -86,7 +89,7 @@ def wild_factor(w) -> np.ndarray:
     """Per cell: the share of natural wild food the land still offers (game and forest)."""
     if not getattr(P, "LAND", False) or getattr(w, "game", None) is None:
         return 1.0
-    f = 1.0 - P.GAME_SHARE * (1.0 - w.game)
+    f = 1.0 - P.GAME_SHARE * (1.0 - w.game) - P.GAME_FAST_SHARE * (1.0 - w.game_fast)
     f = f * (1.0 - P.FOREST_WILD * forest_max(w) * (1.0 - w.forest / np.maximum(forest_max(w), 1e-9)))
     return f
 
@@ -145,12 +148,15 @@ def yearly(w):
     land = pl.land
     # game: logistic regrowth, hunting, drift from neighbours
     h = np.where(w.land_wild > 0, w.land_take / np.maximum(w.land_wild, 1e-12), 0.0)
-    g = w.game
     nb = pl.grid.neighbours
     ok = (nb >= 0) & land[np.clip(nb, 0, None)]
-    nmean = np.where(ok.any(1), (np.where(ok, g[np.clip(nb, 0, None)], 0.0).sum(1) / np.maximum(ok.sum(1), 1)), g)
-    g = g + P.GAME_GROWTH * g * (1 - g) - P.GAME_CATCH * h * g + P.GAME_SPREAD * (nmean - g)
-    w.game = np.where(land, np.clip(g, 0.0, 1.0), 1.0)
+
+    def step(g, growth):
+        nmean = np.where(ok.any(1), (np.where(ok, g[np.clip(nb, 0, None)], 0.0).sum(1) / np.maximum(ok.sum(1), 1)), g)
+        g = g + growth * g * (1 - g) - P.GAME_CATCH * h * g + P.GAME_SPREAD * (nmean - g)
+        return np.where(land, np.clip(g, 0.0, 1.0), 1.0)
+    w.game = step(w.game, P.GAME_GROWTH)
+    w.game_fast = step(w.game_fast, P.GAME_FAST_GROWTH)
     # crops: use of the cell's capacity
     u = np.where(w.land_cap > 0, np.clip(w.land_crop / np.maximum(w.land_cap, 1e-12), 0.0, 1.0), 0.0)
     fm = forest_max(w)
@@ -223,5 +229,5 @@ def history(w, cell) -> str:
     return "; the land: " + ", ".join(parts) if parts else ""
 
 
-ARRAYS = ("game", "forest", "fertility", "salt", "land_flags", "land_event", "land_since", "land_take", "land_wild",
+ARRAYS = ("game", "game_fast", "forest", "fertility", "salt", "land_flags", "land_event", "land_since", "land_take", "land_wild",
           "land_crop", "land_cap", "land_manure", "land_irr", "land_fuel")

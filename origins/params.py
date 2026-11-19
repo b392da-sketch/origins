@@ -336,8 +336,10 @@ TECH_FARMING = 0.2                 # farm (or herd) share a people needs before 
 
 # --- M4a: the land answers back (M4 specification section 5; Ben, 19 Nov 2026). All starting values. ---
 LAND = True
-GAME_SHARE = 0.3          # share of ordinary wild food that is large game
-GAME_GROWTH = 0.05        # yearly logistic regrowth of large game (slow breeders: Johnson 2002)
+GAME_SHARE = 0.1          # share of ordinary wild food that is slow-breeding large game (megafauna)
+GAME_GROWTH = 0.05        # yearly logistic regrowth of slow breeders (Johnson 2002)
+GAME_FAST_SHARE = 0.2     # share of ordinary wild food that is faster-breeding game (Ben, 19 Nov 2026: split)
+GAME_FAST_GROWTH = 0.3    # yearly logistic regrowth of faster breeders: they mostly hold up under hunting
 GAME_CATCH = 0.5          # yearly loss of game per unit of hunting pressure (the year's take / the year's maxima)
 GAME_SPREAD = 0.05        # yearly drift of game towards the mean of neighbouring land cells
 FOREST_WILD = 0.3         # share of wild food in forest biomes that depends on the forest
