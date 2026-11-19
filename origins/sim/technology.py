@@ -185,8 +185,8 @@ def held(w, band_id: int, key: str, level: float | None = None) -> bool:
 
 
 def materials_near(w, cell: int) -> set:
-    """Materials within two rings of a cell (forest from the biomes; the rest from world generation)."""
-    m = _cell_materials(w)[cell]
+    """Materials within two rings of a cell (forest living there; the rest from world generation)."""
+    m = _mats_now(w, np.array([cell]))[0]
     return {MATERIALS[i] for i in np.nonzero(m)[0]}
 
 
@@ -265,6 +265,20 @@ def _cell_materials(w) -> np.ndarray:
     return m
 
 
+def _mats_now(w, cells) -> np.ndarray:
+    """_cell_materials for the given cells, with forest as it is now: wood within reach only while the mean living
+    forest within two rings is at least FUEL_MIN (Ben, 19 November 2026: fuel limits output; Codex review 020,
+    finding 2). With the land switched off, forest is the biome, as before. _static_forest (set only by _cut_off)
+    asks what would hold with the forest of the biome."""
+    m = _cell_materials(w)[cells]
+    if (getattr(P, "LAND", False) and getattr(w, "forest", None) is not None
+            and not getattr(w, "_static_forest", False)):
+        from . import land
+        m = m.copy()
+        m[:, MATERIALS.index("forest")] = land.forest_near(w)[cells] >= P.FUEL_MIN
+    return m
+
+
 def _cell_terrain(w) -> np.ndarray:
     """cells x TERRAIN, judged on the cell itself (cached): hills = relief to a neighbour of at least
     TECH_HILL_RELIEF metres; water = a river or lake in the cell."""
@@ -290,7 +304,7 @@ def _possible(w, ids, cells, lvl=None) -> np.ndarray:
     sk = (w.skill[ids] >= 3) & here                                   # domesticated AND able to live here (review 009)
     farms = np.clip(w.farm_share[ids], 0, 1) >= P.TECH_FARMING
     crop = sk[:, farming.PLANTS].any(axis=1)
-    mats = _cell_materials(w)[cells]
+    mats = _mats_now(w, cells)
     if getattr(P, "TRADE", False):
         held = getattr(w, "_goods_mats_override", None)   # set only by _cut_off: last year's holdings
         if held is None:
@@ -355,7 +369,7 @@ def _needs(w, live, ids, cells, sizes, cell_pop) -> dict:
 def _material_source(w, b, group) -> str:
     """How a band has one of a technique's materials: within reach, or held as goods (imports)."""
     for m in group:
-        if _cell_materials(w)[b.cell, MATERIALS.index(m)]:
+        if _mats_now(w, np.array([b.cell]))[0, MATERIALS.index(m)]:
             return f"{m} within reach"
     if getattr(P, "TRADE", False):
         from . import trade as _trade
@@ -415,21 +429,29 @@ def _cut_off(w, live, ids, cells):
     lost = prev_mats & ~held_now
     with_last = possible_with(lost)
     cut = w.tech_prev_prac[ids] & known & ~now & with_last
+    _no_fuel(w, live, ids, cells, known, now)
     if not cut.any():
         return
-    local = _cell_materials(w)[cells]
+    local = _mats_now(w, cells)
+    from itertools import combinations
     for i, k in np.argwhere(cut).tolist():
         b = live[i]
         t = TECHNIQUES[k]
-        # the lost imports whose return alone makes the technique practicable again; failing that, all lost
-        # imports not within reach (Codex review 019: name the material that caused it)
-        cands = [m for m in np.nonzero(lost[i] & ~local[i])[0].tolist()]
+        # the smallest set of lost imports, among those the technique and its prerequisites use and not within
+        # reach, whose return makes it practicable again (Codex reviews 019 and 020: name what caused it, and
+        # nothing irrelevant)
+        rel = _relevant_materials(k)
+        cands = [m for m in np.nonzero(lost[i] & ~local[i])[0].tolist() if MATERIALS[m] in rel]
         named = []
-        for m in cands:
-            one = np.zeros_like(lost)
-            one[i, m] = True
-            if possible_with(one)[i, k]:
-                named.append(MATERIALS[m])
+        for size in range(1, len(cands) + 1):
+            for combo in combinations(cands, size):
+                one = np.zeros_like(lost)
+                one[i, list(combo)] = True
+                if possible_with(one)[i, k]:
+                    named = [MATERIALS[m] for m in combo]
+                    break
+            if named:
+                break
         if not named:
             named = [MATERIALS[m] for m in cands]
         direct = {m for group in t.materials for m in group}
@@ -439,6 +461,50 @@ def _cut_off(w, live, ids, cells):
                f"and none is within reach")
         w.event("technique_cut_off", cell=b.cell, band=b.id, technique=t.key, materials=named,
                 causes=[{"note": why}])
+
+
+def _relevant_materials(k) -> set:
+    """Materials a technique and the techniques it depends on use."""
+    out, stack, seen = set(), [k], set()
+    while stack:
+        j = stack.pop()
+        if j in seen:
+            continue
+        seen.add(j)
+        t = TECHNIQUES[j]
+        out.update(m for group in t.materials for m in group)
+        stack.extend(INDEX[n] for n in t.needs)
+    return out
+
+
+def _no_fuel(w, live, ids, cells, known, now):
+    """Techniques that stopped being practised because the wood within reach is gone (M4a land; Ben, 19 November
+    2026): practised at the end of last year, not practicable now, and practicable with the forest of the biome.
+    The event names the forest-clearing events within reach."""
+    if not getattr(P, "LAND", False) or getattr(w, "forest", None) is None:
+        return
+    prev = w.tech_prev_prac[ids] & known & ~now
+    if not prev.any():
+        return
+    w._static_forest = True
+    try:
+        with_wood = _possible(w, ids, cells)
+    finally:
+        w._static_forest = False
+    hit = prev & with_wood
+    if not hit.any():
+        return
+    from . import land
+    from .language import ring2
+    j = land.KINDS.index("forest")
+    for i, k in np.argwhere(hit).tolist():
+        b = live[i]
+        t = TECHNIQUES[k]
+        near = [int(c) for c in ring2(w)[b.cell] if w.land_event[int(c), j] >= 0]
+        causes = [{"note": f"{w.band_name(b)} could no longer practise {t.name}: the forest within reach is "
+                           f"{land.forest_near(w)[b.cell]:.0%} of the land, too little for fuel"}]
+        causes += [{"event": int(w.land_event[c, j])} for c in near[:3]]
+        w.event("technique_no_fuel", cell=b.cell, band=b.id, technique=t.key, causes=causes)
 
 
 def yearly(w):

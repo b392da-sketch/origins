@@ -19,8 +19,13 @@ Four kinds of lasting change, per cell, each 0..1 and each a starting value to b
   above SALT_THRESH it cuts crop yields (Jacobsen & Adams 1958; contested by Powell 1985).
 
 Use is measured over each year: hunting as the year's take of ordinary wild food against the year's seasonal
-maxima; farming as the year's crops against the cell's crop capacity. The yearly update runs after trade, at the
-harvest, and draws no random numbers.
+maxima; farming as the share of the cell's farmland worked for crops, averaged over the seasons it was farmed. The
+worked share is judged before fertility and salt losses, so a poor harvest from the same fields does not count as
+resting land (Codex review 020, finding 1). The yearly update runs after trade, at the harvest, and draws no random
+numbers.
+
+Fuel: smelting and iron working need living forest (or coal) within two rings; their output scales with the forest
+left there (Ben, 19 November 2026: fuel limits output; Codex review 020, finding 2).
 
 A cell's first crossing of a threshold is an event (game hunted out, forest cleared, soil worn, land salted) naming
 the land's history; it can recur only after the cell recovers. A band that moves off such a cell has the event added
@@ -58,8 +63,8 @@ def _clear_year(w):
     n = w.planet.n
     w.land_take = np.zeros(n)       # this year's take of ordinary wild food
     w.land_wild = np.zeros(n)       # this year's seasonal maxima of ordinary wild food
-    w.land_crop = np.zeros(n)       # this year's crops
-    w.land_cap = np.zeros(n)        # this year's crop capacity
+    w.land_work = np.zeros(n)       # this year's share of farmland worked for crops, summed over farmed seasons
+    w.land_seasons = np.zeros(n)    # seasons this year in which the cell was farmed
     w.land_manure = np.zeros(n)     # best manuring x herds share among farmers on the cell
     w.land_irr = np.zeros(n)        # best irrigation quality among farmers on the cell
     w.land_fuel = np.zeros(n)       # goods made with fire (pottery, copper, tin, iron) this year
@@ -125,16 +130,18 @@ def note_wild(w, cells, take, target):
         w.land_wild += target
 
 
-def note_crops(w, ids, cells, crop, cap, animal_part):
-    """farming: crops grown, crop capacity of each farmed cell, manuring and irrigation of its farmers."""
+def note_crops(w, ids, cells, worked, animal_part):
+    """farming, each season: the share of each farmed cell's land worked for crops (each band's crops before
+    fertility and salt, against the cell's whole farmland; summed over the bands there, at most 1), and the
+    manuring and irrigation of its farmers. Independent of the order of the bands (Codex review 020, finding 1)."""
     if getattr(w, "game", None) is None:
         return
-    np.add.at(w.land_crop, cells, crop)
-    seen = np.zeros(w.planet.n, dtype=bool)
-    for c, k in zip(cells.tolist(), cap.tolist()):
-        if not seen[c] and k > 0:
-            w.land_cap[c] += k
-            seen[c] = True
+    season = np.zeros(w.planet.n)
+    np.add.at(season, cells, worked)
+    farmed = np.zeros(w.planet.n, dtype=bool)
+    farmed[cells] = True
+    w.land_work += np.clip(season, 0.0, 1.0)
+    w.land_seasons += farmed
     from . import technology
     man = technology._q(w, ids, "manuring") * animal_part
     irr = technology._q(w, ids, "irrigation")
@@ -150,8 +157,87 @@ def note_fuel(w, cells, units):
 
 # ------------------------------------------------------------------ the yearly update
 
+def use(w) -> np.ndarray:
+    """Per cell: the share of its farmland worked for crops this year (0 where it was not farmed)."""
+    return np.where(w.land_seasons > 0, np.clip(w.land_work / np.maximum(w.land_seasons, 1), 0.0, 1.0), 0.0)
+
+
+def fuel(w, cells=None) -> np.ndarray:
+    """Per cell (or for the given cells): the fuel within two rings for smelting, 0..1. Coal within reach gives
+    full fuel; otherwise the mean living forest cover within two rings against FUEL_FULL (Ben, 19 November 2026)."""
+    n = w.planet.n
+    cells = np.arange(n) if cells is None else np.asarray(cells)
+    if not getattr(P, "LAND", False) or getattr(w, "forest", None) is None:
+        from . import technology
+        m = technology._cell_materials(w)[cells]
+        have = m[:, technology.MATERIALS.index("forest")] | m[:, technology.MATERIALS.index("coal")]
+        return have.astype(float)
+    from . import technology
+    coal = technology._cell_materials(w)[cells, technology.MATERIALS.index("coal")]
+    wood = np.clip(forest_near(w)[cells] / P.FUEL_FULL, 0.0, 1.0)
+    return np.where(coal, 1.0, wood)
+
+
+def forest_near(w) -> np.ndarray:
+    """Per cell: mean living forest cover within two rings (cached per year)."""
+    key = (w.year, id(w.forest))
+    c = getattr(w, "_forest_near", None)
+    if c is not None and c[0] == key:
+        return c[1]
+    idx, ok = _ring2_padded(w)
+    f = np.where(ok, w.forest[idx], 0.0).sum(1) / ok.sum(1)
+    w._forest_near = (key, f)
+    return f
+
+
+def _ring2_padded(w):
+    pl = w.planet
+    r = getattr(pl, "_ring2_pad", None)
+    if r is None:
+        from .language import ring2
+        rr = ring2(w)
+        k = max(len(x) for x in rr)
+        idx = np.zeros((pl.n, k), dtype=np.int64)
+        ok = np.zeros((pl.n, k), dtype=bool)
+        for c, x in enumerate(rr):
+            idx[c, :len(x)] = x
+            ok[c, :len(x)] = True
+        r = pl._ring2_pad = (idx, ok)
+    return r
+
+
+def farm_crowding(w) -> np.ndarray:
+    """Per cell: crop farmers in the cell and its neighbours against what the farmland there can feed under annual
+    cropping (FARM_CAPACITY x the best crop suitability of each cell). Boserup's pressure is farmers on farmland, so
+    foragers nearby do not shorten fallow (Ben, 19 November 2026; Codex review 020)."""
+    from . import farming
+    pl = w.planet
+    bands = w.living_bands()
+    pop = np.zeros(pl.n)
+    if bands:
+        ids = np.array([b.id for b in bands])
+        cells = np.array([b.cell for b in bands])
+        share = np.clip(w.farm_share[ids], 0, 1)
+        on = share > 0
+        if on.any():
+            sizes = w.band_sizes()[ids]
+            _kp, vp, _ka, va = farming.best_all(w, ids[on], cells[on])
+            crop_part = np.where(vp + va > 0, vp / np.maximum(vp + va, 1e-9), 0.0)
+            np.add.at(pop, cells[on], sizes[on] * share[on] * crop_part)
+    _, suit = farming.land_tables(w)
+    cap = P.FARM_CAPACITY * suit[:, farming.PLANTS].max(axis=1)
+    nb = pl.grid.neighbours
+    valid = nb >= 0
+    idx = np.where(valid, nb, 0)
+    around_pop = pop + np.where(valid, pop[idx], 0.0).sum(axis=1)
+    around_cap = cap + np.where(valid, cap[idx], 0.0).sum(axis=1)
+    return np.where(around_cap > 0, around_pop / np.maximum(around_cap, 1e-9), 0.0)
+
+
 def yearly(w):
     if not getattr(P, "LAND", False):
+        if getattr(w, "game", None) is not None:
+            _clear_year(w)                  # switched off: the accounts do not pile up (Codex review 020, finding 7)
         return
     ensure(w)
     pl = w.planet
@@ -168,12 +254,13 @@ def yearly(w):
     w.game = step(w.game, P.GAME_GROWTH)
     w.game_fast = step(w.game_fast, P.GAME_FAST_GROWTH)
     # crops: use of the cell's capacity
-    u = np.where(w.land_cap > 0, np.clip(w.land_crop / np.maximum(w.land_cap, 1e-12), 0.0, 1.0), 0.0)
+    u = use(w)
     fm = forest_max(w)
     # forest: fields clear, fuel clears a little, regrowth where unused
     f = w.forest
     f = f - P.FOREST_CLEAR * u * f - P.FOREST_FUEL * w.land_fuel * fm + P.FOREST_REGROW * (1 - u) * (fm - f)
     w.forest = np.clip(f, 0.0, fm)
+    w._forest_near = None
     # fertility: drawn down by cropping (less with manure), recovering in fallow, lost to erosion on cleared slopes
     bare = np.where(fm > 0, 1.0 - w.forest / np.maximum(fm, 1e-9), 1.0)
     F = w.fertility
@@ -187,8 +274,7 @@ def yearly(w):
     w.salt = np.clip(S, 0.0, 1.0)
     _crossings(w, u, h)
     # fallow for the coming year: long where land is plentiful, short where it is crowded (Ben, 19 November 2026)
-    from . import farming
-    crowd = np.clip(farming.crowding(w) / P.FALLOW_CROWD_FULL, 0.0, 1.0)
+    crowd = np.clip(farm_crowding(w) / P.FALLOW_CROWD_FULL, 0.0, 1.0)
     w.fallow = P.FALLOW_MAX - (P.FALLOW_MAX - P.FALLOW_MIN) * crowd
     _clear_year(w)
 
@@ -216,19 +302,41 @@ def _crossings(w, u, h):
     }
     value = {"game": w.game, "forest": np.where(fm > 0, w.forest / np.maximum(fm, 1e-9), 1.0),
              "soil": w.fertility, "salt": w.salt}
-    occupied = {b.cell for b in w.living_bands()}
+    occupied = np.zeros(w.planet.n, dtype=bool)
+    for b in w.living_bands():
+        occupied[b.cell] = True
     for j, kind in enumerate(KINDS):
         low, back = state[kind]
         w.land_flags[back, j] = False
+        w.land_event[back, j] = -1                      # recovered: no stale event (Codex review 020, finding 4)
         w.land_since[back & ~active[kind], j] = -1
-        new = np.nonzero(low & ~w.land_flags[:, j])[0]
+        # recorded only where people live to feel it; an empty cell stays un-flagged, so people arriving while the
+        # land is still poor record the crossing then (Codex review 020, finding 4)
+        new = np.nonzero(low & ~w.land_flags[:, j] & occupied)[0]
         for c in new.tolist():
             w.land_flags[c, j] = True
-            if c not in occupied:
-                continue                                    # recorded only where people live to feel it
             note = text[kind].format(v=float(value[kind][c]), s=int(w.land_since[c, j]))
             w.land_event[c, j] = w.event(f"land_{kind}", cell=c, causes=[{"note": note}],
                                          value=round(float(value[kind][c]), 3), since=int(w.land_since[c, j]))
+
+
+def felt(w, cell: int, farms: bool) -> list:
+    """The recorded land events on a cell that lower the food people there get, where the land gives at most
+    LAND_FELT of its natural yield: lost game or forest for wild food; worn or salted soil for crops, if they farm
+    (Codex review 020, finding 5). Most severe first."""
+    if not getattr(P, "LAND", False) or getattr(w, "land_flags", None) is None:
+        return []
+    wild = float(np.atleast_1d(wild_factor(w))[cell] if np.ndim(wild_factor(w)) else 1.0)
+    crop = float(crop_factor(w, np.array([cell]))[0])
+    out = []
+    for j, kind in enumerate(KINDS):
+        e = int(w.land_event[cell, j])
+        if not w.land_flags[cell, j] or e < 0:
+            continue
+        f = wild if kind in ("game", "forest") else (crop if farms else 1.0)
+        if f <= P.LAND_FELT:
+            out.append((f, e))
+    return [e for _f, e in sorted(out)]
 
 
 def history(w, cell) -> str:
@@ -244,4 +352,4 @@ def history(w, cell) -> str:
 
 
 ARRAYS = ("game", "game_fast", "forest", "fertility", "salt", "fallow", "land_flags", "land_event", "land_since", "land_take", "land_wild",
-          "land_crop", "land_cap", "land_manure", "land_irr", "land_fuel")
+          "land_work", "land_seasons", "land_manure", "land_irr", "land_fuel")
