@@ -78,7 +78,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
               "skill": w.skill, "farm_share": w.farm_share, "crop_store": w.crop_store,
               "still_years": w.still_years, "forage_rr": w.forage_rr, "spec": w.spec,
               "polity_of": w.polity_of, "polity_via": w.polity_via, "conquered_at": w.conquered_at,
-              "herder_since": w.herder_since, "farm_rr_real": w.farm_rr_real, "tech": w.tech, "tech_record": w.tech_record,
+              "herder_since": w.herder_since, "farm_rr_real": w.farm_rr_real, "farm_rr_cell": w.farm_rr_cell, "tech": w.tech, "tech_record": w.tech_record,
               "goods": w.goods, "partner_of": w.partner_of, "partner_since": w.partner_since,
               "goods_reached": w.goods_reached, "partner_gave": w.partner_gave, "treasury": w.treasury,
               "tech_prev_prac": w.tech_prev_prac if getattr(w, "tech_prev_prac", None) is not None else np.zeros((0, 0), bool),
@@ -168,11 +168,13 @@ def from_bytes(data: bytes, planet=None) -> World:
     for k in ("stock", "known", "discovered_by", "discovered_at", "food_modifier", "intervention_event",
               "cell_hunger", "cell_births", "customs", "neutral", "hazard_food", "hazard_event", "immune",
               "skill", "farm_share", "crop_store", "still_years", "forage_rr", "spec", "polity_of", "polity_via", "conquered_at",
-              "herder_since", "stock_broad", "farm_rr_real"):
+              "herder_since", "stock_broad", "farm_rr_real", "farm_rr_cell"):
         if k in arrays:                      # older saves of this schema may lack optional arrays
             setattr(w, k, arrays[k])
     if getattr(w, "farm_rr_real", None) is None or len(w.farm_rr_real) != len(w.farm_share):
         w.farm_rr_real = np.full(len(w.farm_share), np.nan)      # before choices saw real yields (19 Nov 2026)
+    if getattr(w, "farm_rr_cell", None) is None or len(w.farm_rr_cell) != len(w.farm_rr_real):
+        w.farm_rr_cell = np.full(len(w.farm_rr_real), -1, dtype=np.int64)   # before review 021 (20 Nov 2026)
     if getattr(w, "stock_broad", None) is None or len(w.stock_broad) != len(w.stock):
         from .sim import climate as _climate            # saves from before the broad-spectrum pool (14 Nov 2026)
         w.stock_broad = _climate.broad_max(w).copy()
@@ -299,7 +301,7 @@ def digest(w: World) -> str:
         h.update(k.encode())
         h.update(np.ascontiguousarray(v).tobytes())
     for arr in (w.stock, w.stock_broad, w.known, w.region_z, w.customs, w.neutral, w.hazard_food, w.immune, w.skill, w.farm_share,
-                w.crop_store, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since, w.farm_rr_real, w.tech,
+                w.crop_store, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since, w.farm_rr_real, w.farm_rr_cell, w.tech,
                 w.tech_record, w.goods, w.partner_of, w.partner_since, w.goods_reached, w.partner_gave, w.treasury,
               *[getattr(w, n_, None) if getattr(w, n_, None) is not None else np.zeros((0, 0), bool)
                 for n_ in ("tech_prev_prac", "tech_prev_mats")],

@@ -346,7 +346,9 @@ GAME_CATCH = 0.18         # yearly loss of game per unit of hunting pressure (th
 GAME_SPREAD = 0.05        # yearly drift of game towards the mean of neighbouring land cells
 FOREST_WILD = 0.3         # share of wild food in forest biomes that depends on the forest
 FOREST_CLEAR = 0.3        # yearly share of the forest standing on land taken for crops that is cleared
-FOREST_FUEL = 0.001       # forest share cleared per unit of goods made with fire on the cell (Iles 2020: modest)
+FOREST_FUEL = 0.000005    # forest share cleared per unit of goods made with fire, the wood spread over the wooded
+                          # cells within reach (Ben, 20 Nov 2026: small, after Iles 2020; was 0.001, uncalibrated):
+                          # even 1,000 units a year from one cell clear 0.5% of it
 FOREST_REGROW = 0.01      # yearly share of the gap to the cover the unworked land can hold that regrows (centuries)
 FERT_DRAIN = 0.03         # yearly loss of fertility under full cropping, before manure
 MANURE_SAVE = 0.7         # share of that loss manuring prevents, at full quality with herds
@@ -371,6 +373,6 @@ FALLOW_MIN = 0.1          # share resting where farmers need all of it (annual c
 FUEL_FULL = 0.3           # living forest cover of the best-wooded cell within two rings that gives full fuel for smelting (Ben, 19 Nov
                           # 2026: fuel limits output). Starting value
 FUEL_MIN = 0.1            # below it (best-wooded cell within two rings), no wood for smelting, iron, canoes or carts
+FUEL_RESUME = 0.2         # a band that did not practise wood work last year needs this much to take it up again (Ben,
+                          # 20 Nov 2026, after Codex review 021: time to restore a reliable supply)
 REAL_YIELDS = True        # farmers' choices see real yields (Ben, 19 Nov 2026); False is the knock-out
-LAND_FELT = 0.9           # a land event is named in a famine or a move only where the land gives at most this share
-                          # of its natural yield (Codex review 020, finding 5). Starting value

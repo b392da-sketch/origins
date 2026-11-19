@@ -89,6 +89,7 @@ def init(w):
     w.forage_rr = np.full(cap, P.FORAGE_RATE)   # recent food per worker-day from foraging
     w.herder_since = np.full(cap, -1.0)     # tick a band first moved with its herds (M4a pastoralism), or -1
     w.farm_rr_real = np.full(cap, np.nan)   # recent food per worker-day actually got from fields and herds (M4a land)
+    w.farm_rr_cell = np.full(cap, -1, dtype=np.int64)   # the cell where it was got
     w.first_village = None                  # event id of the first farming village
     w.farm_firsts = {}                      # species -> {stage: event id} (first anywhere in the world)
 
@@ -102,7 +103,10 @@ def ensure(w, band_id: int, parent: int):
             w.herder_since = np.full(len(w.farm_share), -1.0)
         if getattr(w, "farm_rr_real", None) is None:
             w.farm_rr_real = np.full(len(w.farm_share), np.nan)
-        for name in ("skill", "farm_share", "crop_store", "still_years", "forage_rr", "herder_since", "farm_rr_real"):
+        if getattr(w, "farm_rr_cell", None) is None or len(w.farm_rr_cell) != len(w.farm_rr_real):
+            w.farm_rr_cell = np.full(len(w.farm_rr_real), -1, dtype=np.int64)
+        for name in ("skill", "farm_share", "crop_store", "still_years", "forage_rr", "herder_since", "farm_rr_real",
+                     "farm_rr_cell"):
             old = getattr(w, name)
             new = np.zeros((cap,) + old.shape[1:], dtype=old.dtype)
             if name == "forage_rr":
@@ -111,6 +115,8 @@ def ensure(w, band_id: int, parent: int):
                 new[:] = -1.0
             if name == "farm_rr_real":
                 new[:] = np.nan
+            if name == "farm_rr_cell":
+                new[:] = -1
             new[:len(old)] = old
             setattr(w, name, new)
     if parent >= 0:
@@ -194,7 +200,7 @@ def season_food(w, ids, cells, effort):
     vals[fid] = np.maximum(vp, va)
     animal_part[fid] = va / np.maximum(vp + va, 1e-9)
     # land: farmed food a cell can give per season, by its suitability for the species used
-    caps[fid] = P.FARM_CAPACITY * np.maximum(suit[fcell, kp], suit[fcell, ka]) * P.SEASON_DAYS
+    caps[fid] = P.FARM_CAPACITY * np.maximum(suit[fcell, kp] * (vp > 0), suit[fcell, ka] * (va > 0)) * P.SEASON_DAYS
     cell_eff = np.zeros(w.planet.n)
     np.add.at(cell_eff, cells, farm_eff[ids])
     land_share = np.where(cell_eff[cells] > 0, farm_eff[ids] / np.maximum(cell_eff[cells], 1e-12), 0.0)
@@ -296,7 +302,7 @@ def yearly(w):
     _bc = np.array([b.cell for b in bands])
     _cfac = land.crop_factor(w, _bc) if getattr(P, "REAL_YIELDS", True) else 1.0
     TPW = _cw * (1 - _ap) * _cfac + _hw * _ap         # worn or salted soil pays less (M4a land)
-    real = _real_rr(w, bid)
+    real = _real_rr(w, bid, _bc)
     for n, b in enumerate(bands):
         kp, vp, ka, va = int(KP[n]), float(VP[n]), int(KA[n]), float(VA[n])
         v = max(vp, va)
@@ -315,6 +321,10 @@ def yearly(w):
         w.farm_share[b.id] = s + P.FARM_INERTIA * (target - s)
         if w.farm_share[b.id] < 0.01:
             w.farm_share[b.id] = 0.0
+            if getattr(w, "farm_rr_real", None) is not None:
+                w.farm_rr_real[b.id] = np.nan          # no longer observed (Codex review 021, finding 2)
+        if b.village and w.farm_share[b.id] < 0.5 and v > 0:
+            _land_abandoned(w, b, n, v, float(TPW[n]), float(_cw[n] * (1 - _ap[n]) + _hw[n] * _ap[n]), real[n], s)
         # villages: living mainly from farming, staying put
         if w.farm_share[b.id] >= 0.5:
             b.farm_years += 1
@@ -330,12 +340,42 @@ def yearly(w):
             _first_village(w, b, kp if vp >= va else ka)
 
 
-def _real_rr(w, ids) -> np.ndarray:
+def _land_abandoned(w, b, n, v, tpw, tpw_natural, real, s):
+    """A village that stops living mainly from farming because its soil is worn or salted (Codex review 021,
+    finding 5: soil reaches migration through the farming choice, not through wild food). Recorded only if, with
+    the soil's yield restored, the same choice would have kept it a village."""
+    from . import land
+    if not getattr(P, "LAND", False) or getattr(w, "land_flags", None) is None:
+        return
+    j = [land.KINDS.index("soil"), land.KINDS.index("salt")]
+    events = [int(w.land_event[b.cell, k]) for k in j if w.land_flags[b.cell, k] and w.land_event[b.cell, k] >= 0]
+    if not events or tpw >= tpw_natural:
+        return
+    farm_rr = P.FARM_RATE * v * P.FARM_RISK * tpw_natural
+    if np.isfinite(real):
+        farm_rr = min(farm_rr, P.FARM_RISK * float(real) * tpw_natural / max(tpw, 1e-9))
+    ratio = farm_rr / max(w.forage_rr[b.id], 1e-6)
+    target = float(np.clip((ratio - 0.8) / 0.6, 0, 1))
+    if s + P.FARM_INERTIA * (target - s) < 0.5:
+        return
+    cf = float(land.crop_factor(w, np.array([b.cell]))[0])
+    note = (f"{w.band_name(b)} turned from its fields: they gave {cf:.0%} of what fresh soil gives; with fresh soil it "
+            f"would have kept farming")
+    w.event("land_abandoned", cell=b.cell, band=b.id, causes=[{"note": note}] + [{"event": e} for e in events])
+
+
+def _real_rr(w, ids, cells=None) -> np.ndarray:
+    """The realised farming return per worker-day, where it was earned on the band's present cell; unobserved (NaN)
+    elsewhere, so a band that moved, or gave up farming, judges new land by expectation (Codex review 021,
+    finding 2)."""
     if not getattr(P, "LAND", False) or not getattr(P, "REAL_YIELDS", True) or getattr(w, "farm_rr_real", None) is None:
         return np.full(len(ids), np.nan)
     if len(w.farm_rr_real) <= int(np.max(ids, initial=0)):
         ensure(w, int(np.max(ids)), -1)
-    return w.farm_rr_real[ids]
+    r = w.farm_rr_real[ids].copy()
+    if cells is not None:
+        r[w.farm_rr_cell[ids] != np.asarray(cells)] = np.nan
+    return r
 
 
 def crowding(w, bands=None) -> np.ndarray:
@@ -412,7 +452,11 @@ def season_food_live(w, ids, cells, effort):
     kp, vp, ka, va = best_all(w, fid, fcell)
     vals[on] = np.maximum(vp, va)
     animal_part[on] = va / np.maximum(vp + va, 1e-9)
-    caps[on] = P.FARM_CAPACITY * np.maximum(suit[fcell, kp], suit[fcell, ka]) * P.SEASON_DAYS
+    # the room a band's farming has is sized by the crops and animals it can actually use there, not by one it has
+    # never domesticated (Ben, 20 November 2026, after Codex review 021, finding 3)
+    caps[on] = P.FARM_CAPACITY * np.maximum(suit[fcell, kp] * (vp > 0), suit[fcell, ka] * (va > 0)) * P.SEASON_DAYS
+    crop_caps = np.zeros(L)
+    crop_caps[on] = P.FARM_CAPACITY * suit[fcell, kp] * (vp > 0) * P.SEASON_DAYS
     cell_eff = np.zeros(w.planet.n)
     np.add.at(cell_eff, cells, farm_eff)
     land_share = np.where(cell_eff[cells] > 0, farm_eff / np.maximum(cell_eff[cells], 1e-12), 0.0)
@@ -426,12 +470,16 @@ def season_food_live(w, ids, cells, effort):
     crop = np.minimum(base * (1 - animal_part) * cw, room * (1 - animal_part) * cf * rest)
     # the share of the cell's farmland each band works for crops, before fertility and salt (Codex review 020), and
     # the share it would have worked with no land resting (fallow gives way to need; Ben, 19 November 2026)
-    worked = np.where(caps * cf > 0, crop / np.maximum(caps * cf, 1e-12), 0.0)
+    # measured against the cell's crop capacity, not a pasture capacity (Codex review 021, finding 3)
+    worked = np.where(crop_caps * cf > 0, crop / np.maximum(crop_caps * cf, 1e-12), 0.0)
     wanted = np.minimum(base * (1 - animal_part) * cw, room * (1 - animal_part) * cf)
-    need = np.where(caps * cf > 0, wanted / np.maximum(caps * cf, 1e-12), 0.0)
-    crop = crop * land.crop_factor(w, cells)            # worn or salted soil yields less (M4a land)
+    need = np.where(crop_caps * cf > 0, wanted / np.maximum(crop_caps * cf, 1e-12), 0.0)
+    _cfac = land.crop_factor(w, cells)
+    lost_crop = crop * (1.0 - _cfac)                    # what worn or salted soil took (the food account)
+    crop = crop * _cfac                                 # worn or salted soil yields less (M4a land)
     if on.any():
         land.note_crops(w, ids[on], cells[on], worked[on], animal_part[on], need[on])
+    land.note_crop_loss(w, ids, lost_crop)
     grown = herd + crop
     if getattr(w, "farm_rr_real", None) is not None and on.any():
         # what fields and herds actually gave per worker-day this season (M4a land: choices see real yields)
@@ -442,7 +490,10 @@ def season_food_live(w, ids, cells, effort):
         oi = ids[on][ok]
         rr = grown[on][ok] / days[ok]
         prev = w.farm_rr_real[oi]
-        w.farm_rr_real[oi] = np.where(np.isfinite(prev), 0.9 * prev + 0.1 * rr, rr)
+        here = cells[on][ok]
+        same = np.isfinite(prev) & (w.farm_rr_cell[oi] == here)
+        w.farm_rr_real[oi] = np.where(same, 0.9 * prev + 0.1 * rr, rr)
+        w.farm_rr_cell[oi] = here
     w.crop_store[ids] += crop
     food = herd
     if w.quarter == P.HARVEST_QUARTER:

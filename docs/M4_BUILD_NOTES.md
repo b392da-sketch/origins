@@ -782,3 +782,23 @@ All seven findings reproduced and fixed (`reviews/responses/020-land-answers-bac
 **Two more errors of mine, found in the trials:** fields cleared nearly all of any farmed cell's forest (now they clear the land they take; the earlier forest knock-out had this error), and wood within reach as a mean over two rings ran out far too soon (now the best-wooded cell).
 
 **Trials** (planet 3, `snap_p3s1_8500_plus1200.zip` at year 9,700, 300 years, `local/scripts/knockout_land.py`; no invariant failures): land off 498,241; land on as built 321,477; with fallow by farmers on cropland 312,138, and with fallow at its shortest 341,774; real yields off 308,430; fuel unlimited 320,452 (an upper bound). The land costs about 35% of the people here. One history: the gate must run the arms over several. **Hunting pressure:** at steady stock `REGROWTH` 0.55 bounds the sustainable take against the year's targets; the median 0.49 is near that ceiling (Codex). The soil values `FERT_DRAIN` and `FERT_FLOOR` remain unmeasured; they are an open question in the Notion research-questions database.
+
+### After Codex review 021 (20 November 2026)
+
+All seven findings reproduced and fixed (`reviews/responses/021-review-020-fixes-claude.md`):
+- **Wood** is gathered from the wooded cells within two rings, in proportion to living cover; coal-smelted tin and iron take none.
+- **The realised farming return** belongs to the cell where it was earned (`farm_rr_cell`), and is cleared when farming stops.
+- **Crop use** is measured against crop capacity.
+- **Irrigation and manure** are averages over the crops actually worked.
+- **Moves** cite lost game or forest only if the band would have stayed with this season's regrowth at its natural level. Worn soil reaches migration through `land_abandoned`: a village that would have kept farming on fresh soil.
+- **Wood and imports lost together** are recorded as one cut-off with `wood: true`.
+
+Ben's decisions (20 November 2026):
+- **Resuming wood work** needs `FUEL_RESUME` 0.2 of the best-wooded cell's cover; keeping it going needs `FUEL_MIN` 0.1.
+- **Famine evidence: the food account test.** Each band records its seasonal shortfall and what the land's losses took from food it actually got (this season's lost regrowth for wild food; worn or salted soil's loss from its crops, spread over the seasons after the harvest). A hunger death cites the land only if restoring those losses would have covered the shortfall.
+- **Farm room** counts only crops and animals a band can use (a bug since M2; it changes harvests).
+- **Fuel wood: spread it and keep it small.** `FOREST_FUEL` 0.000005 per unit (it was 0.001, uncalibrated): the first trial of Codex's fix stripped forests region-wide (13% left on lived-in forest cells; 81% of lived-in cells without wood).
+
+**Trial** (planet 3, year-9,700 save, 300 years): land off 505,784 (farm-room fix included); land on 319,551, so the land costs about 37% of the people here. 150 of 3,913 individual hunger deaths pass the food account test. One history.
+
+**Independent literature checks (Ben, 20 November 2026):** for each new idea, Claude does its own check and puts the same question to ChatGPT without Claude's findings, through the Notion research questions; Claude verifies every source before use. ChatGPT's first two rounds (disease origins, first-contact mortality, soil decline, critical community size, causes of death, endemic shift, fallow recovery) are in the Notion sources database with each source's verification status; one figure was corrected (Poulton et al. 2024: 0.90 t/ha, not 1.01).

@@ -36,7 +36,7 @@ print("events", {k: ev[k] for k in sorted(ev) if k.startswith(("land_", "techniq
 nf = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "technique_no_fuel"]
 print("no-fuel lapses by technique", dict(collections.Counter(e["data"]["technique"] for e in nf)))
 if P.LAND:
-    cells = np.array([b.cell for b in live])
+    cells = np.unique([b.cell for b in live])          # each lived-in cell once (Codex review 021)
     from origins.sim import land as _land
     fm = _land.forest_max(w)
     fc = cells[fm[cells] > 0]
@@ -45,7 +45,7 @@ if P.LAND:
           "wood within reach below FUEL_MIN", round(float((_land.forest_near(w)[cells] < P.FUEL_MIN).mean()), 3),
           "fertility", round(float(w.fertility[cells].mean()), 3), "salt", round(float(w.salt[cells].mean()), 3),
           "fallow", round(float(w.fallow[cells].mean()), 3))
-    farms = cells[w.farm_share[[b.id for b in live]] > 0.2]
+    farms = np.unique([b.cell for b in live if w.farm_share[b.id] > 0.2])
     if len(farms):
         print("farmed cells: fertility", round(float(w.fertility[farms].mean()), 3), "fallow", round(float(w.fallow[farms].mean()), 3))
 p = w.people
@@ -53,7 +53,8 @@ dead = np.nonzero((p.death[:p.n] >= 0) & (np.arange(p.n) >= 0))[0]
 recent = dead[(p.death[dead] >= w.t - YEARS * P.TICKS_PER_YEAR)]
 from origins.sim.demography import C
 hung = recent[p.cause[recent] == C["hunger"]]
-print("hunger deaths (individuals)", len(hung), "with a land event", int((p.death_land[hung] >= 0).sum()))
+print("hunger deaths (individuals)", len(hung), "with a land event", int((p.death_land[hung] >= 0).sum()),
+      "; grouped hunger deaths", w.counts.get("group_hunger_deaths", 0), "(cumulative)")
 moves = [i for i in range(n0, len(w.events)) if w.events[i]["kind"] == "land_move"]
 rng = np.random.default_rng(0)
 sample = rng.choice(moves, size=min(20, len(moves)), replace=False) if moves else []

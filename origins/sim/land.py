@@ -54,7 +54,11 @@ def init(w):
     w.forest = forest_max(w).copy()
     w.fertility = np.ones(n)
     w.salt = np.zeros(n)
-    w.fallow = np.full(n, P.FALLOW_MAX)        # share of farmland resting, set each year by crowding (Boserup 1965)
+    w.fallow = np.full(n, P.FALLOW_MAX)        # share of farmland resting, set each year by need (Boserup 1965)
+    w.land_short = np.zeros(0)                 # per band, this season: shortfall of food against needs
+    w.land_lost_wild = np.zeros(0)             # ... wild food lost game and forest took from its harvest
+    w.land_lost_crop = np.zeros(0)             # ... crops worn or salted soil took, per season, from the last harvest
+    w.land_crop_acc = np.zeros(0)              # ... crops lost so far this year, before the harvest
     w.land_flags = np.zeros((n, len(KINDS)), dtype=bool)   # crossed and not yet recovered
     w.land_event = -np.ones((n, len(KINDS)), dtype=np.int64)
     w.land_since = -np.ones((n, len(KINDS)), dtype=np.int64)   # year the use began that led to the crossing
@@ -68,8 +72,8 @@ def _clear_year(w):
     w.land_work = np.zeros(n)       # this year's share of farmland worked for crops, summed over farmed seasons
     w.land_seasons = np.zeros(n)    # seasons this year in which the cell was farmed
     w.land_need = np.zeros(n)       # share of farmland the farmers would have worked for crops with no fallow
-    w.land_manure = np.zeros(n)     # best manuring x herds share among farmers on the cell
-    w.land_irr = np.zeros(n)        # best irrigation quality among farmers on the cell
+    w.land_manure = np.zeros(n)     # sum over bands of worked share x manuring x herds share
+    w.land_irr = np.zeros(n)        # sum over bands of worked share x irrigation quality
     w.land_fuel = np.zeros(n)       # goods made with fire (pottery, copper, tin, iron) this year
 
 
@@ -150,19 +154,37 @@ def note_crops(w, ids, cells, worked, animal_part, need=None):
         np.add.at(wanted, cells, need)
         w.land_need += np.clip(wanted, 0.0, 1.0)
     from . import technology
+    # irrigation and manuring count for the crops each band actually works (Codex review 021, finding 4): sums of
+    # worked share x quality, divided by the worked share in the yearly update
     man = technology._q(w, ids, "manuring") * animal_part
     irr = technology._q(w, ids, "irrigation")
-    np.maximum.at(w.land_manure, cells, man)
-    np.maximum.at(w.land_irr, cells, irr)
+    np.add.at(w.land_manure, cells, worked * man)
+    np.add.at(w.land_irr, cells, worked * irr)
 
 
-def note_fuel(w, cells, units):
+def note_fuel(w, cells, units, coal_ok=False):
+    """trade: goods made with fire. The wood is gathered from every wooded cell within two rings, in proportion to
+    its living cover, not from the cell where the goods are made (Codex review 021, finding 1; Ben, 20 November
+    2026: spread it and keep it small, after Iles 2020). Goods smelted with coal within reach take no wood."""
     if getattr(w, "game", None) is None:
         return
-    np.add.at(w.land_fuel, cells, units)
+    cells = np.asarray(cells)
+    units = np.asarray(units, dtype=float)
+    if coal_ok:
+        from . import technology
+        coal = technology._cell_materials(w)[cells, technology.MATERIALS.index("coal")]
+        units = np.where(coal, 0.0, units)
+    on = units > 0
+    if not on.any():
+        return
+    idx, ok = _ring2_padded(w)
+    c, u = cells[on], units[on]
+    cover = np.where(ok[c], w.forest[idx[c]], 0.0)
+    tot = cover.sum(axis=1)
+    has = tot > 0
+    share = cover[has] / tot[has, None]
+    np.add.at(w.land_fuel, idx[c[has]].ravel(), (share * u[has, None]).ravel())
 
-
-# ------------------------------------------------------------------ the yearly update
 
 def use(w) -> np.ndarray:
     """Per cell: the share of its farmland worked for crops this year (0 where it was not farmed)."""
@@ -250,13 +272,16 @@ def yearly(w):
     # fertility: drawn down by cropping (less with manure), recovering in fallow, lost to erosion on cleared slopes
     bare = np.where(fm > 0, 1.0 - w.forest / np.maximum(fm, 1e-9), 1.0)
     F = w.fertility
-    drain = P.FERT_DRAIN * u * F * (1.0 - P.MANURE_SAVE * np.clip(w.land_manure, 0, 1))
+    worked = np.maximum(w.land_work, 1e-12)
+    manure = np.clip(w.land_manure / worked, 0, 1)      # mean over the crops worked (Codex review 021, finding 4)
+    irrig = np.clip(w.land_irr / worked, 0, 1)
+    drain = P.FERT_DRAIN * u * F * (1.0 - P.MANURE_SAVE * manure)
     erode = P.EROSION * _slope(w) * bare * u
     F = F - drain - erode + P.FERT_RECOVER * (1.0 - u) * (1.0 - F)
     w.fertility = np.clip(F, 0.0, 1.0)
     # salt: irrigation on dry land, slow leaching in fallow
     dry = np.clip((P.DRY_RAIN - pl.rain) / P.DRY_RAIN, 0.0, 1.0)
-    S = w.salt + P.SALT_RISE * np.clip(w.land_irr, 0, 1) * u * dry - P.SALT_LEACH * w.salt * (1.0 - u)
+    S = w.salt + P.SALT_RISE * irrig * u * dry - P.SALT_LEACH * w.salt * (1.0 - u)
     w.salt = np.clip(S, 0.0, 1.0)
     _crossings(w, u, h)
     # fallow for the coming year gives way to need (Ben, 19 November 2026, after review 020; Boserup 1965): farmers
@@ -307,23 +332,72 @@ def _crossings(w, u, h):
                                          value=round(float(value[kind][c]), 3), since=int(w.land_since[c, j]))
 
 
-def felt(w, cell: int, farms: bool) -> list:
-    """The recorded land events on a cell that lower the food people there get, where the land gives at most
-    LAND_FELT of its natural yield: lost game or forest for wild food; worn or salted soil for crops, if they farm
-    (Codex review 020, finding 5). Most severe first."""
+def kind_factors(w, cell: int) -> dict:
+    """What each kind of loss leaves of its own part of the food on a cell (1 = no loss)."""
+    fm = forest_max(w)[cell]
+    fert = P.FERT_FLOOR + (1.0 - P.FERT_FLOOR) * w.fertility[cell]
+    over = min(max((w.salt[cell] - P.SALT_THRESH) / (1.0 - P.SALT_THRESH), 0.0), 1.0)
+    return {"game": 1.0 - P.GAME_SHARE * (1.0 - w.game[cell]) - P.GAME_FAST_SHARE * (1.0 - w.game_fast[cell]),
+            "forest": 1.0 - P.FOREST_WILD * fm * (1.0 - w.forest[cell] / max(fm, 1e-9)) if fm > 0 else 1.0,
+            "soil": float(fert), "salt": 1.0 - P.SALT_MAX_LOSS * over}
+
+
+def felt(w, band_id: int, cell: int) -> list:
+    """The land events to cite for a band's shortfall this season (Ben, 19 November 2026, after Codex review 021:
+    the food account test). The band's food account records what lost game and forest took from the wild food it
+    actually harvested, and what worn or salted soil took from the crops it actually grew; the land is cited only if
+    restoring that would have covered its shortfall. Within each pool, the events are ranked by their own loss."""
     if not getattr(P, "LAND", False) or getattr(w, "land_flags", None) is None:
         return []
-    wild = float(np.atleast_1d(wild_factor(w))[cell] if np.ndim(wild_factor(w)) else 1.0)
-    crop = float(crop_factor(w, np.array([cell]))[0])
+    a = getattr(w, "land_short", None)
+    if a is None or band_id >= len(a):
+        return []
+    short, lw, lc = float(w.land_short[band_id]), float(w.land_lost_wild[band_id]), float(w.land_lost_crop[band_id])
+    if short <= 0 or lw + lc < short:
+        return []
+    fac = kind_factors(w, cell)
     out = []
     for j, kind in enumerate(KINDS):
         e = int(w.land_event[cell, j])
         if not w.land_flags[cell, j] or e < 0:
             continue
-        f = wild if kind in ("game", "forest") else (crop if farms else 1.0)
-        if f <= P.LAND_FELT:
-            out.append((f, e))
-    return [e for _f, e in sorted(out)]
+        lost = lw if kind in ("game", "forest") else lc
+        if lost > 0 and fac[kind] < 1.0:
+            out.append((-lost, fac[kind], e))
+    return [e for _l, _f, e in sorted(out)]
+
+
+def _band_rows(w, n):
+    for name in ("land_short", "land_lost_wild", "land_lost_crop", "land_crop_acc"):
+        a = getattr(w, name, None)
+        if a is None or len(a) < n:
+            b = np.zeros(max(n, 64) if a is None else max(n, 2 * len(a)))
+            if a is not None:
+                b[:len(a)] = a
+            setattr(w, name, b)
+
+
+def note_crop_loss(w, ids, lost):
+    """farming, each season: crops worn or salted soil took from each band. At the harvest the year's loss becomes
+    the band's crop loss per season until the next harvest (the crops feed it through the year)."""
+    if not getattr(P, "LAND", False) or getattr(w, "game", None) is None:
+        return
+    ids = np.asarray(ids)
+    _band_rows(w, int(np.max(ids, initial=-1)) + 1)
+    np.add.at(w.land_crop_acc, ids, lost)
+    if w.quarter == P.HARVEST_QUARTER:
+        w.land_lost_crop[ids] = w.land_crop_acc[ids] / P.TICKS_PER_YEAR
+        w.land_crop_acc[ids] = 0.0
+
+
+def note_account(w, ids, short, lost_wild):
+    """foraging, each season: each band's shortfall, and the wild food lost game and forest took from it."""
+    if not getattr(P, "LAND", False) or getattr(w, "game", None) is None:
+        return
+    ids = np.asarray(ids)
+    _band_rows(w, int(np.max(ids, initial=-1)) + 1)
+    w.land_short[ids] = short
+    w.land_lost_wild[ids] = lost_wild
 
 
 def history(w, cell) -> str:
@@ -339,4 +413,5 @@ def history(w, cell) -> str:
 
 
 ARRAYS = ("game", "game_fast", "forest", "fertility", "salt", "fallow", "land_flags", "land_event", "land_since", "land_take", "land_wild",
-          "land_work", "land_seasons", "land_need", "land_manure", "land_irr", "land_fuel")
+          "land_work", "land_seasons", "land_need", "land_manure", "land_irr", "land_fuel", "land_short", "land_lost_wild",
+          "land_lost_crop", "land_crop_acc")
