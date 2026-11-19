@@ -39,6 +39,7 @@ def move(w):
     settled = w.farm_share[ids] >= 0.5                 # villages stay with their fields
     want = (vals.max(1) > cur * P.MOVE_THRESHOLD) & (s > 0) & ~settled
     cand = np.nonzero(want)[0]
+    cache = {}
     for k in cand[w.rng["movement"].permutation(len(cand))]:
         b = bands[int(k)]
         sz = s[k]
@@ -48,12 +49,13 @@ def move(w):
         j = int(np.argmax(v))
         if v[j] > here * P.MOVE_THRESHOLD:
             best = int(ns[j])
+            occ_here = float(occ[b.cell])
             occ[b.cell] -= sz
             occ[best] += sz
             from . import land
             b.last_move = (f"moved for food: {v[j] / P.SEASON_DAYS:.2f} vs "
                            f"{here / P.SEASON_DAYS:.2f} food units per person-day available")
-            ev = _land_move(w, b, here, float(v[j]))
+            ev = _land_move(w, b, here, float(v[j]), occ_here, cache)
             if ev >= 0:
                 b.last_move += f"; the land: event {ev}"
             b.cell = best
@@ -61,36 +63,35 @@ def move(w):
             w.reveal_pending.add(b.id)
 
 
-def _land_move(w, b, here, there) -> int:
-    """If the land's loss decided a move, record it as an event citing the land events (Codex review 020, finding 5):
-    lost game or forest where the band left, without which it would have stayed (its food there at the natural
-    level would have been enough); or, for a band that farms, worn or salted fields that lowered what its farming
-    gave. Returns the event id, or -1."""
-    from . import land
+def _land_move(w, b, here, there, occ_here, cache) -> int:
+    """If the land's loss decided a move, record it as an event citing the land events (Codex reviews 020 and 021,
+    finding 5). The counterfactual restores only this season's regrowth at the band's cell to its natural level
+    (regrowth runs just before movement): stock + REGROWTH x (natural target - target), per person. Lost game or
+    forest is cited only if the band would then have stayed. Worn soil reaches migration through the farming choice
+    (farming._land_abandoned), not through wild food, so it is not cited here. Returns the event id, or -1."""
+    from . import land, climate
     if not getattr(P, "LAND", False) or getattr(w, "land_flags", None) is None:
         return -1
     c = b.cell
-    farms = bool(w.farm_share[b.id] > 0)
-    events = land.felt(w, c, farms)
+    events = [int(w.land_event[c, j]) for j, k in enumerate(land.KINDS)
+              if k in ("game", "forest") and w.land_flags[c, j] and w.land_event[c, j] >= 0]
     if not events:
         return -1
-    wf = land.wild_factor(w)
-    wf = float(wf[c]) if np.ndim(wf) else 1.0
-    stay_wild = there <= (here / max(wf, 1e-9)) * P.MOVE_THRESHOLD     # natural game and forest: no move
+    if "natural" not in cache:
+        cache["natural"] = climate.seasonal_max(w, land=False)
+        cache["wf"] = land.wild_factor(w)
+    natural = float(cache["natural"][c])
+    actual = natural * float(cache["wf"][c])
+    here_nat = here + P.REGROWTH * max(natural - actual, 0.0) / max(occ_here, 1.0)
+    if there > here_nat * P.MOVE_THRESHOLD:
+        return -1                                       # it would have left anyway
+    fac = land.kind_factors(w, c)
     kinds = {int(w.land_event[c, j]): k for j, k in enumerate(land.KINDS)}
-    wild_ev = [e for e in events if kinds.get(e) in ("game", "forest")]
-    soil_ev = [e for e in events if kinds.get(e) in ("soil", "salt")]
-    cited = (wild_ev if stay_wild else []) + soil_ev
-    if not cited:
-        return -1
+    events.sort(key=lambda e: fac[kinds[e]])
     note = (f"{w.band_name(b)} left: {here / P.SEASON_DAYS:.2f} food units per person-day where it was, against "
-            f"{there / P.SEASON_DAYS:.2f} next door")
-    if stay_wild and wild_ev:
-        note += f"; with game and forest as they once were it would have had {here / max(wf, 1e-9) / P.SEASON_DAYS:.2f}"
-    if soil_ev:
-        note += (f"; its fields there gave {float(land.crop_factor(w, np.array([c]))[0]):.0%} of what fresh soil "
-                 f"gives")
-    return w.event("land_move", cell=c, band=b.id, causes=[{"note": note}] + [{"event": e} for e in cited])
+            f"{there / P.SEASON_DAYS:.2f} next door; with this season's regrowth at the land's natural level it would "
+            f"have had {here_nat / P.SEASON_DAYS:.2f}, and stayed")
+    return w.event("land_move", cell=c, band=b.id, causes=[{"note": note}] + [{"event": e} for e in events])
 
 
 def forage_and_eat(w):
@@ -195,6 +196,18 @@ def forage_and_eat(w):
     seasons = 1 + fs * (horizon - 1)
     margin = np.where(total_need > 0, avail / np.maximum(total_need * seasons, 1e-12), 1.6)
     ratio_b = np.where(total_need > 0, eaten / np.where(total_need > 0, total_need, 1.0), 1.0)
+    if getattr(P, "LAND", False) and getattr(w, "game", None) is not None:
+        # the food account (Ben, 20 November 2026, after Codex review 021): the wild food lost game and forest took
+        # from each band this season, as this season's regrowth short of its natural level, times the share of the
+        # stock harvested on its cell and the band's share of that harvest; and its shortfall against needs
+        from . import climate
+        natural = climate.seasonal_max(w, land=False)
+        missing = P.REGROWTH * np.maximum(natural - natural * land.wild_factor(w), 0.0)
+        frac = np.zeros(w.planet.n)
+        frac[used] = np.where(am > 1e-9, hm / np.maximum(am, 1e-9), 0.0)
+        lost_wild = (missing[cells] * frac[cells]
+                     * np.where(cell_effort[cells] > 0, effort / np.maximum(cell_effort[cells], 1e-12), 0.0))
+        land.note_account(w, ids, np.maximum(total_need - eaten, 0.0), lost_wild)
     mg = np.minimum(margin, 3.0).tolist()
     kp = kept.tolist()
     rb = ratio_b.tolist()

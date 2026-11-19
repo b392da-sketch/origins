@@ -122,6 +122,7 @@ KEYS = [t.key for t in TECHNIQUES]
 INDEX = {k: i for i, k in enumerate(KEYS)}
 K = len(TECHNIQUES)
 MATERIALS = ("forest", "flint", "clay", "salt", "copper", "tin", "iron", "coal", "gold")
+WOOD_TECHS = [i for i, t in enumerate(TECHNIQUES) if any("forest" in g for g in t.materials)]
 TERRAIN = ("hills", "water")
 WRITING = INDEX["writing"]
 
@@ -305,6 +306,16 @@ def _possible(w, ids, cells, lvl=None) -> np.ndarray:
     farms = np.clip(w.farm_share[ids], 0, 1) >= P.TECH_FARMING
     crop = sk[:, farming.PLANTS].any(axis=1)
     mats = _mats_now(w, cells)
+    if (getattr(P, "LAND", False) and getattr(w, "forest", None) is not None and not getattr(w, "_static_forest", False)
+            and getattr(w, "tech_prev_prac", None) is not None and len(w.tech_prev_prac) > int(np.max(ids, initial=0))):
+        # taking up wood work again needs more forest than keeping it going (Ben, 20 November 2026, after Codex
+        # review 021): bands that practised a technique needing wood last year keep wood down to FUEL_MIN; others
+        # need FUEL_RESUME, the time to restore a reliable supply
+        from . import land
+        near = land.forest_near(w)[cells]
+        kept = w.tech_prev_prac[ids][:, WOOD_TECHS].any(axis=1)
+        mats = mats.copy()
+        mats[:, MATERIALS.index("forest")] &= near >= np.where(kept, P.FUEL_MIN, P.FUEL_RESUME)
     if getattr(P, "TRADE", False):
         held = getattr(w, "_goods_mats_override", None)   # set only by _cut_off: last year's holdings
         if held is None:
@@ -418,17 +429,22 @@ def _cut_off(w, live, ids, cells):
     prev_mats = w.tech_prev_mats[ids]
     held_now = _trade.goods_materials(w, ids, MATERIALS)
 
-    def possible_with(extra):
+    def possible_with(extra, wood=False):
         # current goods-held materials plus the given ones: a lost import is restored without dropping a newly
-        # available one (Codex review 019)
+        # available one (Codex review 019); wood=True also restores the forest of the biome (review 021)
         w._goods_mats_override = held_now | extra
+        w._static_forest = wood
         try:
             return _possible(w, ids, cells)
         finally:
             w._goods_mats_override = None
+            w._static_forest = False
     lost = prev_mats & ~held_now
     with_last = possible_with(lost)
-    cut = w.tech_prev_prac[ids] & known & ~now & with_last
+    lapsed = w.tech_prev_prac[ids] & known & ~now
+    # imports alone, or imports and wood together (Codex review 021, finding 7)
+    both = lapsed & ~with_last & possible_with(lost, wood=True) & ~possible_with(np.zeros_like(lost), wood=True)
+    cut = lapsed & (with_last | both)
     _no_fuel(w, live, ids, cells, known, now)
     if not cut.any():
         return
@@ -443,11 +459,12 @@ def _cut_off(w, live, ids, cells):
         rel = _relevant_materials(k)
         cands = [m for m in np.nonzero(lost[i] & ~local[i])[0].tolist() if MATERIALS[m] in rel]
         named = []
+        wood = bool(both[i, k])
         for size in range(1, len(cands) + 1):
             for combo in combinations(cands, size):
                 one = np.zeros_like(lost)
                 one[i, list(combo)] = True
-                if possible_with(one)[i, k]:
+                if possible_with(one, wood=wood)[i, k]:
                     named = [MATERIALS[m] for m in combo]
                     break
             if named:
@@ -459,8 +476,16 @@ def _cut_off(w, live, ids, cells):
         what = "/".join(own) if own else "/".join(named) + ", which a technique it depends on needs,"
         why = (f"{w.band_name(b)} could no longer practise {t.name}: the {what} it had by trade ran out, "
                f"and none is within reach")
-        w.event("technique_cut_off", cell=b.cell, band=b.id, technique=t.key, materials=named,
-                causes=[{"note": why}])
+        causes = [{"note": why}]
+        if wood:
+            from . import land
+            from .language import ring2
+            j = land.KINDS.index("forest")
+            causes[0]["note"] += "; the wood within reach is gone too"
+            causes += [{"event": int(w.land_event[c, j])} for c in ring2(w)[b.cell]
+                       if w.land_event[int(c), j] >= 0][:3]
+        w.event("technique_cut_off", cell=b.cell, band=b.id, technique=t.key, materials=named, wood=wood,
+                causes=causes)
 
 
 def _relevant_materials(k) -> set:

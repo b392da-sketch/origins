@@ -371,6 +371,6 @@ FALLOW_MIN = 0.1          # share resting where farmers need all of it (annual c
 FUEL_FULL = 0.3           # living forest cover of the best-wooded cell within two rings that gives full fuel for smelting (Ben, 19 Nov
                           # 2026: fuel limits output). Starting value
 FUEL_MIN = 0.1            # below it (best-wooded cell within two rings), no wood for smelting, iron, canoes or carts
+FUEL_RESUME = 0.2         # a band that did not practise wood work last year needs this much to take it up again (Ben,
+                          # 20 Nov 2026, after Codex review 021: time to restore a reliable supply)
 REAL_YIELDS = True        # farmers' choices see real yields (Ben, 19 Nov 2026); False is the knock-out
-LAND_FELT = 0.9           # a land event is named in a famine or a move only where the land gives at most this share
-                          # of its natural yield (Codex review 020, finding 5). Starting value
