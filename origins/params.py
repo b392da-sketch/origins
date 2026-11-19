@@ -373,5 +373,6 @@ FALLOW_CROWD_FULL = 1.0   # crop farmers in the cell and its neighbours against 
 FUEL_FULL = 0.3           # living forest cover of the best-wooded cell within two rings that gives full fuel for smelting (Ben, 19 Nov
                           # 2026: fuel limits output). Starting value
 FUEL_MIN = 0.1            # below it (best-wooded cell within two rings), no wood for smelting, iron, canoes or carts
+REAL_YIELDS = True        # farmers' choices see real yields (Ben, 19 Nov 2026); False is the knock-out
 LAND_FELT = 0.9           # a land event is named in a famine or a move only where the land gives at most this share
                           # of its natural yield (Codex review 020, finding 5). Starting value

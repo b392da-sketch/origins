@@ -161,7 +161,7 @@ def best_farm_cell(w, b, occupied):
         usable = (sk >= 3) | wild[m]
         # crops judged at their real yields there: worn or salted soil, and land resting in fallow (M4a land)
         real = np.where(plant, float(land.crop_factor(w, np.array([m]))[0] * land.cropped_share(w, np.array([m]))[0]),
-                        1.0)
+                        1.0) if getattr(P, "REAL_YIELDS", True) else 1.0
         v = float(np.max(np.where(usable, quality(sk) * suit[m] * real, 0.0)))
         room = v * P.FARM_CAPACITY / (occupied.get(m, 0.0) + 1.0)
         if v > 0 and room > best_v:
@@ -294,7 +294,8 @@ def yearly(w):
     _ap = VA / np.maximum(VP + VA, 1e-9)             # the same mixture as the harvest (review 010, finding 3)
     from . import land
     _bc = np.array([b.cell for b in bands])
-    TPW = _cw * (1 - _ap) * land.crop_factor(w, _bc) + _hw * _ap     # worn or salted soil pays less (M4a land)
+    _cfac = land.crop_factor(w, _bc) if getattr(P, "REAL_YIELDS", True) else 1.0
+    TPW = _cw * (1 - _ap) * _cfac + _hw * _ap         # worn or salted soil pays less (M4a land)
     real = _real_rr(w, bid)
     for n, b in enumerate(bands):
         kp, vp, ka, va = int(KP[n]), float(VP[n]), int(KA[n]), float(VA[n])
@@ -330,7 +331,7 @@ def yearly(w):
 
 
 def _real_rr(w, ids) -> np.ndarray:
-    if not getattr(P, "LAND", False) or getattr(w, "farm_rr_real", None) is None:
+    if not getattr(P, "LAND", False) or not getattr(P, "REAL_YIELDS", True) or getattr(w, "farm_rr_real", None) is None:
         return np.full(len(ids), np.nan)
     if len(w.farm_rr_real) <= int(np.max(ids, initial=0)):
         ensure(w, int(np.max(ids)), -1)
