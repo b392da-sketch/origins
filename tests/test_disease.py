@@ -142,6 +142,27 @@ class Disease(unittest.TestCase):
         self.assertTrue(np.array_equal(w2.dz_imm, w.dz_imm))
         self.assertEqual(persist.digest(w2), persist.digest(w))
 
+    def test_a_disease_that_died_out_can_pass_again_from_its_animals(self):
+        w = world()
+        b = w.living_bands()[0]
+        d = add(w, b.cell, k=1e-12, attack=0.9, cfr=0.0)
+        first_year(w)
+        w.dz_active[:] = False                                          # gone from people
+        old = P.DZ_RESPILL_WILD, P.DZ_EMERGE_WILD
+        P.DZ_RESPILL_WILD, P.DZ_EMERGE_WILD = 1.0, 0.0
+        try:
+            n0 = len(w.events)
+            disease.yearly(w)
+        finally:
+            P.DZ_RESPILL_WILD, P.DZ_EMERGE_WILD = old
+        self.assertTrue(w.dz_active[b.cell, d])                         # back where people live in its region
+        ob = [e for e in w.events[n0:] if e["kind"] == "outbreak"]
+        self.assertEqual(len(ob), 1)
+        self.assertIn("passed again from its animals", ob[0]["causes"][1]["note"])
+        self.assertEqual(len(w.diseases), 1)                            # the same disease, not a new one
+        far = w.planet.region != w.planet.region[w.diseases[d]["cell"]]
+        self.assertFalse(w.dz_active[far, d].any())                     # only within its reservoir's range
+
     def test_switched_off_m1_outbreaks_run(self):
         from origins.sim import hazards
         w = world()

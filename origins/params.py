@@ -383,7 +383,10 @@ REAL_YIELDS = True        # farmers' choices see real yields (Ben, 19 Nov 2026);
 DISEASE = True                    # False keeps M1's anonymous outbreaks (the knock-out)
 DZ_EMERGE_HERD = 2e-7             # yearly chance per person herding a species long domesticated
 DZ_DOM_YEARS = 2000.0             # years since domestication at which herd pressure is full (Morand et al. 2014)
-DZ_EMERGE_WILD = 2e-9             # yearly chance per person of a new disease from wild animals
+DZ_EMERGE_WILD = 2e-8             # yearly chance per person of a disease new to these people from wild animals
+                                  # (was 2e-9, a count of diseases new to the world: Ben, 20 November 2026)
+DZ_RESPILL_WILD = 2e-6            # yearly chance per person living in its region that a wild disease passes again
+DZ_RESPILL_HERD = 2e-5            # yearly chance per person herding its species that a herd disease passes again
 DZ_ATTACK_RANGE = (0.5, 0.95)     # share of those who can catch it who do, in an epidemic
 DZ_CFR_RANGE = (0.005, 0.3)       # deaths per adult case (log-uniform): measles-like to smallpox-like
 DZ_CHILD_MULT_RANGE = (0.5, 2.0)  # children's deaths per case against adults'

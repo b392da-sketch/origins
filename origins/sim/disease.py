@@ -146,8 +146,11 @@ def yearly(w):
                     active[m, d] = True
                     source[(m, d)] = "contact"
                     w.counts["ob_contact_infections"] = w.counts.get("ob_contact_infections", 0) + 1
-    # 3. emergence: new diseases from herds and from wild animals
-    _emerge(w, rng, bands, ids, cells, sizes, pop, active, source)
+    # 3. spillover again from the animals that carry each disease (Ben, 20 November 2026: reservoirs)
+    herders = _herders(w, ids, cells, sizes)
+    _respill(w, rng, pop, herders, active, source)
+    # 4. emergence: new diseases from herds and from wild animals
+    _emerge(w, rng, bands, ids, cells, sizes, pop, active, source, herders)
     nd = len(w.diseases)
     # exposure accounting for gate G1 check 9 (as M1): peopled cells in contact with circulation vs not
     any_active = active[:, :nd].any(axis=1) if nd else np.zeros(n, dtype=bool)
@@ -157,7 +160,7 @@ def yearly(w):
     peopled = int((pop > 0).sum())
     w.counts["ob_contact_cell_years"] = w.counts.get("ob_contact_cell_years", 0) + len(exposed)
     w.counts["ob_other_cell_years"] = w.counts.get("ob_other_cell_years", 0) + peopled - len(exposed)
-    # 4. epidemics where it circulates: deaths and immunity
+    # 5. epidemics where it circulates: deaths and immunity
     w.dz_active[:] = active
     if nd:
         _epidemics(w, rng, bands, ids, cells, sizes, active, resp, source)
@@ -211,12 +214,9 @@ def _contacts(w, bands, cells) -> dict:
     return out
 
 
-def _emerge(w, rng, bands, ids, cells, sizes, pop, active, source):
-    if len(w.diseases) >= ND_CAP:
-        return
+def _herders(w, ids, cells, sizes) -> dict:
+    """(cell, species) -> people herding that domesticated species there (the band's farm share x its herd part)."""
     from . import farming
-    year = w.year
-    # herds: people herding each domesticated species on each cell
     share = np.clip(w.farm_share[ids], 0, 1)
     on = share > 0
     pressure = {}
@@ -227,6 +227,41 @@ def _emerge(w, rng, bands, ids, cells, sizes, pop, active, source):
         for c, s, h, ok in zip(cells[on].tolist(), ka.tolist(), herd.tolist(), dom.tolist()):
             if ok and h > 0:
                 pressure[(c, s)] = pressure.get((c, s), 0.0) + h
+    return pressure
+
+
+def _respill(w, rng, pop, herders, active, source):
+    """A disease that has died out among people lives on in its animals and can pass to people again (Ben,
+    20 November 2026, after the first trial: a disease that died out never came back). Herd diseases pass again
+    where people herd their species; wild ones where people live in the region where they first appeared (their
+    reservoir's range). Most such starts are short: in small groups an acute disease soon runs out of people who
+    can catch it (Black 1975)."""
+    from . import farming
+    region = w.planet.region
+    for d, dz in enumerate(w.diseases):
+        if dz["host"] == "wild":
+            cand = np.nonzero((region == region[dz["cell"]]) & (pop > 0) & ~active[:, d])[0]
+            if not len(cand):
+                continue
+            hit = cand[rng.random(len(cand)) < P.DZ_RESPILL_WILD * pop[cand]]
+        else:
+            k = farming.SPECIES.index(dz["host"])
+            cand = [(c, h) for (c, s), h in sorted(herders.items()) if s == k and not active[c, d]]
+            if not cand:
+                continue
+            draw = rng.random(len(cand))
+            hit = [c for (c, h), r in zip(cand, draw) if r < P.DZ_RESPILL_HERD * h]
+        for c in np.asarray(hit, dtype=np.int64).tolist():
+            active[c, d] = True
+            source[(c, d)] = "spillover"
+            w.counts["dz_spillovers"] = w.counts.get("dz_spillovers", 0) + 1
+
+
+def _emerge(w, rng, bands, ids, cells, sizes, pop, active, source, herders=None):
+    if len(w.diseases) >= ND_CAP:
+        return
+    from . import farming
+    pressure = _herders(w, ids, cells, sizes) if herders is None else herders
     for (c, s), h in sorted(pressure.items()):
         name = farming.SPECIES[s]
         first = w.farm_firsts.get(name, {}).get("domestication")
@@ -292,7 +327,8 @@ def _epidemics(w, rng, bands, ids, cells, sizes, active, resp, source):
         eid = w.event("outbreak", cell=int(cells[np.nonzero(here)[0][0]]),
                       causes=[{"event": int(dz["event"])},
                               {"note": f"{dz['name']} circulating in {int(here.sum())} bands ({first.count('new')} "
-                                       f"new, {first.count('contact')} reached by contact, {first.count('kept')} "
+                                       f"new, {first.count('spillover')} passed again from its animals, "
+                                       f"{first.count('contact')} reached by contact, {first.count('kept')} "
                                        f"kept from last year)"}],
                       disease=dz["name"], cells=int(len(set(cells[here].tolist()))), deaths=0, severity=dz["cfr"])
         sel = np.nonzero(here)[0]
