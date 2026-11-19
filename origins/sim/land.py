@@ -13,8 +13,10 @@ Four kinds of lasting change, per cell, each 0..1 and each a starting value to b
 - fertility: the soil's fertility under crops. It falls under continuous cropping, less with manuring where there
   are herds (Bogaard et al. 2013), recovers in fallow, and is lost to erosion where cleared slopes are farmed. Crop
   yields scale between FERT_FLOOR and 1 with it.
-- fallow: the share of farmland resting each year, long where land is plentiful and short where it is crowded
-  (Boserup 1965; Ben, 19 November 2026). Resting land is taken from crop capacity; it lets fertility recover.
+- fallow: the share of farmland resting each year. It gives way to need: farmers crop as much of the land as they
+  could work last year, and the rest rests, between FALLOW_MIN and FALLOW_MAX (Boserup 1965; Ben, 19 November 2026,
+  after Codex review 020). Resting land is taken from crop capacity; it lets fertility recover. The extra labour per
+  unit of crop that shorter fallow costs (Boserup) is not modelled.
 - salt: salt on irrigated dry land. It rises with irrigation in dry climates and falls only slowly in fallow;
   above SALT_THRESH it cuts crop yields (Jacobsen & Adams 1958; contested by Powell 1985).
 
@@ -65,6 +67,7 @@ def _clear_year(w):
     w.land_wild = np.zeros(n)       # this year's seasonal maxima of ordinary wild food
     w.land_work = np.zeros(n)       # this year's share of farmland worked for crops, summed over farmed seasons
     w.land_seasons = np.zeros(n)    # seasons this year in which the cell was farmed
+    w.land_need = np.zeros(n)       # share of farmland the farmers would have worked for crops with no fallow
     w.land_manure = np.zeros(n)     # best manuring x herds share among farmers on the cell
     w.land_irr = np.zeros(n)        # best irrigation quality among farmers on the cell
     w.land_fuel = np.zeros(n)       # goods made with fire (pottery, copper, tin, iron) this year
@@ -130,7 +133,7 @@ def note_wild(w, cells, take, target):
         w.land_wild += target
 
 
-def note_crops(w, ids, cells, worked, animal_part):
+def note_crops(w, ids, cells, worked, animal_part, need=None):
     """farming, each season: the share of each farmed cell's land worked for crops (each band's crops before
     fertility and salt, against the cell's whole farmland; summed over the bands there, at most 1), and the
     manuring and irrigation of its farmers. Independent of the order of the bands (Codex review 020, finding 1)."""
@@ -142,6 +145,10 @@ def note_crops(w, ids, cells, worked, animal_part):
     farmed[cells] = True
     w.land_work += np.clip(season, 0.0, 1.0)
     w.land_seasons += farmed
+    if need is not None:
+        wanted = np.zeros(w.planet.n)
+        np.add.at(wanted, cells, need)
+        w.land_need += np.clip(wanted, 0.0, 1.0)
     from . import technology
     man = technology._q(w, ids, "manuring") * animal_part
     irr = technology._q(w, ids, "irrigation")
@@ -209,34 +216,6 @@ def _ring2_padded(w):
     return r
 
 
-def farm_crowding(w) -> np.ndarray:
-    """Per cell: crop farmers in the cell and its neighbours against what the farmland there can feed under annual
-    cropping (FARM_CAPACITY x the best crop suitability of each cell). Boserup's pressure is farmers on farmland, so
-    foragers nearby do not shorten fallow (Ben, 19 November 2026; Codex review 020)."""
-    from . import farming
-    pl = w.planet
-    bands = w.living_bands()
-    pop = np.zeros(pl.n)
-    if bands:
-        ids = np.array([b.id for b in bands])
-        cells = np.array([b.cell for b in bands])
-        share = np.clip(w.farm_share[ids], 0, 1)
-        on = share > 0
-        if on.any():
-            sizes = w.band_sizes()[ids]
-            _kp, vp, _ka, va = farming.best_all(w, ids[on], cells[on])
-            crop_part = np.where(vp + va > 0, vp / np.maximum(vp + va, 1e-9), 0.0)
-            np.add.at(pop, cells[on], sizes[on] * share[on] * crop_part)
-    _, suit = farming.land_tables(w)
-    cap = P.FARM_CAPACITY * suit[:, farming.PLANTS].max(axis=1)
-    nb = pl.grid.neighbours
-    valid = nb >= 0
-    idx = np.where(valid, nb, 0)
-    around_pop = pop + np.where(valid, pop[idx], 0.0).sum(axis=1)
-    around_cap = cap + np.where(valid, cap[idx], 0.0).sum(axis=1)
-    return np.where(around_cap > 0, around_pop / np.maximum(around_cap, 1e-9), 0.0)
-
-
 def yearly(w):
     if not getattr(P, "LAND", False):
         if getattr(w, "game", None) is not None:
@@ -280,9 +259,10 @@ def yearly(w):
     S = w.salt + P.SALT_RISE * np.clip(w.land_irr, 0, 1) * u * dry - P.SALT_LEACH * w.salt * (1.0 - u)
     w.salt = np.clip(S, 0.0, 1.0)
     _crossings(w, u, h)
-    # fallow for the coming year: long where land is plentiful, short where it is crowded (Ben, 19 November 2026)
-    crowd = np.clip(farm_crowding(w) / P.FALLOW_CROWD_FULL, 0.0, 1.0)
-    w.fallow = P.FALLOW_MAX - (P.FALLOW_MAX - P.FALLOW_MIN) * crowd
+    # fallow for the coming year gives way to need (Ben, 19 November 2026, after review 020; Boserup 1965): farmers
+    # crop as much of the land as they can work, and the rest rests, between FALLOW_MIN and FALLOW_MAX
+    need = np.where(w.land_seasons > 0, w.land_need / np.maximum(w.land_seasons, 1), 0.0)
+    w.fallow = np.clip(1.0 - need, P.FALLOW_MIN, P.FALLOW_MAX)
     _clear_year(w)
 
 
@@ -359,4 +339,4 @@ def history(w, cell) -> str:
 
 
 ARRAYS = ("game", "game_fast", "forest", "fertility", "salt", "fallow", "land_flags", "land_event", "land_since", "land_take", "land_wild",
-          "land_work", "land_seasons", "land_manure", "land_irr", "land_fuel")
+          "land_work", "land_seasons", "land_need", "land_manure", "land_irr", "land_fuel")

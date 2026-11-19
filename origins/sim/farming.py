@@ -424,11 +424,14 @@ def season_food_live(w, ids, cells, effort):
     herd = np.minimum(base * animal_part * hw_, room * animal_part * hf)
     rest = land.cropped_share(w, cells)                 # land resting in fallow grows nothing this year (M4a land)
     crop = np.minimum(base * (1 - animal_part) * cw, room * (1 - animal_part) * cf * rest)
-    # the share of the cell's farmland each band works for crops, before fertility and salt (Codex review 020)
+    # the share of the cell's farmland each band works for crops, before fertility and salt (Codex review 020), and
+    # the share it would have worked with no land resting (fallow gives way to need; Ben, 19 November 2026)
     worked = np.where(caps * cf > 0, crop / np.maximum(caps * cf, 1e-12), 0.0)
+    wanted = np.minimum(base * (1 - animal_part) * cw, room * (1 - animal_part) * cf)
+    need = np.where(caps * cf > 0, wanted / np.maximum(caps * cf, 1e-12), 0.0)
     crop = crop * land.crop_factor(w, cells)            # worn or salted soil yields less (M4a land)
     if on.any():
-        land.note_crops(w, ids[on], cells[on], worked[on], animal_part[on])
+        land.note_crops(w, ids[on], cells[on], worked[on], animal_part[on], need[on])
     grown = herd + crop
     if getattr(w, "farm_rr_real", None) is not None and on.any():
         # what fields and herds actually gave per worker-day this season (M4a land: choices see real yields)

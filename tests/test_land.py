@@ -113,8 +113,8 @@ class Land(unittest.TestCase):
             self.assertTrue(np.array_equal(getattr(w2, k), getattr(w, k)), k)
         self.assertEqual(persist.digest(w2), persist.digest(w))
 
-    def test_crowding_shortens_fallow(self):
-        """Farmers on cropland set fallow (Ben, 19 November 2026; Codex review 020): foragers do not."""
+    def test_fallow_gives_way_to_need(self):
+        """Farmers crop as much land as they can work; the rest rests (Ben, 19 November 2026, after review 020)."""
         from origins.sim import farming
         w, _ = world()
         b = w.living_bands()[0]
@@ -124,20 +124,19 @@ class Land(unittest.TestCase):
         _, suit = farming.land_tables(w)
         k = [i for i in farming.PLANTS if suit[c, i] > 0][0]
         land.yearly(w)
-        open_land = float(w.fallow[c])
-        self.assertAlmostEqual(open_land, P.FALLOW_MAX)
-        sizes = np.zeros(len(w.bands) + 64, dtype=int)
-        sizes[b.id] = int(3 * P.FARM_CAPACITY * 7)            # beyond what the farmland of the cell and ring feeds
-        w.band_sizes = lambda: np.resize(sizes, len(w.bands))
-        w.farm_share[b.id] = 0.0
-        land.yearly(w)
-        self.assertAlmostEqual(float(w.fallow[c]), P.FALLOW_MAX)     # many foragers: fallow unchanged
+        self.assertAlmostEqual(float(w.fallow[c]), P.FALLOW_MAX)      # nobody farms: long fallow
         w.skill[b.id, :] = 0
         w.skill[b.id, k] = 3
+        w.farm_share[:] = 0.0
         w.farm_share[b.id] = 1.0
+        ids, cells = np.array([b.id]), np.array([c])
+        farming.season_food_live(w, ids, cells, np.array([1e9]))      # more hands than land: they need it all
         land.yearly(w)
-        self.assertAlmostEqual(float(w.fallow[c]), P.FALLOW_MIN)     # as many crop farmers: annual cropping
-        self.assertAlmostEqual(float(land.cropped_share(w, np.array([c]))[0]), 1 - P.FALLOW_MIN)
+        self.assertAlmostEqual(float(w.fallow[c]), P.FALLOW_MIN)
+        self.assertAlmostEqual(float(land.cropped_share(w, cells)[0]), 1 - P.FALLOW_MIN)
+        farming.season_food_live(w, ids, cells, np.array([1e-3]))     # a few hands: most of the land rests
+        land.yearly(w)
+        self.assertAlmostEqual(float(w.fallow[c]), P.FALLOW_MAX)
 
     def test_switched_off_the_land_changes_nothing(self):
         w, c = world()

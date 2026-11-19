@@ -365,11 +365,9 @@ LAND_SOIL_LOW, LAND_SOIL_BACK = 0.6, 0.8
 LAND_SALT_HIGH, LAND_SALT_BACK = 0.3, 0.15
 # fallow by crowding (Ben, 19 Nov 2026; Boserup 1965: forest fallow of 15-20 years shortens to a few months as
 # population grows, at more labour per unit of output). Starting values.
-FALLOW_MAX = 0.8          # share of farmland resting where land is plentiful (long fallow)
-FALLOW_MIN = 0.1          # share resting at full crowding (annual cropping)
-FALLOW_CROWD_FULL = 1.0   # crop farmers in the cell and its neighbours against what their farmland feeds under annual
-                          # cropping, at which fallow is shortest (Ben, 19 Nov 2026, after Codex review 020: farmers
-                          # on cropland; was all people against wild food, at 2.0)
+FALLOW_MAX = 0.8          # share of farmland resting where farmers need little of it (long fallow); fallow gives way
+                          # to need between these (Ben, 19 Nov 2026, after Codex review 020)
+FALLOW_MIN = 0.1          # share resting where farmers need all of it (annual cropping)
 FUEL_FULL = 0.3           # living forest cover of the best-wooded cell within two rings that gives full fuel for smelting (Ben, 19 Nov
                           # 2026: fuel limits output). Starting value
 FUEL_MIN = 0.1            # below it (best-wooded cell within two rings), no wood for smelting, iron, canoes or carts
