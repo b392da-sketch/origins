@@ -13,6 +13,7 @@ Ben owns the design. Read `docs/DESIGN_DRAFT_v0.6.md` (or newer) and the current
 - Numbers in `params.py` are tunable starting values, not facts. Say so wherever results are reported.
 - **True to human life (Ben, 15 November 2026).** Infuse as much real human behaviour, social dynamics and anthropological findings as possible, so the world is organic and true to life in its mechanisms (not a replay of Earth's history). Design draft, section 1.
 - **Literature first (Ben, 14 November 2026).** On every new idea to implement, check the literature for extra insights before building, with verified sources, and record them in the build notes.
+- **Independent literature check (Ben, 20 November 2026).** For each new idea, Claude does its own literature check and also posts the question to the Notion database "Origins — Research questions" with a prompt for ChatGPT, without Claude's findings, so ChatGPT's check is independent. Claude then compares the two, verifies every source against the real text before it is used, and records agreements, disagreements and corrections in the build notes and in "Origins — Sources".
 - **Independent review (Ben, 13 November 2026).** Codex reviews (a) every gate report before Ben decides on it, and (b) each completed build step before its code goes into a gate run. Claude reproduces each finding before acting on it and answers in writing (`reviews/`, rules in `reviews/README.md`). Codex reads everything and writes only to `reviews/`; it does not change code or design (`AGENTS.md`).
 
 ## Layout
