@@ -40,8 +40,11 @@ class TechniquesAsData(unittest.TestCase):
 
 class _Zero:
     """Stands in for the technology stream: every draw succeeds."""
-    def random(self, shape):
-        return np.zeros(shape)
+    def random(self, shape=None):
+        return np.zeros(shape) if shape is not None else 0.0
+
+    def choice(self, n, p=None):
+        return 0
 
 
 def _shrink(w, x, n):
@@ -325,6 +328,221 @@ class LiteratureChanges14Nov(unittest.TestCase):
         w.tech[a.id, k] = 0.9
         Review008._phase(self, w, [a])
         self.assertAlmostEqual(float(w.tech[a.id, k]) - 0.9, P.TECH_REFINE * 0.1, places=5)
+
+
+
+class Effects(unittest.TestCase):
+    """Stage 5: effects scale with the quality of practised techniques (Ben, 14 November 2026)."""
+
+    def _band(self):
+        w, a, b = _two_bands()
+        pl = w.planet
+        dry = np.nonzero(pl.land & ~pl.coast & ~pl.lake & ~pl.river)[0]
+        a.cell = int(dry[0])
+        w.bands_changed()
+        return w, a
+
+    def test_forage_gear_is_on_with_the_new_trigger(self):
+        """Ben, 14 November 2026: foraging gear's food effect is back on with the crowding trigger."""
+        self.assertTrue(P.TECH_FORAGE_GEAR)
+        w, a = self._band()
+        self.assertGreater(float(w.stock_broad.sum()), 0.0)
+
+    def test_hunting_gear_raises_foraging(self):
+        old = P.TECH_FORAGE_GEAR
+        P.TECH_FORAGE_GEAR = True
+        try:
+            self._gear_case()
+        finally:
+            P.TECH_FORAGE_GEAR = old
+
+    def _gear_case(self):
+        w, a = self._band()
+        w.tech[a.id, T.INDEX["bow"]] = 1.0
+        w.tech[a.id, T.INDEX["cordage"]] = 1.0
+        w._tech_eff = None
+        m = T.forage_access(w, np.array([a.id]), np.array([a.cell]))[0]
+        full = sum(P.TECH_EFFECT[k] for k in ("fire_hardening", "cordage", "bow", "copper_working"))
+        self.assertAlmostEqual(m, (P.TECH_EFFECT["bow"] + P.TECH_EFFECT["cordage"]) / full, places=5)
+
+    def test_a_crude_technique_gives_part_of_its_effect(self):
+        w, a = self._band()
+        w.tech[a.id, T.INDEX["pottery"]] = 0.5
+        a.cell = int(np.nonzero(T._cell_materials(w)[:, T.MATERIALS.index("clay")])[0][0])
+        w.bands_changed()
+        w._tech_eff = None
+        m = T.spoil_multiplier(w, np.array([a.id]))[0]
+        self.assertAlmostEqual(m, 1 - P.TECH_EFFECT["pottery"] * 0.5, places=5)
+
+    def test_unpractised_technique_has_no_effect(self):
+        w, a = self._band()
+        w.tech[a.id, T.INDEX["bow"]] = 1.0         # no cordage: the bow is remembered, not practised
+        w._tech_eff = None
+        m = T.forage_access(w, np.array([a.id]), np.array([a.cell]))[0]
+        self.assertAlmostEqual(m, 0.0, places=6)
+
+    def test_writing_raises_capacity_at_the_seat(self):
+        w, a = self._band()
+        w.tech[a.id, T.INDEX["tallies"]] = 1.0
+        w.tech[a.id, T.INDEX["writing"]] = 1.0
+        w._tech_eff = None
+        self.assertAlmostEqual(T.capacity_multiplier(w, a.id),
+                               1 + P.TECH_EFFECT["tallies"] + P.TECH_EFFECT["writing"], places=5)
+
+
+
+def _ages(w, x, age, n, sex=0):
+    G = w.groups
+    G.F[x.group] = 0
+    G.M[x.group] = 0
+    G.preg[x.group] = 0
+    (G.F if sex == 0 else G.M)[x.group][age] = n
+
+
+class Review010(unittest.TestCase):
+    """Codex review 010: findings reproduced, then fixed."""
+
+    def test_children_teach_nothing(self):
+        w, a, b = _two_bands()
+        b.cell = a.cell
+        _ages(w, a, 10, 20)                       # 20 children, cordage 0.8
+        _ages(w, b, 25, 40)                       # 40 adults, no cordage
+        w.spec[a.id] = w.spec[b.id] = 0
+        w.tech[a.id, T.INDEX["cordage"]] = 0.8
+        Review008._phase(self, w, [a, b])
+        self.assertEqual(float(w.tech[b.id, T.INDEX["cordage"]]), 0.0)
+
+    def test_crop_bonus_stays_with_crops(self):
+        from origins.sim import farming
+        w, a, b = _two_bands()
+        b.alive = False
+        w.bands_changed()
+        ids, cells = np.array([a.id]), np.array([a.cell])
+        w.tech[a.id, T.INDEX["plough"]] = w.tech[a.id, T.INDEX["draft_animals"]] = 1.0
+        w._tech_eff = None
+        m = T.farm_multipliers(w, ids, cells, np.array([0.5]))
+        self.assertEqual(len(m), 4)                # per worker and per field, for crops and for herds
+
+    def test_effects_follow_new_daughters(self):
+        w, a, b = _two_bands()
+        w.tech[a.id, T.INDEX["tallies"]] = w.tech[a.id, T.INDEX["writing"]] = 1.0
+        w._tech_eff = None
+        T.capacity_multiplier(w, a.id)            # warm the cache
+        d = w.new_band(a.cell, parent=a.id)
+        self.assertAlmostEqual(T.capacity_multiplier(w, d.id), T.capacity_multiplier(w, a.id), places=5)
+
+    def test_founding_conquest_counts_technology(self):
+        from origins.sim import conflict, polity
+        w, a, b = _two_bands()
+        w.tech[a.id, T.INDEX["tallies"]] = w.tech[a.id, T.INDEX["writing"]] = 1.0
+        w._tech_eff = None
+        probe = polity.Polity(-1, a.id, w.t, "")
+        self.assertGreater(polity.capacity(probe, w), P.POLITY_CAPACITY)
+        import inspect
+        self.assertIn("capacity(", inspect.getsource(conflict._room_for))
+
+
+    def test_specialists_counted_once(self):
+        w, a, b = _two_bands()
+        _ages(w, a, 30, 15)
+        w.spec[a.id] = 3
+        self.assertAlmostEqual(float(T.skilled(w, [a], np.array([a.id]))[0]), 0.25 * 12 + 3, places=6)
+
+
+
+class Settled14Nov(unittest.TestCase):
+    """Building techniques belong to settled peoples (Ben, 14 November 2026)."""
+
+    def test_wandering_foragers_do_not_build(self):
+        w, a, b = _two_bands()
+        st = T.TECHNIQUES[T.INDEX["stone_building"]]
+        w.farm_share[a.id] = 0.0
+        w.still_years[a.id] = 0
+        ok, missing = T.prerequisites_met(w, a, st)
+        self.assertIn("needs a settled people", missing)
+        w.t = 100                                            # founded long ago: no recent move in the trail
+        w.still_years[a.id] = P.TECH_SETTLED_YEARS          # sedentary foragers can build
+        self.assertTrue(T.prerequisites_met(w, a, st)[0])
+        self.assertTrue(T._possible(w, np.array([a.id]), np.array([a.cell]))[0, T.INDEX["stone_building"]])
+
+
+
+class BroadSpectrum14Nov(unittest.TestCase):
+    """Gear lets the land yield more to foragers, not a richer return per day (Ben, 14 November 2026)."""
+
+    def test_plenty_pays_the_same_with_or_without_gear(self):
+        from origins.sim import foraging
+        res = []
+        for gear in (0.0, 1.0):
+            w = World.new(1, 1, generate(1))
+            for b in w.living_bands():
+                for k in ("fire_hardening", "cordage", "bow"):
+                    w.tech[b.id, T.INDEX[k]] = gear
+            w._tech_eff = None
+            s0 = w.stock.sum() + w.stock_broad.sum()
+            h0 = w.ledger["harvest"]
+            foraging.forage_and_eat(w)
+            res.append(w.ledger["harvest"] - h0)
+        self.assertAlmostEqual(res[0], res[1], delta=0.02 * res[0])   # 90 people on fresh land: effort, not food, limits
+
+    def test_food_is_conserved(self):
+        w = World.new(1, 1, generate(1))
+        for b in w.living_bands():
+            w.tech[b.id, T.INDEX["cordage"]] = 1.0
+        engine.step(w, 40)
+        self.assertEqual(w.invariant_failures, [])
+
+
+
+class FarmingTrigger14Nov(unittest.TestCase):
+    """Farming starts from crowding against unaided wild food, or from abundance (docs/FARMING_TRIGGER_PROPOSAL.md)."""
+
+    def test_crowding_counts_people_against_wild_food(self):
+        from origins.sim import farming
+        w = World.new(1, 1, generate(1))
+        c = farming.crowding(w)
+        b = w.living_bands()[0]
+        pl = w.planet
+        cells = [b.cell] + [int(x) for x in pl.grid.neighbours[b.cell] if x >= 0]
+        sizes = w.band_sizes()
+        pop = sum(sizes[o.id] for o in w.living_bands() if o.cell in cells)
+        self.assertAlmostEqual(float(c[b.cell]), pop / pl.capacity[cells].sum(), places=6)
+
+
+
+class Review011(unittest.TestCase):
+    """Codex review 011: findings reproduced, then fixed."""
+
+    def test_a_forager_that_just_moved_is_not_settled(self):
+        from origins.sim import foraging
+        w = World.new(1, 1, generate(1))
+        b = w.living_bands()[0]
+        for o in w.living_bands()[1:]:
+            o.alive = False
+        w.bands_changed()
+        w.t = 100                                         # founded long ago: the founding entry in the trail is old
+        w.farm_share[b.id] = 0.0
+        w.still_years[b.id] = 20
+        self.assertTrue(T._settled(w, np.array([b.id]))[0])
+        nb = [int(x) for x in w.planet.grid.neighbours[b.cell] if x >= 0 and w.planet.land[x]]
+        w.stock[b.cell] = 1.0
+        w.stock[nb[0]] = 1e6
+        foraging.move(w)
+        self.assertFalse(T._settled(w, np.array([b.id]))[0])
+
+    def test_tending_below_the_abundance_floor_is_recorded_as_abundance(self):
+        from origins.sim import farming
+        w = World.new(1, 1, generate(1))
+        b = w.living_bands()[0]
+        wild, suit = farming.land_tables(w)
+        k = farming.SPECIES.index("wild_grain")
+        cells = np.nonzero(wild[:, k] & (suit[:, k] >= P.ABUNDANCE_SUIT))[0]
+        b.cell = int(cells[0])
+        w.still_years[b.id] = P.ABUNDANCE_YEARS
+        w._press_why = {b.id: (0.01, 0.4, 0.0)}           # weak hunger, below the floor
+        farming._first(w, b, k, "tending")
+        e = w.events[len(w.events) - 1]
+        self.assertIn("without being pressed", e["causes"][-1]["note"])
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # Origins — working rules for Claude sessions
 
-Ben owns the design. Read `docs/DESIGN_DRAFT_v0.5.md` (or newer) and the current milestone spec (`docs/M2_SPECIFICATION_v1.md`) before changing anything. Ben approves milestone gates only; propose design changes, don't make them silently.
+Ben owns the design. Read `docs/DESIGN_DRAFT_v0.6.md` (or newer) and the current milestone spec (`docs/M4_SPECIFICATION_v1.md`) before changing anything. Ben approves milestone gates only; propose design changes, don't make them silently.
 
 ## Rules
 - **Behavioural gates decide progress, not test counts.** No new layer until the current gate passes. Record failed attempts and negative results in `docs/`.
@@ -11,6 +11,10 @@ Ben owns the design. Read `docs/DESIGN_DRAFT_v0.5.md` (or newer) and the current
 - **Exact replay.** Saves round-trip exactly (`persist.digest`). Keep `tests/test_m0.py::Replay` passing.
 - **Python 3.10+ and NumPy only** for running. Keep code 3.10-compatible (Ben's machine environment runs 3.10).
 - Numbers in `params.py` are tunable starting values, not facts. Say so wherever results are reported.
+- **True to human life (Ben, 15 November 2026).** Infuse as much real human behaviour, social dynamics and anthropological findings as possible, so the world is organic and true to life in its mechanisms (not a replay of Earth's history). Design draft, section 1.
+- **Literature first (Ben, 14 November 2026).** On every new idea to implement, check the literature for extra insights before building, with verified sources, and record them in the build notes.
+- **Independent literature check (Ben, 20 November 2026).** For each new idea, Claude does its own literature check and also posts the question to the Notion database "Origins — Research questions" with a prompt for ChatGPT, without Claude's findings, so ChatGPT's check is independent. Claude then compares the two, verifies every source against the real text before it is used, and records agreements, disagreements and corrections in the build notes and in "Origins — Sources".
+- **Independent review (Ben, 13 November 2026).** Codex reviews (a) every gate report before Ben decides on it, and (b) each completed build step before its code goes into a gate run. Claude reproduces each finding before acting on it and answers in writing (`reviews/`, rules in `reviews/README.md`). Codex reads everything and writes only to `reviews/`; it does not change code or design (`AGENTS.md`).
 
 ## Layout
 - `origins/worldgen.py` planet from a seed · `origins/grid.py` geodesic grid · `origins/noise.py`
@@ -23,4 +27,6 @@ Ben owns the design. Read `docs/DESIGN_DRAFT_v0.5.md` (or newer) and the current
 ## Current milestone
 M0 "the first people survive": gate G0 passed and **closed with Ben's approval on 6 November 2026** (`docs/M0_GATE_REPORT.md`).
 M1 "spreading and drifting apart": specification **approved by Ben on 6 November 2026** (`docs/M1_SPECIFICATION_v1.md`, decisions in section 9); gate G1 passed on 60 histories and **closed with Ben's approval on 7 November 2026** (`docs/M1_GATE_REPORT.md`). Open items carried forward: island peoples do not diverge faster; outbreaks cause about 9% of deaths.
-M2 "farming is an option, not a destiny": specification **approved by Ben on 7 November 2026** (`docs/M2_SPECIFICATION_v1.md`); in build. Gates run on GitHub Actions (`.github/workflows/gate.yml`).
+M2 "farming is an option, not a destiny": specification **approved by Ben on 7 November 2026** (`docs/M2_SPECIFICATION_v1.md`); gate G2: 9 of 10 checks passed on 70 histories; **closed with Ben's approval on 9 November 2026** with check 9 (inequality keeps rising with time) recorded as failed and carried forward (`docs/M2_GATE_REPORT.md`, decision and carried-forward items at the end). G1 rerun with the final code passes (`docs/M1_GATE_RERUN3_REPORT.md`).
+M3 "scale needs institutions; conflict has causes and costs": specification **approved by Ben on 9 November 2026** (`docs/M3_SPECIFICATION_v1.md`, decisions in section 11); gate G3 run 3 (70 histories): 7 of 10 marked checks passed; **closed with Ben's approval on 13 November 2026**, with check 5 waived (ratio exactly at the line), check 10 waived with the post-run loop fix, and check 9's herd half carried forward (`docs/M3_GATE_REPORT.md`, decision at the end). Gates run on GitHub Actions (`.github/workflows/gate.yml`).
+M4 "knowledge and exchange" (M4a) and "how wars are fought, and who people are to each other" (M4b): specification **approved by Ben on 12 November 2026** (`docs/M4_SPECIFICATION_v1.md`, decisions in section 13); in build (M4a first). Carried-forward items are listed at the end of `docs/M3_GATE_REPORT.md`.

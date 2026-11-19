@@ -47,6 +47,7 @@ class Technique:
     animals: tuple = ()               # one of these domesticated animals must be held, by a people that farms or herds
     materials: tuple = ()             # any-of groups: each inner tuple needs one of its materials within reach
     terrain: str = ""                 # land the band's own cell must have: "hills" or "water" (river or lake)
+    settled: bool = False             # a settled people: farming half its work, or staying put (Ben, 14 Nov 2026)
     keep: int = 10                    # practitioners needed to keep the skill alive (starting values)
     need: str = ""                    # the pressure that leads towards it
     effect: str = ""                  # what it changes (stage 5)
@@ -89,11 +90,11 @@ TECHNIQUES: list[Technique] = [
     T("wool", "wool and weaving", "farming", needs=("cordage",), animals=("wild_sheep",), keep=30, need="trade",
       effect="a good to trade (section 4)"),
     # building
-    T("mud_brick", "mud-brick building", "building", materials=(("clay",),), keep=20, need="crowding",
+    T("mud_brick", "mud-brick building", "building", materials=(("clay",),), settled=True, keep=20, need="crowding",
       effect="lasting villages; storage improves"),
-    T("stone_building", "stone building", "building", keep=40, need="power",
+    T("stone_building", "stone building", "building", settled=True, keep=40, need="power",
       effect="monuments and lasting seats"),
-    T("fortification", "fortification", "building", needs=("mud_brick",), keep=40, need="war",
+    T("fortification", "fortification", "building", needs=("mud_brick",), settled=True, keep=40, need="war",
       effect="defence in war (M4b)"),
     # metals
     T("copper_working", "copper working", "metals", materials=(("copper",),), keep=30, need="trade",
@@ -121,6 +122,7 @@ KEYS = [t.key for t in TECHNIQUES]
 INDEX = {k: i for i, k in enumerate(KEYS)}
 K = len(TECHNIQUES)
 MATERIALS = ("forest", "flint", "clay", "salt", "copper", "tin", "iron", "coal", "gold")
+WOOD_TECHS = [i for i, t in enumerate(TECHNIQUES) if any("forest" in g for g in t.materials)]
 TERRAIN = ("hills", "water")
 WRITING = INDEX["writing"]
 
@@ -169,6 +171,11 @@ def ensure(w, band_id: int, parent: int):
         w.tech = _grow(w.tech, band_id)
         w.tech_record = _grow(w.tech_record, band_id)
     w.tech[band_id] = w.tech[parent] if parent >= 0 else 0.0            # a daughter knows what her mother knew
+    if getattr(w, "tech_prev_prac", None) is not None:                  # ... and what was practised on imports
+        _prev_arrays(w)
+        w.tech_prev_prac[band_id] = w.tech_prev_prac[parent] if parent >= 0 else False
+        w.tech_prev_mats[band_id] = w.tech_prev_mats[parent] if parent >= 0 else False
+    w._tech_eff = None                                                    # effects judged afresh (review 010)
     w.tech_record[band_id] = w.tech_record[parent] if parent >= 0 else 0.0   # and keeps her records
 
 
@@ -179,8 +186,8 @@ def held(w, band_id: int, key: str, level: float | None = None) -> bool:
 
 
 def materials_near(w, cell: int) -> set:
-    """Materials within two rings of a cell (forest from the biomes; the rest from world generation)."""
-    m = _cell_materials(w)[cell]
+    """Materials within two rings of a cell (forest living there; the rest from world generation)."""
+    m = _mats_now(w, np.array([cell]))[0]
     return {MATERIALS[i] for i in np.nonzero(m)[0]}
 
 
@@ -210,12 +217,30 @@ def prerequisites_met(w, b, t: Technique, near: set | None = None) -> tuple[bool
         missing.append("needs a people who farm or herd")
     if t.materials:
         near = materials_near(w, b.cell) if near is None else near
+        if getattr(P, "TRADE", False):                   # held as goods counts too (Codex review 018)
+            from . import trade as _trade
+            got = _trade.goods_materials(w, np.array([b.id]), MATERIALS)[0]   # not "held": that is a function here
+            near = set(near) | {MATERIALS[m] for m in np.nonzero(got)[0]}
         for group in t.materials:
             if not any(m in near for m in group):
                 missing.append("needs " + " or ".join(group) + " within reach")
     if t.terrain and not _cell_terrain(w)[b.cell, TERRAIN.index(t.terrain)]:
         missing.append("needs hilly land" if t.terrain == "hills" else "needs a river or lake")
+    if t.settled and not _settled(w, np.array([b.id]))[0]:
+        missing.append("needs a settled people")
     return (not missing), missing
+
+
+def _settled(w, ids) -> np.ndarray:
+    """Settled: farming half its work or more, or staying in one place for TECH_SETTLED_YEARS (sedentary foragers
+    built too: Watson Brake's mounds, Saunders et al. 1997; Gobekli Tepe's houses and enclosures before domestic
+    grain). A band that moved within the last year is not settled, whatever its counter says: still_years is
+    updated only once a year (Codex review 011, finding 1)."""
+    ids = np.asarray(ids)
+    still = w.still_years[ids] if hasattr(w, "still_years") else np.zeros(len(ids))
+    recent = np.array([bool(w.bands[int(i)].trail) and w.bands[int(i)].trail[-1][0] > w.t - P.TICKS_PER_YEAR
+                       for i in ids], dtype=bool)
+    return (np.clip(w.farm_share[ids], 0, 1) >= 0.5) | ((still >= P.TECH_SETTLED_YEARS) & ~recent)
 
 
 def _cell_materials(w) -> np.ndarray:
@@ -238,6 +263,20 @@ def _cell_materials(w) -> np.ndarray:
         idx = [int(x) for x in r2[c] if x >= 0]
         m[c] = here[idx].any(axis=0)
     pl._tech_materials = m
+    return m
+
+
+def _mats_now(w, cells) -> np.ndarray:
+    """_cell_materials for the given cells, with forest as it is now: wood within reach only while the best-wooded
+    cell within two rings keeps at least FUEL_MIN of its cover (Ben, 19 November 2026: fuel limits output; Codex review 020,
+    finding 2). With the land switched off, forest is the biome, as before. _static_forest (set only by _cut_off)
+    asks what would hold with the forest of the biome."""
+    m = _cell_materials(w)[cells]
+    if (getattr(P, "LAND", False) and getattr(w, "forest", None) is not None
+            and not getattr(w, "_static_forest", False)):
+        from . import land
+        m = m.copy()
+        m[:, MATERIALS.index("forest")] = land.forest_near(w)[cells] >= P.FUEL_MIN
     return m
 
 
@@ -266,8 +305,25 @@ def _possible(w, ids, cells, lvl=None) -> np.ndarray:
     sk = (w.skill[ids] >= 3) & here                                   # domesticated AND able to live here (review 009)
     farms = np.clip(w.farm_share[ids], 0, 1) >= P.TECH_FARMING
     crop = sk[:, farming.PLANTS].any(axis=1)
-    mats = _cell_materials(w)[cells]
+    mats = _mats_now(w, cells)
+    if (getattr(P, "LAND", False) and getattr(w, "forest", None) is not None and not getattr(w, "_static_forest", False)
+            and getattr(w, "tech_prev_prac", None) is not None and len(w.tech_prev_prac) > int(np.max(ids, initial=0))):
+        # taking up wood work again needs more forest than keeping it going (Ben, 20 November 2026, after Codex
+        # review 021): bands that practised a technique needing wood last year keep wood down to FUEL_MIN; others
+        # need FUEL_RESUME, the time to restore a reliable supply
+        from . import land
+        near = land.forest_near(w)[cells]
+        kept = w.tech_prev_prac[ids][:, WOOD_TECHS].any(axis=1)
+        mats = mats.copy()
+        mats[:, MATERIALS.index("forest")] &= near >= np.where(kept, P.FUEL_MIN, P.FUEL_RESUME)
+    if getattr(P, "TRADE", False):
+        held = getattr(w, "_goods_mats_override", None)   # set only by _cut_off: last year's holdings
+        if held is None:
+            from . import trade as _trade
+            held = _trade.goods_materials(w, ids, MATERIALS)
+        mats = mats | held                                # held as goods (stage 5: dependence on imports)
     land = _cell_terrain(w)[cells]
+    settled = _settled(w, ids)
     ok = np.ones((len(ids), K), dtype=bool)
     for k, t in enumerate(TECHNIQUES):
         for n in t.needs:                    # held well AND practised (prerequisites come earlier in the list)
@@ -282,7 +338,18 @@ def _possible(w, ids, cells, lvl=None) -> np.ndarray:
             ok[:, k] &= mats[:, [MATERIALS.index(x) for x in group]].any(axis=1)
         if t.terrain:
             ok[:, k] &= land[:, TERRAIN.index(t.terrain)]
+        if t.settled:
+            ok[:, k] &= settled
     return ok
+
+
+def _trade_need(w, ids, cells, pol, crowding):
+    """The band's real trade, from the imported goods it holds (stage 5; Ben, 16 November 2026). Without goods
+    effects, the stand-in used before: being in a polity and crowding."""
+    from . import trade as _trade
+    if _trade._effects_on():
+        return _trade.trade_need(w, ids, cells)
+    return np.clip(pol * 0.5 + crowding, 0, 1)
 
 
 def _needs(w, live, ids, cells, sizes, cell_pop) -> dict:
@@ -304,11 +371,166 @@ def _needs(w, live, ids, cells, sizes, cell_pop) -> dict:
             p = w.polities.get(int(w.polity_of[b.id]))
             tier[i] = (p.tier if p is not None else 0) / 3.0
     return {"hunting": forager * (0.5 + 0.5 * hunger), "hunger": hunger, "stores": np.maximum(stores, hunger),
-            "crowding": crowding, "water": water, "trade": np.clip(pol * 0.5 + crowding, 0, 1),
+            "crowding": crowding, "water": water, "trade": _trade_need(w, ids, cells, pol, crowding),
             "power": tier, "tribute": tier, "war": np.clip(tier + crowding * 0.5, 0, 1)}
 
 
 # --- stage 2: invention ---------------------------------------------------------------------------------------------
+
+def _material_source(w, b, group) -> str:
+    """How a band has one of a technique's materials: within reach, or held as goods (imports)."""
+    for m in group:
+        if _mats_now(w, np.array([b.cell]))[0, MATERIALS.index(m)]:
+            return f"{m} within reach"
+    if getattr(P, "TRADE", False):
+        from . import trade as _trade
+        held = _trade.goods_materials(w, np.array([b.id]), MATERIALS)[0]
+        for m in group:
+            if held[MATERIALS.index(m)]:
+                return f"{m} held, brought by trade"
+    return "/".join(group) + " (source not found)"
+
+
+def _prev_arrays(w):
+    """What each band practised, and which materials it held as goods, at the end of last year's technology pass
+    (Codex review 018). Grown to the size of w.tech."""
+    M = len(MATERIALS)
+    for name, width in (("tech_prev_prac", K), ("tech_prev_mats", M)):
+        a = getattr(w, name, None)
+        if a is None or len(a) < len(w.tech):
+            out = np.zeros((len(w.tech), width), dtype=bool)
+            if a is not None:
+                out[:len(a)] = a
+            setattr(w, name, out)
+
+
+def _mark(w, live, ids, cells):
+    """End of the year's technology pass, after every acquisition: remember what is practised and which materials
+    are held as goods, so next year's _cut_off can tell a lapse caused by imports running out."""
+    if not getattr(P, "TRADE", False):
+        return
+    from . import trade as _trade
+    _prev_arrays(w)
+    w.tech_prev_prac[ids] = (w.tech[ids] > 0) & _possible(w, ids, cells)
+    w.tech_prev_mats[ids] = _trade.goods_materials(w, ids, MATERIALS)
+
+
+def _cut_off(w, live, ids, cells):
+    """Techniques that stopped being practised because materials held as goods ran out (M4 spec 4.3: dependence;
+    Ben, 16 November 2026). A lapse counts only if the technique was practised at the end of last year, cannot be
+    practised now, and could be with the goods-held materials of last year: so a failed prerequisite or a lost
+    skill is not called a supply failure (Codex review 018)."""
+    if not getattr(P, "TRADE", False):
+        return
+    from . import trade as _trade
+    _prev_arrays(w)
+    known = w.tech[ids] > 0
+    now = _possible(w, ids, cells)
+    prev_mats = w.tech_prev_mats[ids]
+    held_now = _trade.goods_materials(w, ids, MATERIALS)
+
+    def possible_with(extra, wood=False):
+        # current goods-held materials plus the given ones: a lost import is restored without dropping a newly
+        # available one (Codex review 019); wood=True also restores the forest of the biome (review 021)
+        w._goods_mats_override = held_now | extra
+        w._static_forest = wood
+        try:
+            return _possible(w, ids, cells)
+        finally:
+            w._goods_mats_override = None
+            w._static_forest = False
+    lost = prev_mats & ~held_now
+    with_last = possible_with(lost)
+    lapsed = w.tech_prev_prac[ids] & known & ~now
+    # imports alone, or imports and wood together (Codex review 021, finding 7)
+    both = lapsed & ~with_last & possible_with(lost, wood=True) & ~possible_with(np.zeros_like(lost), wood=True)
+    cut = lapsed & (with_last | both)
+    _no_fuel(w, live, ids, cells, known, now)
+    if not cut.any():
+        return
+    local = _mats_now(w, cells)
+    from itertools import combinations
+    for i, k in np.argwhere(cut).tolist():
+        b = live[i]
+        t = TECHNIQUES[k]
+        # the smallest set of lost imports, among those the technique and its prerequisites use and not within
+        # reach, whose return makes it practicable again (Codex reviews 019 and 020: name what caused it, and
+        # nothing irrelevant)
+        rel = _relevant_materials(k)
+        cands = [m for m in np.nonzero(lost[i] & ~local[i])[0].tolist() if MATERIALS[m] in rel]
+        named = []
+        wood = bool(both[i, k])
+        for size in range(1, len(cands) + 1):
+            for combo in combinations(cands, size):
+                one = np.zeros_like(lost)
+                one[i, list(combo)] = True
+                if possible_with(one, wood=wood)[i, k]:
+                    named = [MATERIALS[m] for m in combo]
+                    break
+            if named:
+                break
+        if not named:
+            named = [MATERIALS[m] for m in cands]
+        direct = {m for group in t.materials for m in group}
+        own = [m for m in named if m in direct]
+        what = "/".join(own) if own else "/".join(named) + ", which a technique it depends on needs,"
+        why = (f"{w.band_name(b)} could no longer practise {t.name}: the {what} it had by trade ran out, "
+               f"and none is within reach")
+        causes = [{"note": why}]
+        if wood:
+            from . import land
+            from .language import ring2
+            j = land.KINDS.index("forest")
+            causes[0]["note"] += "; the wood within reach is gone too"
+            causes += [{"event": int(w.land_event[c, j])} for c in ring2(w)[b.cell]
+                       if w.land_event[int(c), j] >= 0][:3]
+        w.event("technique_cut_off", cell=b.cell, band=b.id, technique=t.key, materials=named, wood=wood,
+                causes=causes)
+
+
+def _relevant_materials(k) -> set:
+    """Materials a technique and the techniques it depends on use."""
+    out, stack, seen = set(), [k], set()
+    while stack:
+        j = stack.pop()
+        if j in seen:
+            continue
+        seen.add(j)
+        t = TECHNIQUES[j]
+        out.update(m for group in t.materials for m in group)
+        stack.extend(INDEX[n] for n in t.needs)
+    return out
+
+
+def _no_fuel(w, live, ids, cells, known, now):
+    """Techniques that stopped being practised because the wood within reach is gone (M4a land; Ben, 19 November
+    2026): practised at the end of last year, not practicable now, and practicable with the forest of the biome.
+    The event names the forest-clearing events within reach."""
+    if not getattr(P, "LAND", False) or getattr(w, "forest", None) is None:
+        return
+    prev = w.tech_prev_prac[ids] & known & ~now
+    if not prev.any():
+        return
+    w._static_forest = True
+    try:
+        with_wood = _possible(w, ids, cells)
+    finally:
+        w._static_forest = False
+    hit = prev & with_wood
+    if not hit.any():
+        return
+    from . import land
+    from .language import ring2
+    j = land.KINDS.index("forest")
+    for i, k in np.argwhere(hit).tolist():
+        b = live[i]
+        t = TECHNIQUES[k]
+        near = [int(c) for c in ring2(w)[b.cell] if w.land_event[int(c), j] >= 0]
+        causes = [{"note": f"{w.band_name(b)} could no longer practise {t.name}: the forest within reach is "
+                           f"at most {land.forest_near(w)[b.cell]:.0%} of a cell, too little for wood"}]
+        causes += [{"event": int(w.land_event[c, j])} for c in near[:3]]
+        w.event("technique_no_fuel", cell=b.cell, band=b.id, technique=t.key, causes=causes)
+
 
 def yearly(w):
     """Invention: each band, for each technique it could practise but does not know, invents it with chance
@@ -329,6 +551,7 @@ def yearly(w):
     cells = np.array([b.cell for b in live])
     cell_pop = np.bincount(cells, weights=sizes, minlength=w.planet.n)
     connected = _reach(w, cells, cell_pop[:, None])[:, 0]
+    _cut_off(w, live, ids, cells)
     possible = _possible(w, ids, cells) & (w.tech[ids] <= 0)
     needs = _needs(w, live, ids, cells, sizes, cell_pop)
     need = np.stack([needs[t.need] for t in TECHNIQUES], axis=1)
@@ -346,8 +569,7 @@ def yearly(w):
         why = (f"{w.band_name(b)} invented {t.name}, crude at first, under pressure of {t.need} ({top:.0%}), "
                f"with {connected[i]:,.0f} people within reach")
         if t.materials:
-            why += "; materials within reach: " + ", ".join(
-                next(m for m in group if _cell_materials(w)[b.cell, MATERIALS.index(m)]) for group in t.materials)
+            why += "; materials: " + ", ".join(_material_source(w, b, group) for group in t.materials)
         w.event("invention", cell=b.cell, band=b.id, technique=t.key, causes=[{"note": why}],
                 need=t.need, pressure=round(float(top), 3), connected=int(connected[i]))
         firsts = w.tech_firsts if hasattr(w, "tech_firsts") else {}
@@ -355,6 +577,7 @@ def yearly(w):
             firsts[t.key] = len(w.events) - 1
             w.tech_firsts = firsts
     keep_and_spread(w, live, ids, cells, sizes, connected, need)
+    _mark(w, live, ids, cells)                          # after every acquisition this year (Codex review 018)
 
 
 from .. import params as P  # noqa: E402  (after the data, which does not depend on parameters)
@@ -405,6 +628,13 @@ def _adults(w, live, ids) -> np.ndarray:
     return out
 
 
+def skilled(w, live, ids) -> np.ndarray:
+    """Skilled practitioners a band can supply: TECH_PRACTISE_SHARE of its adults who are not specialists, plus every
+    specialist, each person counted once (Ben, 14 November 2026)."""
+    spec = np.asarray(w.spec[ids], dtype=float) if hasattr(w, "spec") else np.zeros(len(ids))
+    return P.TECH_PRACTISE_SHARE * np.maximum(_adults(w, live, ids) - spec, 0.0) + spec
+
+
 def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
     """Stage 3: keeping, refining and losing (Henrich 2004), teaching (specialists and writing), recovery from
     records. Stage 4: spreading by contact. See the module docstring; each change of state is recorded."""
@@ -418,12 +648,12 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
     # the Polar Inuit lost kayaks and bows when an epidemic carried off the knowledgeable adults: Boyd, Richerson
     # & Henrich 2011)
     spec = np.asarray(w.spec[ids], dtype=float) if hasattr(w, "spec") else np.zeros(len(ids))
-    skilled_people = P.TECH_PRACTISE_SHARE * _adults(w, live, ids) + spec
+    skilled_people = skilled(w, live, ids)
     pract_cell = np.zeros((n_cells, K))
     np.add.at(pract_cell, cells, practised * skilled_people[:, None])
     practitioners = _reach(w, cells, pract_cell)                     # skilled practitioners within reach
     best_cell = np.zeros((n_cells, K))
-    np.maximum.at(best_cell, cells, np.where(practised, lvl, 0.0))
+    np.maximum.at(best_cell, cells, np.where(practised & (skilled_people[:, None] > 0), lvl, 0.0))
     best = _reach(w, cells, best_cell, how="max")                      # the best practitioner within reach
     # teaching: specialists make copying more faithful (Ben, decision 2; craft specialists from M2's surplus)
     craft = np.clip(spec / np.maximum(sizes, 1.0) / P.TECH_CRAFT_REF, 0, 1)
@@ -475,17 +705,24 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
     # stage 4: teachers and prerequisites are judged after this year's keeping and losing, and a people never
     # learns from itself (Codex review 008, findings 2 and 3)
     practising_now = (new > 0) & possible_now
+    # teachers are skilled practitioners, counted as in keeping (Codex review 010, finding 1: children taught)
     teach_cell = np.zeros((n_cells, K))
-    np.add.at(teach_cell, cells, practising_now * sizes[:, None])
-    teachers = _reach(w, cells, teach_cell) - practising_now * sizes[:, None]
+    np.add.at(teach_cell, cells, practising_now * skilled_people[:, None])
+    teachers = _reach(w, cells, teach_cell) - practising_now * skilled_people[:, None]
+    skilled_cell = np.bincount(cells, weights=skilled_people, minlength=n_cells)
+    skilled_reach = _reach(w, cells, skilled_cell[:, None])[:, 0]          # everyone who could be a practitioner
     can = possible_now & (new <= 0) & (teachers > 0.5)
-    share = teachers / np.maximum(connected[:, None], 1.0)
+    share = teachers / np.maximum(skilled_reach[:, None], 1.0)
     chance = P.TECH_SPREAD * np.clip(share, 0, 1)
     if need is not None:
         chance = chance * (P.TECH_NEED_FLOOR + need)
     draw = rng.random(chance.shape)
     hits = np.argwhere(can & (draw < chance)).tolist()
+    w._tech_eff = None
     if not hits:
+        _trade_lessons(w, live, ids, new, possible_now, practising_now, need, rng, skilled_people)
+        w.tech[ids] = new.astype(np.float32)
+        w._tech_eff = None
         return
     from .language import ring2, shared_roots
     by_cell: dict[int, list] = {}
@@ -498,15 +735,21 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
         # a teacher, drawn in proportion to the practitioners each band has (so the expected closeness is the
         # practitioners' average); the lesson takes with chance = cultural closeness (M4 spec 3.4; Ben, decision 5)
         cand = [j for c in r2[b.cell] if c >= 0 for j in by_cell.get(int(c), ())
-                if j != i and practising_now[j, k]]
+                if j != i and practising_now[j, k] and skilled_people[j] > 0]
         if not cand:
             continue
-        wts = sizes[cand] / sizes[cand].sum()
+        wts = skilled_people[cand] / skilled_people[cand].sum()
         j = cand[int(rng.choice(len(cand), p=wts))]
         src = live[j]
         la, lb = w.languages.get(b.language), w.languages.get(src.language)
         same = shared_roots(la, lb) if (la is not None and lb is not None) else 1.0
         close = P.TECH_FOREIGN + (1.0 - P.TECH_FOREIGN) * same
+        via_partner = False
+        if getattr(P, "TRADE", False):
+            from . import trade as _trade
+            if src.id in _trade.partners(w, b.id):
+                close = 1.0                  # gift partners live together for months: they teach as one people
+                via_partner = True
         if rng.random() >= close:
             continue
         level = P.TECH_ADOPT_SHARE * float(new[j, k])                # learners fall short of their teacher
@@ -514,11 +757,60 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
             continue                                                  # too crude a lesson to take hold
         new[i, k] = level
         why = (f"{w.band_name(b)} learned {t.name} from {w.band_name(src)} ({same:.0%} of words shared); "
-               f"{teachers[i, k]:,.0f} of the {connected[i]:,.0f} people within reach practised it")
+               f"{teachers[i, k]:,.0f} of the {skilled_reach[i]:,.0f} skilled people within reach practised it")
         w.event("technique_adopted", cell=b.cell, band=b.id, technique=t.key,
-                causes=[{"band": src.id}, {"note": why}], source=src.id, route="contact",
+                causes=[{"band": src.id}, {"note": why + ("; they were gift partners" if via_partner else "")}],
+                source=src.id, route="partnership" if via_partner else "contact",
                 level=round(level, 3), closeness=round(close, 3))
+    _trade_lessons(w, live, ids, new, possible_now, practising_now, need, rng, skilled_people)   # after contact (stage 5)
     w.tech[ids] = new.astype(np.float32)
+    w._tech_eff = None                                  # effects are judged afresh after the year's changes
+
+
+def _trade_lessons(w, live, ids, new, possible_now, practising_now, need, rng, skilled_people=None):
+    """Traders' routes carry techniques between the two seats (M4 spec 4.2: trade creates contact; Ben, 16 November
+    2026): along each route travelled last year, each seat can learn what the other practises, with chance
+    TECH_SPREAD x TRADE_TEACH x (need floor + need) x closeness of speech. Recorded with route "trade"."""
+    links = getattr(w, "trade_links", None)
+    if not links or not getattr(P, "TRADE", False):
+        return
+    from . import trade as _trade
+    if not _trade._effects_on():
+        return
+    from .language import shared_roots
+    pos = {int(b): i for i, b in enumerate(np.asarray(ids).tolist())}
+    for a_seat, b_seat in links:
+        for x, y in ((a_seat, b_seat), (b_seat, a_seat)):
+            i, j = pos.get(int(x)), pos.get(int(y))
+            if i is None or j is None:
+                continue
+            if skilled_people is not None and skilled_people[j] <= 0:
+                continue                                  # no skilled practitioner to teach (Codex review 018)
+            can = possible_now[i] & (new[i] <= 0) & practising_now[j]
+            ks = np.nonzero(can)[0]
+            if not len(ks):
+                continue
+            nd = need[i, ks] if need is not None else np.zeros(len(ks))
+            chance = P.TECH_SPREAD * P.TRADE_TEACH * (P.TECH_NEED_FLOOR + nd)
+            draw = rng.random(len(ks))
+            b, src = live[i], live[j]
+            la, lb = w.languages.get(b.language), w.languages.get(src.language)
+            same = shared_roots(la, lb) if (la is not None and lb is not None) else 1.0
+            close = P.TECH_FOREIGN + (1.0 - P.TECH_FOREIGN) * same
+            take = rng.random(len(ks))
+            for k, d, tk in zip(ks.tolist(), draw.tolist(), take.tolist()):
+                if d >= chance[list(ks).index(k)] or tk >= close:
+                    continue
+                level = P.TECH_ADOPT_SHARE * float(new[j, k])
+                if level < P.TECH_LOST:
+                    continue
+                new[i, k] = level
+                t = TECHNIQUES[k]
+                why = (f"{w.band_name(b)} learned {t.name} from {w.band_name(src)} along the traders' road between them "
+                       f"({same:.0%} of words shared)")
+                w.event("technique_adopted", cell=b.cell, band=b.id, technique=t.key,
+                        causes=[{"band": src.id}, {"note": why}], source=src.id, route="trade",
+                        level=round(level, 3), closeness=round(close, 3))
 
 
 def combine(w, src, dst, route: str, carriers: float | None = None):
@@ -540,8 +832,15 @@ def combine(w, src, dst, route: str, carriers: float | None = None):
     d = w.tech[dst.id].astype(float)
     gained = (a > 0) & (d <= 0)
     w.tech[dst.id] = np.maximum(a, d).astype(np.float32)
+    w._tech_eff = None
     if getattr(w, "tech_record", None) is not None:
         w.tech_record[dst.id] = np.maximum(w.tech_record[dst.id], w.tech_record[src.id])
+    if route in ("combined", "merge", "migration") and getattr(w, "tech_prev_prac", None) is not None:
+        # people joining in numbers bring last year's record of practising on imports, so a later cut-off in the
+        # band they join is recorded (Codex review 019)
+        _prev_arrays(w)
+        w.tech_prev_prac[dst.id] |= w.tech_prev_prac[src.id]
+        w.tech_prev_mats[dst.id] |= w.tech_prev_mats[src.id]
     for k in np.nonzero(gained)[0].tolist():
         t = TECHNIQUES[k]
         how = {"combined": "combined with", "merge": "took in the remnant of", "marriage": "took in by marriage someone from",
@@ -550,3 +849,131 @@ def combine(w, src, dst, route: str, carriers: float | None = None):
         why = f"{w.band_name(dst)} {how} {w.band_name(src)}, who knew {t.name}"
         w.event("technique_adopted", cell=dst.cell, band=dst.id, technique=t.key,
                 causes=[{"band": src.id}, {"note": why}], source=src.id, route=route, level=round(float(a[k]), 3))
+
+
+# --- stage 5: what techniques change (Ben, 14 November 2026: starting values, open to revision) ---------------------
+#
+# Every effect scales with the quality of a PRACTISED technique (0 if unknown or not practised): a crude technique
+# gives a fraction of the full effect. Full effects are in params.TECH_EFFECT. None creates food from nothing:
+# foraging gains take more of a cell's wild stock for the same work; farming gains are more output per worker or
+# per field within the land's capacity; terracing makes slopes farmable.
+
+def practised_quality(w) -> np.ndarray:
+    """bands x K: the quality of each technique each band practises now (0 where unknown or not practised).
+    Judged once per season, at first use (cached by tick)."""
+    c = getattr(w, "_tech_eff", None)
+    if c is not None and c[0] == w.t and len(c[1]) == len(w.tech):
+        return c[1]
+    eff = np.zeros_like(w.tech)
+    if getattr(P, "TECHNOLOGY", False):
+        live = w.living_bands()
+        if live:
+            ids = np.asarray(w.live_index()[0])
+            cells = np.array([b.cell for b in live])
+            lvl = w.tech[ids]
+            eff[ids] = np.where((lvl > 0) & _possible(w, ids, cells, lvl), lvl, 0.0)
+    w._tech_eff = (w.t, eff)
+    return eff
+
+
+def refresh(w):
+    """Judge effects afresh (after anything that changes what can be practised within a phase)."""
+    w._tech_eff = None
+
+
+def _q(w, ids, key):
+    return practised_quality(w)[ids, INDEX[key]].astype(float)
+
+
+def _e(key):
+    return float(P.TECH_EFFECT.get(key, 0.0))
+
+
+def forage_access(w, ids, cells) -> np.ndarray:
+    """Each band's reach into its cell's broad-spectrum food (0..1): the full effects of the gear it practises,
+    weighted by quality, over the full effects of all gear usable there (climate.broad_share)."""
+    ids = np.asarray(ids)
+    if not getattr(P, "TECHNOLOGY", False) or not len(ids):
+        return np.zeros(len(ids))
+    from .climate import broad_share
+    pl = w.planet
+    water = (pl.coast[cells] | pl.lake[cells] | pl.river[cells]).astype(float)
+    got = np.zeros(len(ids))
+    for k in ("fire_hardening", "cordage", "bow", "copper_working"):
+        got = got + _e(k) * _q(w, ids, k) * (_metal(w, ids) if k == "copper_working" else 1.0)
+    for k in ("fish_traps", "canoes"):
+        got = got + water * _e(k) * _q(w, ids, k)
+    full = broad_share(w)[cells]
+    return np.where(full > 0, np.clip(got / np.maximum(full, 1e-12), 0, 1), 0.0)
+
+
+def farm_multipliers(w, ids, cells, animal_part=None):
+    """(crop per worker, crop per field, herd per worker, herd per field) multipliers for farming bands: crop
+    techniques change crops only, milking changes herds only (Codex review 010, finding 2)."""
+    ids = np.asarray(ids)
+    one = np.ones(len(ids))
+    if not getattr(P, "TECHNOLOGY", False) or not len(ids):
+        return one, one, one, one
+    land = _cell_terrain(w)[cells]
+    irr = _e("irrigation") * _q(w, ids, "irrigation") * land[:, TERRAIN.index("water")]
+    ter = _e("terracing") * _q(w, ids, "terracing") * land[:, TERRAIN.index("hills")]
+    plough = _e("plough") * np.minimum(_q(w, ids, "plough"), _q(w, ids, "draft_animals"))
+    milk = _e("milking") * _q(w, ids, "milking")
+    tools = 1 + _e("copper_working") * _q(w, ids, "copper_working") * _metal(w, ids)   # metal tools need metal
+    salt = 1 + _salt_herd(w, ids)                                                      # herds need salt
+    return ((1 + irr) * (1 + plough) * tools * one, (1 + irr) * (1 + ter) * one,
+            (1 + milk) * tools * salt * one, (1 + milk) * one)
+
+
+def _metal(w, ids):
+    """Metal tools help only where metal is held (stage 5; Ben, 16 November 2026)."""
+    if not getattr(P, "TRADE", False):
+        return 1.0
+    from . import trade as _trade
+    return _trade.metal_factor(w, ids)
+
+
+def _salt_herd(w, ids):
+    if not getattr(P, "TRADE", False):
+        return 0.0
+    from . import trade as _trade
+    return P.SALT_HERD * _trade.salt_factor(w, ids)
+
+
+def spoil_multiplier(w, ids) -> np.ndarray:
+    """Containers and buildings slow the spoiling of stored perishable food."""
+    ids = np.asarray(ids)
+    if not getattr(P, "TECHNOLOGY", False) or not len(ids):
+        return np.ones(len(ids))
+    pot = _e("pottery") * _q(w, ids, "pottery") * (1 + _e("kilns") * _q(w, ids, "kilns"))
+    m = (1 - _e("baskets") * _q(w, ids, "baskets")) * (1 - np.clip(pot, 0, 0.9)) * (1 - _e("mud_brick") * _q(w, ids, "mud_brick"))
+    if getattr(P, "TRADE", False):
+        from . import trade as _trade
+        m = m * (1 - P.SALT_SPOIL * _trade.salt_factor(w, ids))       # salting preserves (stage 5; Harding 2013)
+    return np.clip(m, 0.05, 1.0)
+
+
+def band_quality(w, band_id: int, key: str) -> float:
+    if not getattr(P, "TECHNOLOGY", False) or band_id < 0 or band_id >= len(w.tech):
+        return 0.0
+    return float(practised_quality(w)[band_id, INDEX[key]])
+
+
+def crossing_multiplier(w, band_id: int) -> float:
+    """Canoes make putting to sea likelier."""
+    return 1.0 + _e("canoes_crossing") * band_quality(w, band_id, "canoes")
+
+
+def land_advantage_multiplier(w, band_id: int) -> float:
+    """The plough with draft animals lets larger households work more land (Kohler et al. 2017)."""
+    q = min(band_quality(w, band_id, "plough"), band_quality(w, band_id, "draft_animals"))
+    return 1.0 + _e("plough_land") * q
+
+
+def capacity_multiplier(w, seat_id: int) -> float:
+    """Tallies and writing at the seat let officials manage more (M3 capacity)."""
+    base = 1.0 + _e("tallies") * band_quality(w, seat_id, "tallies") + _e("writing") * band_quality(w, seat_id, "writing")
+    if getattr(P, "TRADE", False) and 0 <= seat_id < len(w.polity_of):
+        from . import trade as _trade
+        base *= 1.0 + P.PRESTIGE_HOLD * _trade.prestige_factor(w, int(w.polity_of[seat_id]))   # prestige goods (stage 5)
+    return base

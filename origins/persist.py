@@ -67,10 +67,11 @@ def to_file(w: World, f, fast: bool = False) -> None:
         "reveal_pending": sorted(w.reveal_pending), "pending_restore": w.pending_restore,
         "env": environment(),
         "language": language.to_json(w), "hazards": w.hazards,
-        "farming": farming.to_json(w), "surplus": surplus.to_json(w), "polity": polity.to_json(w),
-        "conflict": conflict.to_json(w), "timing": w.timing, "first_herders": getattr(w, "first_herders", None), "tech_firsts": getattr(w, "tech_firsts", {}), "log_strides": w.log_strides,
+        "farming": farming.to_json(w), "surplus": surplus.to_json(w), "polity": polity.to_json(w), "trade": __import__("origins.sim.trade", fromlist=["x"]).to_json(w),
+        "conflict": conflict.to_json(w), "timing": w.timing, "first_herders": getattr(w, "first_herders", None), "tech_firsts": getattr(w, "tech_firsts", {}), "goods_ledger": getattr(w, "goods_ledger", None), "log_strides": w.log_strides,
+        "disease": __import__("origins.sim.disease", fromlist=["x"]).to_json(w),
     }
-    arrays = {"stock": w.stock, "known": w.known, "discovered_by": w.discovered_by,
+    arrays = {"stock": w.stock, "stock_broad": w.stock_broad, "known": w.known, "discovered_by": w.discovered_by,
               "discovered_at": w.discovered_at, "food_modifier": w.food_modifier,
               "intervention_event": w.intervention_event, "cell_hunger": w.cell_hunger, "cell_births": w.cell_births,
               "customs": w.customs, "neutral": w.neutral, "hazard_food": w.hazard_food,
@@ -78,7 +79,16 @@ def to_file(w: World, f, fast: bool = False) -> None:
               "skill": w.skill, "farm_share": w.farm_share, "crop_store": w.crop_store,
               "still_years": w.still_years, "forage_rr": w.forage_rr, "spec": w.spec,
               "polity_of": w.polity_of, "polity_via": w.polity_via, "conquered_at": w.conquered_at,
-              "herder_since": w.herder_since, "tech": w.tech, "tech_record": w.tech_record}
+              "herder_since": w.herder_since, "farm_rr_real": w.farm_rr_real, "farm_rr_cell": w.farm_rr_cell, "tech": w.tech, "tech_record": w.tech_record,
+              "goods": w.goods, "partner_of": w.partner_of, "partner_since": w.partner_since,
+              "goods_reached": w.goods_reached, "partner_gave": w.partner_gave, "treasury": w.treasury,
+              "tech_prev_prac": w.tech_prev_prac if getattr(w, "tech_prev_prac", None) is not None else np.zeros((0, 0), bool),
+              "tech_prev_mats": w.tech_prev_mats if getattr(w, "tech_prev_mats", None) is not None else np.zeros((0, 0), bool),
+              "trade_in": w.trade_in if getattr(w, "trade_in", None) is not None else np.zeros(0)}
+    from .sim import land as _land
+    arrays.update({"land_" + k: getattr(w, k) for k in _land.ARRAYS if getattr(w, k, None) is not None})
+    from .sim import disease as _disease
+    arrays.update({k: getattr(w, k) for k in _disease.ARRAYS if getattr(w, k, None) is not None})
     arrays.update({"p_" + k: v for k, v in w.people.arrays().items()})
     arrays.update({"g_" + k: v for k, v in w.groups.arrays().items()})
     arrays.update({"b_" + k: v for k, v in w.bands.arrays().items()})
@@ -161,9 +171,16 @@ def from_bytes(data: bytes, planet=None) -> World:
     for k in ("stock", "known", "discovered_by", "discovered_at", "food_modifier", "intervention_event",
               "cell_hunger", "cell_births", "customs", "neutral", "hazard_food", "hazard_event", "immune",
               "skill", "farm_share", "crop_store", "still_years", "forage_rr", "spec", "polity_of", "polity_via", "conquered_at",
-              "herder_since"):
+              "herder_since", "stock_broad", "farm_rr_real", "farm_rr_cell"):
         if k in arrays:                      # older saves of this schema may lack optional arrays
             setattr(w, k, arrays[k])
+    if getattr(w, "farm_rr_real", None) is None or len(w.farm_rr_real) != len(w.farm_share):
+        w.farm_rr_real = np.full(len(w.farm_share), np.nan)      # before choices saw real yields (19 Nov 2026)
+    if getattr(w, "farm_rr_cell", None) is None or len(w.farm_rr_cell) != len(w.farm_rr_real):
+        w.farm_rr_cell = np.full(len(w.farm_rr_real), -1, dtype=np.int64)   # before review 021 (20 Nov 2026)
+    if getattr(w, "stock_broad", None) is None or len(w.stock_broad) != len(w.stock):
+        from .sim import climate as _climate            # saves from before the broad-spectrum pool (14 Nov 2026)
+        w.stock_broad = _climate.broad_max(w).copy()
     from .sim import technology as _tech
     if "tech" in arrays:
         w.tech = arrays["tech"]
@@ -183,6 +200,51 @@ def from_bytes(data: bytes, planet=None) -> World:
         w.herder_since = h
     w.first_herders = meta.get("first_herders")
     w.tech_firsts = dict(meta.get("tech_firsts", {}))
+    from .sim import trade as _trade                  # goods (M4a trade); saves from before have none
+    g = arrays.get("goods")
+    led = meta.get("goods_ledger")
+    _trade.init(w)
+    if g is not None and g.shape[1] == _trade.G:
+        w.goods = np.array(g, dtype=np.float64)        # exactly as saved (replay digest)
+    else:
+        _trade.grow(w, len(w.farm_share) - 1)
+    if "partner_of" in arrays:                          # gift partnerships (trade stage 2); older saves have none
+        w.partner_of = np.array(arrays["partner_of"], dtype=np.int64)
+        w.partner_since = np.array(arrays["partner_since"], dtype=np.int64)
+        if "partner_gave" in arrays:                   # running gift totals (15 November 2026)
+            w.partner_gave = np.array(arrays["partner_gave"], dtype=np.float64)
+        else:
+            from . import params as _P
+            w.partner_gave = np.zeros(w.partner_of.shape + (len(_P.GIFT_GOODS),))
+    elif len(w.partner_of) < len(w.goods):
+        _trade.grow(w, len(w.goods) - 1)             # keeps every goods row (Codex review 013)
+    _trade.grow(w, len(w.goods) - 1)                 # widens partner links to PARTNERS_CAP for older saves (stage 4a)
+    if "goods_reached" in arrays:                       # trade stage 3, after review 014
+        w.goods_reached = np.array(arrays["goods_reached"], dtype=bool)
+    else:
+        w.goods_reached = None
+        _trade.grow(w, len(w.goods) - 1)             # older saves: what a band holds has reached it
+    from .sim import disease as _disease                 # diseases from animals (M4a): older saves start with none
+    _disease.from_json(w, meta.get("disease", {}))
+    for k in _disease.ARRAYS:
+        if k in arrays and np.asarray(arrays[k]).size:
+            setattr(w, k, np.array(arrays[k], dtype=getattr(w, k).dtype))
+    from .sim import customs as _customs
+    _customs.widen(w)                                    # "response to epidemics" (M4a) for older saves
+    from .sim import land as _land                       # the land answers back (M4a): older saves start untouched
+    _land.init(w)
+    for k in _land.ARRAYS:
+        if "land_" + k in arrays:
+            setattr(w, k, np.array(arrays["land_" + k], dtype=getattr(w, k).dtype))
+    if "trade_in" in arrays and np.asarray(arrays["trade_in"]).size:   # last year's goods received (stage 5)
+        w.trade_in = np.array(arrays["trade_in"], dtype=np.float64)
+    for n_ in ("tech_prev_prac", "tech_prev_mats"):     # last year's practice and goods-held materials (review 018)
+        if n_ in arrays and np.asarray(arrays[n_]).size:
+            setattr(w, n_, np.array(arrays[n_], dtype=bool))
+    if "treasury" in arrays:                            # rulers' stores (trade stage 4b)
+        w.treasury = np.array(arrays["treasury"], dtype=np.float64)
+    if led:
+        w.goods_ledger = {k: dict(v) for k, v in led.items()}
     from .sim import customs as _customs
     if w.customs.shape[1] < len(_customs.NAMES):          # saves from before a custom was added: it starts at variant 0
         c = np.zeros((len(w.customs), len(_customs.NAMES)), dtype=w.customs.dtype)
@@ -201,6 +263,8 @@ def from_bytes(data: bytes, planet=None) -> World:
         farming.from_json(w, meta["farming"])
     if "surplus" in meta:
         surplus.from_json(w, meta["surplus"])
+    from .sim import trade as _tr
+    _tr.from_json(w, meta.get("trade"))
     if "polity" in meta:
         polity.from_json(w, meta["polity"])
     if "conflict" in meta:
@@ -246,18 +310,30 @@ def digest(w: World) -> str:
     for k, v in sorted(w.groups.arrays().items()):
         h.update(k.encode())
         h.update(np.ascontiguousarray(v).tobytes())
-    for arr in (w.stock, w.known, w.region_z, w.customs, w.neutral, w.hazard_food, w.immune, w.skill, w.farm_share,
-                w.crop_store, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since, w.tech,
-                w.tech_record):
+    for arr in (w.stock, w.stock_broad, w.known, w.region_z, w.customs, w.neutral, w.hazard_food, w.immune, w.skill, w.farm_share,
+                w.crop_store, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since, w.farm_rr_real, w.farm_rr_cell, w.tech,
+                w.tech_record, w.goods, w.partner_of, w.partner_since, w.goods_reached, w.partner_gave, w.treasury,
+              *[getattr(w, n_, None) if getattr(w, n_, None) is not None else np.zeros((0, 0), bool)
+                for n_ in ("tech_prev_prac", "tech_prev_mats")],
+              getattr(w, "trade_in", None) if getattr(w, "trade_in", None) is not None else np.zeros(0),
+              *[getattr(w, k) for k in __import__("origins.sim.land", fromlist=["ARRAYS"]).ARRAYS
+                if getattr(w, k, None) is not None],
+              *[getattr(w, k) for k in __import__("origins.sim.disease", fromlist=["ARRAYS"]).ARRAYS
+                if getattr(w, k, None) is not None]):
         h.update(np.ascontiguousarray(arr).tobytes())
     for k, v in sorted(w.bands.arrays().items()):
         h.update(k.encode())
         h.update(np.ascontiguousarray(v).tobytes())
-    small = {"t": w.t, "counts": w.counts, "ledger": w.ledger,
+    small = {"t": w.t, "counts": w.counts, "ledger": w.ledger, "goods_ledger": getattr(w, "goods_ledger", None),
              "bands": [dataclasses.asdict(b) for b in w.bands.live.values()], "band_strings": w.bands.strings,
              "rng": {k: g.bit_generator.state for k, g in w.rng.items()}, "n_events": len(w.events),
              "last_event": w.events[-1] if w.events else None,
              "language": language.to_json(w), "hazards": w.hazards, "farming": farming.to_json(w),
-             "polity": polity.to_json(w), "conflict": conflict.to_json(w)}
+             "disease": __import__("origins.sim.disease", fromlist=["x"]).to_json(w),
+             "polity": polity.to_json(w), "conflict": conflict.to_json(w),
+             "partner_dropped": getattr(w, "partner_dropped", {}),
+             "routes_seen": sorted(getattr(w, "routes_seen", set())),
+             "trade_links": getattr(w, "trade_links", []),
+             "evaded_seen": sorted(getattr(w, "evaded_seen", set()))}
     h.update(json.dumps(_jsonable(small), sort_keys=True).encode())
     return h.hexdigest()[:20]

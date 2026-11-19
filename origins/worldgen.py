@@ -64,6 +64,7 @@ class Planet:
     seismic: np.ndarray = None       # bool: earthquake zone (plate boundaries)
     start_cell: int = -1
     fingerprint: str = ""
+    water_level: np.ndarray = None   # metres: a lake's filled water surface; elsewhere the ground (not in the fingerprint)
 
     @property
     def n(self):
@@ -282,6 +283,7 @@ def generate(seed: int, level: int = GRID_LEVEL, radius_km: float = PLANET_RADIU
     planet.volcanic = plates["volcanic"]
     planet.seismic = plates["seismic"]
     planet.start_cell = _choose_start(planet, rng)
+    planet.water_level = np.where(lake, filled, elevation)   # derived after all random draws; changes nothing else
     planet.fingerprint = fingerprint(planet)
     return planet
 

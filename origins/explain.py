@@ -60,6 +60,8 @@ def describe(w, ref: dict) -> dict:
                 causes.append({"event": int(p.death_bad[i])})
             if p.death_interv[i] >= 0:
                 causes.append({"event": int(p.death_interv[i])})
+            if p.death_land[i] >= 0:
+                causes.append({"event": int(p.death_land[i])})      # the land's loss (M4a; review 020)
         if p.death_hazard[i] >= 0:
             causes.append({"event": int(p.death_hazard[i])})
         if p.cause[i] == C["orphaned infant"] and p.mother[i] >= 0:
@@ -117,6 +119,19 @@ def _event_title(w, e) -> str:
         return f"The world begins: {bn} ({d.get('size')} people)"
     if k == "bad_year":
         return f"Bad year in climate region {d.get('region')} (wild food at {d.get('factor', 0):.0%} of normal)"
+    if k == "new_disease":
+        host = d.get("host", "")
+        src = "wild animals" if host == "wild" else f"herded {host.replace('wild_', '')}"
+        return f"A new disease, {d.get('disease')}, passed to people from {src}"
+    if k == "outbreak" and d.get("disease"):
+        return f"{d.get('disease', '').capitalize()} circulating ({d.get('deaths', 0)} deaths)"
+    if k == "land_move":
+        return f"{bn} left worn land in search of food"
+    if k in ("land_game", "land_forest", "land_soil", "land_salt"):
+        return {"land_game": "Large game hunted out", "land_forest": "Forest cleared", "land_soil": "Soil worn",
+                "land_salt": "Land salted"}[k] + f" ({d.get('value', 0):.0%})"
+    if k == "technique_no_fuel":
+        return f"{bn} gave up {d.get('technique', '').replace('_', ' ')}: no wood left within reach"
     if k == "fission":
         nb = w.bands.get(d.get("new_band"))
         return f"{bn} split: {d.get('moved')} people left to form {w.band_name(nb) if nb else 'a new band'}"
@@ -149,6 +164,20 @@ def _event_title(w, e) -> str:
         from .sim.technology import TECHNIQUES, INDEX
         t = TECHNIQUES[INDEX[d["technique"]]]
         return f"{bn} {'lost' if k == 'technique_lost' else 'learned'} {t.name}"
+    if k == "partnership_formed":
+        return f"{bn} began a gift partnership"
+    if k == "partnership_lapsed":
+        return f"{bn}'s gift partnership lapsed"
+    if k == "good_arrived":
+        return f"{d.get('good', 'a good').replace('_', ' ')} reached {bn}"
+    if k == "gift_exchange":
+        return f"{bn} exchanged gifts with a partner"
+    if k == "trade_route_opened":
+        return f"traders from {bn} opened a route"
+    if k == "toll_evaded":
+        return f"traders from {bn} went round a toll"
+    if k == "helped_by_partners":
+        return f"{bn} was helped by its gift partners"
     if k == "technique_recovered":
         from .sim.technology import TECHNIQUES, INDEX
         return f"{bn} recovered {TECHNIQUES[INDEX[d['technique']]].name} from records"

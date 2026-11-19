@@ -111,6 +111,11 @@ FARM_RISK = 0.8                    # farmers discount a harvest's promise for it
 FARM_INERTIA = 0.15                # yearly share of the gap between current and preferred work split that is closed
 HARVEST_QUARTER = 2                # crops come in once a year (third season)
 PRESSURE_MARGIN = 1.6              # food gathered / needed below this presses a people towards new food
+CROWD_START = 0.55                 # people per unit of unaided wild food around a band where crowding pressure begins (Ben, 14 Nov 2026: proposal)
+CROWD_RANGE = 0.30                 # ... and the further rise that gives full pressure (a mature forager world: median 0.64, 90th percentile 0.76)
+ABUNDANCE_YEARS = 20               # years settled before a people may tend rich wild species without pressure (niche construction; Zeder 2012)
+ABUNDANCE_SUIT = 0.5               # land quality for a wild species that counts as rich
+ABUNDANCE_FLOOR = 0.1              # the pressure-equivalent at which they do so (one tenth of full pressure)
 TEND_STILL_YEARS = 5               # years in one area before a people begins to tend a wild plant or herd
 TEND_START = 5e-6                  # yearly chance a pressed band first begins to tend a wild species (per unit pressure and land quality)
 CULTIVATE_START = 1e-6             # yearly chance a band that tends a species first sows it deliberately (per unit pressure and land quality)
@@ -238,5 +243,166 @@ TECH_CRAFT_GAIN = 1.0              # at that share: practitioners needed halved,
 TECH_WRITING_HOLD = 0.5            # share of copying losses that writing of quality 1 prevents
 TECH_RECOVER = 0.002               # yearly chance, x writing quality, of recovering a lost technique from records
 TECH_HILL_RELIEF = 300.0           # metres of relief to a neighbouring cell that make land hilly (terracing)
+# M4a stage 5 (Ben, 14 November 2026: starting values, open to revision): full effect of each technique at quality 1
+TECH_EFFECT = {
+    "fire_hardening": 0.05, "cordage": 0.10, "bow": 0.10,       # foraging returns (Tomka 2013: the bow suits medium game)
+    "fish_traps": 0.15, "canoes": 0.10,                          # foraging returns by water
+    "canoes_crossing": 1.0,                                      # chance of crossing the sea: x (1 + this)
+    "sail": 1.0,                                                 # 1: with sail, land two sea cells away can be reached
+    "baskets": 0.15, "pottery": 0.30, "mud_brick": 0.15,         # spoiling of stored perishable food: x (1 - this)
+    "kilns": 0.25,                                               # pottery's effect x (1 + this)
+    "irrigation": 0.50,                                          # crop yields on river or lake land
+    "terracing": 0.30,                                           # farmable land on hilly cells
+    "plough": 0.50, "plough_land": 0.50,                         # with draft animals: output per worker; land advantage (Kohler et al. 2017)
+    "milking": 0.30,                                             # food from herds
+    "copper_working": 0.05,                                      # tools: farming and foraging returns
+    "tallies": 0.10, "writing": 0.50,                            # polity capacity
+    "pack_animals": 0.5, "carts": 1.0, "canoes_trade": 0.5,      # exchange between neighbours (Ben, 15 Nov 2026: starting values)
+}
+TECH_FORAGE_GEAR = True            # foraging gear's food effect (broad-spectrum food): back on with the new farming trigger (Ben, 14 Nov 2026); was off while both versions stopped farming
+TECH_BROAD_RETURN = 0.3            # food per unit of work from broad-spectrum food, against ordinary wild food (lower-ranked resources)
+TECH_SETTLED_YEARS = 20           # years in one place that make a foraging people settled (building techniques)
+# M4a trade (Ben, 15 November 2026; starting values, open to revision)
+TRADE = True
+GOOD_YIELD = {   # units a skilled practitioner at a source produces in a year (x the quality of the technique needed)
+    "salt": 1.0, "fine_stone": 1.0, "copper": 0.2, "tin": 0.1, "iron": 0.2, "gold": 0.02,
+    "textiles": 0.5, "pottery": 0.5, "shell": 0.5,
+}
+GOOD_WEAR = {    # share of each stock used up or worn out each year
+    "salt": 0.5, "fine_stone": 0.2, "copper": 0.05, "tin": 0.05, "iron": 0.05, "gold": 0.01,
+    "textiles": 0.25, "pottery": 0.2, "shell": 0.02,
+}
+PARTNERS_MAX = 4                   # gift partners per band (hxaro: 16 per person, most in a few other camps; Wiessner 2007)
+PARTNER_FORM = 0.05                # yearly chance a pair within reach begins a partnership (x closeness of speech)
+PARTNER_SHARE = 0.2                # share of its spare food a partner gives in a bad season (Ben, 15 Nov 2026: starting value)
+GIFT_GOODS = ("shell", "gold")     # lasting goods exchanged as gifts each year
+GIFT_SHARE = 0.05                  # share of each such good a partner gives the other each year
+DTL_RATE = 0.1                     # share of the way to equal holdings per person that neighbouring bands exchange each year
+ARRIVE_MIN = 1e-3                  # holdings below this count as none (for first arrivals)
+EXCHANGE_LOG_CAP = 20000           # rows kept in the thinned yearly exchange log
+# trade stage 4a (Ben, 15 Nov 2026): partners trade working goods, and settled villages favour well-supplied partners,
+# so hubs form (Ibanez et al. 2015, best fit for the later Neolithic). All starting values.
+PARTNERS_CAP = 16                  # most partner links any band can hold (hxaro: 16 per person on average; Wiessner 2007)
+PARTNER_SIZE_REF = 30              # a band of this size holds PARTNERS_MAX links; larger ones more, with the square root of size
+PARTNER_TRADE_GOODS = ("salt", "fine_stone", "copper", "tin", "iron")   # working goods partners trade
+PARTNER_TRADE_RATE = 0.1           # as DTL_RATE, for partners who are not neighbours
+PARTNER_SWITCH = 0.1               # yearly chance a settled band with no room drops its worst-supplied partner for a better one
+PARTNER_SWITCH_GAIN = 2.0          # the new partner must be at least this many times as well supplied (Ben, 15 Nov 2026)
+PARTNER_REFORM_WAIT = 10           # years before two bands parted by a swap can be partners again (Ben, 15 Nov 2026)
+# trade stage 4b (Ben, 15 Nov 2026): traders of polities carry goods between centres. All starting values.
+TRADER_GOODS = ("salt", "fine_stone", "copper", "tin", "iron", "gold", "shell", "textiles", "pottery")   # all goods: textiles and pottery too (Ben, 15 Nov 2026; Kanesh)
+TRADER_SHARE = 0.2                 # share of a seat's specialists who are traders (fed from surplus, as specialists are)
+TRADER_LOAD = 2.0                  # units of goods one trader carries in a year, on foot; pack animals and carts add to it
+TRADE_RANGE = 30.0                 # furthest route, in travel cost (one land cell on foot = 1; Assur-Kanesh about 20 cells)
+ROUTES_MAX = 3                     # destinations a polity's traders serve, chosen by gravity (size x size / cost^2)
+TRADER_RATE = 0.5                  # share of the gap in holdings per person a route aims to close in a year, before load
+ROAD_LOSS = 0.01                   # share of goods lost per unit of travel cost: lost = 1 - exp(-ROAD_LOSS x cost)
+TOLL = 0.05                        # share of a load each polity crossed takes, unless the trader goes round
+RULER_LEVY = 0.1                   # share of what arrives the destination's ruler levies (a levy until money, M6: Ben, 16 Nov 2026; Kanesh: about 10% of textiles)
+TRADER_KEEP = 0.25                 # share of what is delivered the traders keep, taken home (the split at Kanesh is unknown)
+MOUNTAIN_COST = 2.0                # extra travel cost per 1,000 m climbed between cells
+HIGH_COST = 0.5                    # extra travel cost per step in cells above 2,000 m
+RIVER_COST = 0.5                   # travel cost of a step along a river or coast with canoes of quality 1 (else as land)
+SEA_COST = 2.0                     # travel cost of a sea cell with sail of quality 1 (divided by quality; none without sail)
+TRADE_LOG_CAP = 20000
+ROAD_TOLLS_MAX = 8                 # most tolls a road search considers paying on one leg
+# curation (Ben, 16 Nov 2026): scarce tools are used sparingly, so a band's wear of them falls as its holdings per
+# person fall (good stone in short supply is made into formal, curated tools: Andrefsky 1994; Binford 1979).
+# Form and values are starting values, not measured.
+CURATION = True                    # False: the knock-out
+CURATED_GOODS = ("fine_stone", "copper", "tin", "iron")   # tools; salt is eaten, not curated
+CURATION_HALF = 0.01               # holdings per person at which wear is halved: wear x h / (h + CURATION_HALF)
+CURATION_MIN = 0.1                 # wear never falls below this share of its usual rate
+# trade stage 5 (Ben, 16 Nov 2026): what goods change. All starting values.
+GOODS_EFFECTS = True               # False: the knock-out of every effect below
+MATERIALS_FROM_GOODS = True        # a material held as goods counts as within reach (dependence on imports)
+GOOD_MATERIAL = {"fine_stone": "flint", "salt": "salt", "copper": "copper", "tin": "tin", "iron": "iron", "gold": "gold"}
+MATERIAL_HELD = 0.005              # holdings per person of a good that count as having its material
+METAL_NEED = 0.02                  # metal (copper + tin + iron) per person at which metal tools have their full effect
+SALT_NEED = 0.05                   # salt per person at which salt has its full effect (needs vary tenfold: Harding 2013)
+SALT_SPOIL = 0.2                   # spoiling of stored food x (1 - this) with salt enough
+SALT_HERD = 0.1                    # food from herds x (1 + this) with salt enough (herbivores need salt: Harding 2013)
+PRESTIGE_GOODS = ("gold", "shell")
+PRESTIGE_NEED = 0.05               # prestige goods in the ruler's store per member at which they have their full effect
+PRESTIGE_HOLD = 0.1                # polity capacity x (1 + this) with prestige goods enough (contested: small)
+CRAFT_TIME = {                     # share of a year a practitioner spends making a year's GOOD_YIELD
+    "salt": 0.05, "fine_stone": 0.05, "copper": 0.05, "tin": 0.05, "iron": 0.05, "gold": 0.05,
+    "textiles": 0.05, "pottery": 0.05, "shell": 0.05,
+}
+TRADE_TEACH = 0.5                  # chance of a lesson along a trade route, against TECH_SPREAD for full contact
+TRADE_NEED_REF = 0.05              # goods received per person last year (all goods, all routes) at which the trade need is full (Ben, 16 Nov 2026)
 TECH_FARMING = 0.2                 # farm (or herd) share a people needs before farming techniques apply to them
 
+
+# --- M4a: the land answers back (M4 specification section 5; Ben, 19 Nov 2026). All starting values. ---
+LAND = True
+GAME_SHARE = 0.1          # share of ordinary wild food that is slow-breeding large game (megafauna)
+GAME_GROWTH = 0.05        # yearly logistic regrowth of slow breeders (Johnson 2002)
+GAME_FAST_SHARE = 0.2     # share of ordinary wild food that is faster-breeding game (Ben, 19 Nov 2026: split)
+GAME_FAST_GROWTH = 0.3    # yearly logistic regrowth of faster breeders: they mostly hold up under hunting
+GAME_CATCH = 0.18         # yearly loss of game per unit of hunting pressure (the year's take / the year's maxima).
+                          # Calibrated, not measured (Ben, 19 Nov 2026): at the median pressure on lived-in cells
+                          # (0.49, planet 3, year 9,700) faster game settles near 0.7 and slow breeders are lost
+GAME_SPREAD = 0.05        # yearly drift of game towards the mean of neighbouring land cells
+FOREST_WILD = 0.3         # share of wild food in forest biomes that depends on the forest
+FOREST_CLEAR = 0.3        # yearly share of the forest standing on land taken for crops that is cleared
+FOREST_FUEL = 0.000005    # forest share cleared per unit of goods made with fire, the wood spread over the wooded
+                          # cells within reach (Ben, 20 Nov 2026: small, after Iles 2020; was 0.001, uncalibrated):
+                          # even 1,000 units a year from one cell clear 0.5% of it
+FOREST_REGROW = 0.01      # yearly share of the gap to the cover the unworked land can hold that regrows (centuries)
+FERT_DRAIN = 0.03         # yearly loss of fertility under full cropping, before manure
+MANURE_SAVE = 0.7         # share of that loss manuring prevents, at full quality with herds
+FERT_RECOVER = 0.1        # yearly share of the gap to natural fertility recovered in fallow
+FERT_FLOOR = 0.4          # crop yields on fully worn soil, against fresh soil
+EROSION = 0.02            # yearly fertility lost on a fully steep, bare, fully cropped cell
+LAND_STEEP = 1000.0       # metres of rise to a neighbour that count as fully steep
+DRY_RAIN = 500.0          # mm a year below which irrigated land gathers salt (fully at 0 mm)
+SALT_RISE = 0.03          # yearly salt gained under full irrigation and cropping on fully dry land
+SALT_LEACH = 0.02         # yearly share of salt leached in fallow (slow)
+SALT_THRESH = 0.3         # salt above which yields fall
+SALT_MAX_LOSS = 0.9       # crop lost at full salt
+LAND_GAME_LOW, LAND_GAME_BACK = 0.3, 0.6         # crossings recorded, and recovery that re-arms them
+LAND_FOREST_LOW, LAND_FOREST_BACK = 0.3, 0.6
+LAND_SOIL_LOW, LAND_SOIL_BACK = 0.6, 0.8
+LAND_SALT_HIGH, LAND_SALT_BACK = 0.3, 0.15
+# fallow by crowding (Ben, 19 Nov 2026; Boserup 1965: forest fallow of 15-20 years shortens to a few months as
+# population grows, at more labour per unit of output). Starting values.
+FALLOW_MAX = 0.8          # share of farmland resting where farmers need little of it (long fallow); fallow gives way
+                          # to need between these (Ben, 19 Nov 2026, after Codex review 020)
+FALLOW_MIN = 0.1          # share resting where farmers need all of it (annual cropping)
+FUEL_FULL = 0.3           # living forest cover of the best-wooded cell within two rings that gives full fuel for smelting (Ben, 19 Nov
+                          # 2026: fuel limits output). Starting value
+FUEL_MIN = 0.1            # below it (best-wooded cell within two rings), no wood for smelting, iron, canoes or carts
+FUEL_RESUME = 0.2         # a band that did not practise wood work last year needs this much to take it up again (Ben,
+                          # 20 Nov 2026, after Codex review 021: time to restore a reliable supply)
+REAL_YIELDS = True        # farmers' choices see real yields (Ben, 19 Nov 2026); False is the knock-out
+
+
+# --- M4a: diseases from animals (M4 specification section 6; Ben, 20 Nov 2026: full model, per-disease hunger,
+# flight and isolation now). All starting values; the literature gives no defensible rates (build notes).
+DISEASE = True                    # False keeps M1's anonymous outbreaks (the knock-out)
+DZ_EMERGE_HERD = 2e-7             # yearly chance per person herding a species long domesticated
+DZ_DOM_YEARS = 2000.0             # years since domestication at which herd pressure is full (Morand et al. 2014)
+DZ_EMERGE_WILD = 2e-8             # yearly chance per person of a disease new to these people from wild animals
+                                  # (was 2e-9, a count of diseases new to the world: Ben, 20 November 2026)
+DZ_RESPILL_WILD = 2e-6            # yearly chance per person living in its region that a wild disease passes again
+DZ_RESPILL_HERD = 2e-5            # yearly chance per person herding its species that a herd disease passes again
+DZ_ATTACK_RANGE = (0.5, 0.95)     # share of those who can catch it who do, in an epidemic
+DZ_CFR_RANGE = (0.005, 0.3)       # deaths per adult case (log-uniform): measles-like to smallpox-like
+DZ_CHILD_MULT_RANGE = (0.5, 2.0)  # children's deaths per case against adults'
+DZ_OLD_MULT = 2.0                 # people of 50 and over against adults
+DZ_K_RANGE = (300.0, 30000.0)     # people who can still catch it, on a cell and its neighbours, at which it keeps
+                                  # going with chance 1 - 1/e (log-uniform: chickenpox-like to measles-like)
+DZ_LASTING = 0.8                  # chance a new disease leaves lasting immunity
+DZ_WANE = 0.2                     # yearly loss of immunity otherwise
+DZ_HUNGER_RANGE = (0.0, 1.5)      # how much hunger raises its deaths (per disease; 0 = not at all)
+DZ_HUNGER = 2.0                   # deaths per case x (1 + hunger trait x shortfall x this)
+DZ_CRISIS_SHARE = 0.5             # adults ill at once above which care and food production fail
+DZ_CRISIS_EXTRA = 1.0             # extra deaths per case then (Rotuma 1911, Fiji 1875: care collapse)
+DZ_SPREAD = 0.3                   # yearly chance x attack x share who can catch it, per cell in contact
+DZ_FAMINE_SPREAD = 2.0            # spread x (1 + this x hunger at the source): hunger sets people moving
+DZ_CHILD_SHARE = 0.4              # share of a band under 15 (for immunity by age)
+DZ_CHILD_YEARS = 15.0
+DZ_FLIGHT_ATTACK, DZ_FLIGHT_OUT = 0.7, 1.5         # flight: fewer caught here, more carried away (guesses)
+DZ_ISOLATE_ATTACK, DZ_ISOLATE_OUT = 0.6, 0.5       # isolating the sick (Acholi gemo): fewer caught, less carried
+DZ_ISOLATE_CRISIS = 0.5                            # ... and survivors care for the sick: half the crisis deaths

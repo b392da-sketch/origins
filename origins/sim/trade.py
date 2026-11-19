@@ -1,0 +1,817 @@
+"""Trade (M4a; M4 specification section 4). Stage 1: goods and their ledgers. Stage 2: gift partnerships.
+
+Each good has a source, a stock held by each band, and a ledger, like food: every unit is produced at a source,
+worn out or used, lost when a band ends, or moved between bands (trade, migration, merging). sim/observe.py checks
+the balance every season. Money waits for M6 (Ben, 15 November 2026): wealth is counted in goods.
+
+Goods (Ben, 15 November 2026): salt and fine stone from deposits; copper, tin, iron and gold from ore by peoples who
+practise the right technique; textiles from wool and pottery from potters; shell from coasts. Fine stone (tools),
+salt (stores), metals (their techniques) and prestige goods (gold, shell: rulers' wealth) will change something
+(stage 5); textiles and pottery are trade goods only, for now. Livestock already moves as herds (surplus.py).
+
+Production is a yearly yield per skilled practitioner (technology.skilled) at a source on the band's own cell, times
+the quality of the technique it needs; wear is a yearly share of each stock. Both are starting values in params.py.
+Production takes no food time yet (a simplification, recorded in the build notes).
+
+Stage 2, gift partnerships (hxaro; Wiessner 1982, 2007; Ben, 15 November 2026: links between bands): each band keeps
+up to PARTNERS_MAX partner bands within two rings (about 120 km; more for larger bands, stage 4a). A link forms with a yearly chance, more readily
+between peoples who share words; partners exchange gifts of lasting goods each year (shell, gold); a link lapses
+when the two bands are no longer within reach or one ends. In a season when a band cannot meet its needs, partners
+with food to spare beyond their own needs give up to PARTNER_SHARE of the spare (food moved, not made). Partners
+teach techniques as readily as members of one's own people (technology.keep_and_spread).
+
+Stage 3, down-the-line exchange (Renfrew 1977; Ibáñez et al. 2015; Ben, 15 November 2026): each year, bands on the
+same or adjacent cells exchange goods, a share DTL_RATE of the way towards equal holdings per person, so goods flow
+from where they are plentiful to where they are scarce and, with wear, thin out with distance from their source.
+Bigger bands hold and pass on more (hubs). Pack animals and carts speed exchange over land; canoes along coasts and
+rivers; sail adds links between coastal bands across a sea cell. Recorded: a thinned yearly log of each band's
+exchanges, and an event when a good first reaches a band (naming where most of it came from).
+
+Stage 4a, partners trade and hubs form (Ibáñez et al. 2015, best fit for the later Neolithic; Ben, 15 November 2026):
+partners who are not neighbours also exchange working goods (PARTNER_TRADE_GOODS) as neighbours do, at
+PARTNER_TRADE_RATE; a band holds more links the larger it is (PARTNERS_MAX at PARTNER_SIZE_REF people, growing with
+the square root of size, at most PARTNERS_CAP); and a settled band with no room left drops, now and then, its
+worst-supplied partner for a better-supplied band within reach that has room, so well-supplied villages gather links.
+
+reads: bands (cell), planet minerals and coast, technology (practised quality, skilled practitioners), languages
+writes: w.goods (bands x goods), w.goods_ledger, w.partner_of, w.partner_since, band stores (help in need), events
+"""
+from __future__ import annotations
+
+import numpy as np
+
+GOODS = ("salt", "fine_stone", "copper", "tin", "iron", "gold", "textiles", "pottery", "shell")
+G = len(GOODS)
+GI = {g: i for i, g in enumerate(GOODS)}
+# what each good needs: (deposit on the band's own cell, or "coast"; technique practised, or None)
+SOURCES = {
+    "salt": ("salt|coast", None),
+    "fine_stone": ("flint", None),
+    "copper": ("copper", "copper_working"),
+    "tin": ("tin", "smelting"),
+    "iron": ("iron", "iron"),
+    "gold": ("gold", "copper_working"),
+    "textiles": (None, "wool"),
+    "pottery": (None, "pottery"),
+    "shell": ("coast", None),
+}
+FLOWS = ("produced", "worn", "lost", "moved_out", "moved_in")
+
+
+def init(w):
+    from . import traders
+    traders.init(w)
+    w.goods = np.zeros((64, G), dtype=np.float64)
+    w.goods_ledger = {g: {f: 0.0 for f in FLOWS} for g in GOODS}
+    k = int(getattr(P, "PARTNERS_CAP", 16))
+    w.partner_of = -np.ones((64, k), dtype=np.int64)
+    w.partner_gave = np.zeros((64, k, len(P.GIFT_GOODS)))    # running totals of gifts given to each partner (Ben, 15 Nov 2026)
+    w.gift_log = []              # thinned: [year, band, partner, {good: given}, {good: received}]
+    w.partner_dropped = {}       # "a,b" (a < b) -> tick a swap parted them (PARTNER_REFORM_WAIT; Ben, 15 Nov 2026)
+    w.partner_since = -np.ones((64, k), dtype=np.int64)
+    w.exchange_log = []          # [year, band, units received, units given, goods that first arrived]
+    w.goods_reached = np.zeros((64, G), dtype=bool)   # a good has reached this band (Codex review 014)
+
+
+def ensure(w, band_id: int, parent: int):
+    """A new band starts with no goods and no partners; whoever creates it moves a share across with move_share."""
+    grow(w, band_id)
+    w.goods[band_id] = 0.0
+    w.partner_of[band_id] = -1                 # a new band starts without partners of its own
+    w.partner_since[band_id] = -1
+    w.partner_gave[band_id] = 0.0
+    w.goods_reached[band_id] = False
+
+
+def grow(w, band_id: int):
+    """Make room for rows up to band_id, keeping every existing row (Codex review 013: loading an older save used to
+    clear its last goods row)."""
+    if getattr(w, "goods", None) is None:
+        init(w)
+    if band_id >= len(w.goods):
+        cap = len(w.goods)
+        while cap <= band_id:
+            cap *= 2
+        out = np.zeros((cap, G), dtype=np.float64)
+        out[:len(w.goods)] = w.goods
+        w.goods = out
+    if getattr(w, "goods_reached", None) is None:
+        w.goods_reached = w.goods > P.ARRIVE_MIN        # older saves: whatever a band holds has reached it
+    if len(w.goods_reached) < len(w.goods):
+        out = np.zeros((len(w.goods), G), dtype=bool)
+        out[:len(w.goods_reached)] = w.goods_reached
+        w.goods_reached = out
+    if getattr(w, "partner_of", None) is None:
+        k = int(P.PARTNERS_CAP)
+        w.partner_of = -np.ones((len(w.goods), k), dtype=np.int64)
+        w.partner_since = -np.ones((len(w.goods), k), dtype=np.int64)
+    if getattr(w, "partner_gave", None) is None:                # saves from before running totals: start at zero
+        w.partner_gave = np.zeros(w.partner_of.shape + (len(P.GIFT_GOODS),))
+    if not hasattr(w, "gift_log"):
+        w.gift_log = []
+    if not hasattr(w, "partner_dropped"):
+        w.partner_dropped = {}
+    if w.partner_of.shape[1] < int(P.PARTNERS_CAP):            # saves from before stage 4a held four links per band
+        for name in ("partner_of", "partner_since"):
+            a = getattr(w, name)
+            out = -np.ones((len(a), int(P.PARTNERS_CAP)), dtype=np.int64)
+            out[:, :a.shape[1]] = a
+            setattr(w, name, out)
+        out = np.zeros((len(w.partner_of), int(P.PARTNERS_CAP), len(P.GIFT_GOODS)))
+        out[:, :w.partner_gave.shape[1]] = w.partner_gave
+        w.partner_gave = out
+    if band_id >= len(w.partner_of):
+        cap = len(w.goods)
+        for name in ("partner_of", "partner_since"):
+            a = getattr(w, name)
+            out = -np.ones((cap, a.shape[1]), dtype=np.int64)
+            out[:len(a)] = a
+            setattr(w, name, out)
+    if len(w.partner_gave) < len(w.partner_of):
+        out = np.zeros((len(w.partner_of),) + w.partner_gave.shape[1:])
+        out[:len(w.partner_gave)] = w.partner_gave
+        w.partner_gave = out
+
+
+def move_share(w, src_id: int, dst_id: int, frac: float):
+    """Move a share of one band's goods to another (people leaving with their share, or joining another band).
+    A transfer, not a flow in or out of the world: recorded as moved out and moved in."""
+    if getattr(w, "goods", None) is None or frac <= 0:
+        return
+    frac = min(1.0, float(frac))
+    amt = w.goods[src_id] * frac
+    w.goods[src_id] -= amt
+    w.goods[dst_id] += amt
+    for i, g in enumerate(GOODS):
+        if amt[i]:
+            w.goods_ledger[g]["moved_out"] += float(amt[i])
+            w.goods_ledger[g]["moved_in"] += float(amt[i])
+
+
+def band_ended(w, band_id: int):
+    """An ended band's goods are lost (scattered, buried, taken up by no one we follow); its partnerships end."""
+    if getattr(w, "goods", None) is None or band_id >= len(w.goods):
+        return
+    _unlink_all(w, band_id, why="ended")
+    for i, g in enumerate(GOODS):
+        if w.goods[band_id, i]:
+            w.goods_ledger[g]["lost"] += float(w.goods[band_id, i])
+    w.goods[band_id] = 0.0
+
+
+def totals(w) -> np.ndarray:
+    """Goods held by bands and by rulers (trade stage 4b)."""
+    from . import traders
+    base = w.goods.sum(axis=0) if getattr(w, "goods", None) is not None else np.zeros(G)
+    return base + traders.totals(w)
+
+
+def _deposit(w, cells, what) -> np.ndarray:
+    pl = w.planet
+    out = np.zeros(len(cells), dtype=bool)
+    for part in what.split("|"):
+        if part == "coast":
+            out |= pl.coast[cells]
+        else:
+            out |= pl.minerals[part][cells]
+    return out
+
+
+def yearly(w):
+    """Production at sources, then wear. Called once a year."""
+    if not getattr(P, "TRADE", False):
+        return
+    if getattr(w, "goods", None) is None:
+        init(w)
+    from . import technology
+    live = w.living_bands()
+    if not live:
+        return
+    ids = np.asarray(w.live_index()[0])
+    if len(w.goods) <= ids.max():
+        ensure(w, int(ids.max()), -1)
+    _trade_in_size(w)
+    w.trade_in[:] = 0.0                                 # this year's goods received by exchange, gifts and traders
+    cells = np.array([b.cell for b in live])
+    skilled = technology.skilled(w, live, ids)
+    q = technology.practised_quality(w)
+    for i, g in enumerate(GOODS):
+        where, tech = SOURCES[g]
+        ok = _deposit(w, cells, where) if where else np.ones(len(ids), dtype=bool)
+        level = q[ids, technology.INDEX[tech]].astype(float) if tech else np.ones(len(ids))
+        made = P.GOOD_YIELD[g] * skilled * level * ok
+        if g in ("tin", "iron"):                            # smelted: output limited by fuel within reach (M4a land;
+            from . import land                              # Ben, 19 November 2026; Codex review 020, finding 2)
+            made = made * land.fuel(w, cells)
+        w.goods[ids, i] += made
+        w.goods_ledger[g]["produced"] += float(made.sum())
+        if g in ("pottery", "copper", "tin", "iron"):       # made with fire: fuel from the cell's forest (M4a land)
+            from . import land
+            land.note_fuel(w, cells, made, coal_ok=g in ("tin", "iron"))   # wood from where it grows (review 021)
+    partnerships_yearly(w, live)
+    down_the_line(w, live, ids, cells)
+    from . import traders
+    traders.yearly(w, live)                            # stage 4b: traders of polities, between seats
+    rate = np.array([P.GOOD_WEAR[g] for g in GOODS])
+    band_rate = np.broadcast_to(rate[None, :], (len(ids), G)).copy()
+    if getattr(P, "CURATION", False):
+        # scarce tools are used sparingly (Ben, 16 November 2026): wear x max(CURATION_MIN, h / (h + CURATION_HALF)),
+        # h = holdings per person
+        n = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
+        for g in P.CURATED_GOODS:
+            i = GI[g]
+            h = w.goods[ids, i] / n
+            band_rate[:, i] *= np.maximum(P.CURATION_MIN, h / (h + P.CURATION_HALF))
+    worn = w.goods[ids] * band_rate
+    w.goods[ids] -= worn
+    tw = w.treasury * rate[None, :]                     # rulers' stores wear as everyone's do (stage 4b)
+    w.treasury -= tw
+    for i, g in enumerate(GOODS):
+        w.goods_ledger[g]["worn"] += float(worn[:, i].sum()) + float(tw[:, i].sum())
+
+
+# --- stage 2: gift partnerships -------------------------------------------------------------------------------------
+
+def partners(w, band_id: int) -> list:
+    if getattr(w, "partner_of", None) is None or band_id >= len(w.partner_of):
+        return []
+    return [int(x) for x in w.partner_of[band_id] if x >= 0]
+
+
+def _link(w, a: int, b: int):
+    ia = int(np.nonzero(w.partner_of[a] < 0)[0][0])
+    ib = int(np.nonzero(w.partner_of[b] < 0)[0][0])
+    w.partner_of[a, ia], w.partner_since[a, ia] = b, w.t
+    w.partner_of[b, ib], w.partner_since[b, ib] = a, w.t
+    w.partner_gave[a, ia] = 0.0
+    w.partner_gave[b, ib] = 0.0
+
+
+def _unlink(w, a: int, b: int):
+    for x, y in ((a, b), (b, a)):
+        hit = w.partner_of[x] == y
+        w.partner_of[x, hit] = -1
+        w.partner_since[x, hit] = -1
+        w.partner_gave[x, hit] = 0.0
+
+
+def gift_totals(w, a: int, b: int) -> dict:
+    """What a and b have given each other since their partnership began: {"years": n, "<a>": {good: total},
+    "<b>": {...}} (running totals; Ben, 15 November 2026)."""
+    out = {"years": 0, str(a): {}, str(b): {}}
+    for x, y in ((a, b), (b, a)):
+        hit = np.nonzero(w.partner_of[x] == y)[0]
+        if not len(hit):
+            continue
+        k = int(hit[0])
+        out["years"] = int((w.t - int(w.partner_since[x, k])) // 4)
+        out[str(x)] = {g: round(float(v), 6) for g, v in zip(P.GIFT_GOODS, w.partner_gave[x, k]) if v > 0}
+    return out
+
+
+def _unlink_all(w, a: int, why: str = "ended"):
+    """End all of a band's partnerships, each with a lapse event carrying its gift totals (Codex review 015: ending,
+    merging and consolidation used to erase them)."""
+    if getattr(w, "partner_of", None) is None or a >= len(w.partner_of):
+        return
+    ba = w.bands[a] if a < len(w.bands) else None
+    for b in partners(w, a):
+        tot = gift_totals(w, a, b)
+        _unlink(w, a, b)
+        name = w.band_name(ba) if ba is not None else f"band {a}"
+        w.event("partnership_lapsed", cell=ba.cell if ba is not None else -1, band=a, partner=b, gifts=tot,
+                causes=[{"band": a}, {"note": f"the partnership ended when {name} {why}"}])
+
+
+def move_good(w, src_id: int, dst_id: int, i: int, amount: float):
+    """Move an amount of one good between bands (a gift); recorded as moved out and in."""
+    amount = float(min(max(amount, 0.0), w.goods[src_id, i]))
+    if amount <= 0:
+        return 0.0
+    w.goods[src_id, i] -= amount
+    w.goods[dst_id, i] += amount
+    w.goods_ledger[GOODS[i]]["moved_out"] += amount
+    w.goods_ledger[GOODS[i]]["moved_in"] += amount
+    return amount
+
+
+def allowance(w, ids) -> np.ndarray:
+    """How many partner links each band can hold: PARTNERS_MAX at PARTNER_SIZE_REF people, growing with the square
+    root of size, at most PARTNERS_CAP (stage 4a; starting values)."""
+    n = np.maximum(w.band_sizes()[np.asarray(ids)].astype(float), 1.0)
+    k = np.floor(P.PARTNERS_MAX * np.sqrt(np.maximum(n / P.PARTNER_SIZE_REF, 1.0)))
+    return np.minimum(k, P.PARTNERS_CAP).astype(int)
+
+
+def supply(w, ids) -> np.ndarray:
+    """How well supplied each band is with working goods: holdings per person of each, relative to the mean over
+    the bands given, summed."""
+    ids = np.asarray(ids)
+    cols = [GI[g] for g in P.PARTNER_TRADE_GOODS]
+    n = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
+    per = w.goods[ids][:, cols] / n[:, None]
+    mean = per.mean(axis=0)
+    return (per / np.where(mean > 0, mean, 1.0)).sum(axis=1)
+
+
+def _parted(w, a: int, b: int) -> bool:
+    """True if a swap parted these two bands less than PARTNER_REFORM_WAIT years ago."""
+    t = w.partner_dropped.get(f"{min(a, b)},{max(a, b)}")
+    return t is not None and w.t - t < 4 * P.PARTNER_REFORM_WAIT
+
+
+def _closeness(w, a, b) -> float:
+    from .language import shared_roots
+    la, lb = w.languages.get(a.language), w.languages.get(b.language)
+    same = shared_roots(la, lb) if (la is not None and lb is not None) else 1.0
+    return P.TECH_FOREIGN + (1.0 - P.TECH_FOREIGN) * same
+
+
+def partnerships_yearly(w, live):
+    """Lapse, gifts, then new links. Draws from the 'trade' stream only."""
+    from .language import ring2
+    rng = w.rng["trade"]
+    if w.partner_dropped:                          # forget partings older than the wait
+        w.partner_dropped = {k: t for k, t in w.partner_dropped.items() if w.t - t < 4 * P.PARTNER_REFORM_WAIT}
+    r2 = ring2(w)
+    reach = {b.id: {int(c) for c in r2[b.cell] if c >= 0} for b in live}
+    alive = {b.id: b for b in live}
+    # lapse: a partner that has ended or is no longer within reach
+    for b in live:
+        for o in partners(w, b.id):
+            if o not in alive:
+                _unlink(w, b.id, o)                      # the partner's end is its own record
+            elif alive[o].cell not in reach[b.id] and o > b.id:
+                tot = gift_totals(w, b.id, o)
+                _unlink(w, b.id, o)
+                w.event("partnership_lapsed", cell=b.cell, band=b.id, partner=o, gifts=tot,
+                        causes=[{"band": o}, {"note": f"{w.band_name(b)} and {w.band_name(alive[o])} were no longer "
+                                                          f"within reach of each other"}])
+    # gifts: lasting goods pass both ways each year, keeping the link alive and carrying goods along chains
+    for b in live:
+        for o in partners(w, b.id):
+            if o > b.id:
+                given = {str(b.id): {}, str(o): {}}
+                kb = int(np.nonzero(w.partner_of[b.id] == o)[0][0])
+                ko = int(np.nonzero(w.partner_of[o] == b.id)[0][0])
+                first = not (w.partner_gave[b.id, kb].any() or w.partner_gave[o, ko].any())
+                for j, g in enumerate(P.GIFT_GOODS):
+                    i = GI[g]
+                    x, y = P.GIFT_SHARE * w.goods[b.id, i], P.GIFT_SHARE * w.goods[o, i]
+                    gx, gy = move_good(w, b.id, o, i, x), move_good(w, o, b.id, i, y)
+                    _trade_in_size(w)
+                    w.trade_in[o] += gx
+                    w.trade_in[b.id] += gy
+                    w.partner_gave[b.id, kb, j] += gx
+                    w.partner_gave[o, ko, j] += gy
+                    if gx > 0:
+                        given[str(b.id)][g] = round(gx, 6)
+                    if gy > 0:
+                        given[str(o)][g] = round(gy, 6)
+                if given[str(b.id)] or given[str(o)]:
+                    # Each exchange is recorded with its partners, goods and quantities (M4 spec 4.2) as running
+                    # totals per partnership, carried by the lapse event; the first exchange is an event; yearly
+                    # exchanges go into a thinned log (Ben, 15 November 2026: 9.9 million yearly events in 1,200
+                    # years were 85% of the record).
+                    from ..state import log_row
+                    log_row(w, "gift_log", [w.t, b.id, o, given[str(b.id)], given[str(o)]], P.EXCHANGE_LOG_CAP)
+                    if first:
+                        w.event("gift_exchange", cell=b.cell, band=b.id, partner=o, goods=given,
+                                causes=[{"band": o}, {"note": f"{w.band_name(b)} and {w.band_name(alive[o])} "
+                                                              f"exchanged their first gifts as partners"}])
+    # new links: pairs within reach with room, drawn in band order, likelier between peoples who share words
+    by_cell: dict = {}
+    for b in live:
+        by_cell.setdefault(b.cell, []).append(b)
+    allow = dict(zip([b.id for b in live], allowance(w, [b.id for b in live]).tolist()))
+    free = {b.id: allow[b.id] - len(partners(w, b.id)) for b in live}
+    _switch(w, live, reach, by_cell, free, rng)
+    for b in sorted(live, key=lambda x: x.id):
+        if free[b.id] <= 0:
+            continue
+        mine = set(partners(w, b.id))
+        cands = sorted((o for c in sorted(reach[b.id]) for o in by_cell.get(c, ())
+                        if o.id > b.id and o.id not in mine and free[o.id] > 0 and not _parted(w, b.id, o.id)),
+                       key=lambda x: x.id)
+        if not cands:
+            continue
+        draws = rng.random(len(cands))
+        for o, u in zip(cands, draws.tolist()):
+            if free[b.id] <= 0:
+                break
+            if free[o.id] <= 0:
+                continue
+            close = _closeness(w, b, o)
+            if u < P.PARTNER_FORM * close:
+                _link(w, b.id, o.id)
+                free[b.id] -= 1
+                free[o.id] -= 1
+                w.event("partnership_formed", cell=b.cell, band=b.id, partner=o.id,
+                        causes=[{"band": o.id}, {"note": f"{w.band_name(b)} and {w.band_name(o)} lived within reach "
+                                                          f"of each other ({close:.0%} closeness of speech) and began "
+                                                          f"to exchange gifts"}])
+
+
+def _switch(w, live, reach, by_cell, free, rng):
+    """Settled bands with no room left drop, with a yearly chance PARTNER_SWITCH, their worst-supplied partner for
+    the best-supplied band within reach that has room and is better supplied (Ibáñez et al. 2015's optimised links).
+    Draws from the 'trade' stream, one draw per settled band with no room, in band order."""
+    from . import technology
+    full = sorted((b for b in live if free[b.id] <= 0 and partners(w, b.id)), key=lambda x: x.id)
+    if not full:
+        return
+    settled = technology._settled(w, [b.id for b in full])
+    full = [b for b, s_ in zip(full, settled.tolist()) if s_]
+    if not full:
+        return
+    draws = rng.random(len(full))
+    ids = np.array([b.id for b in live])
+    sup = dict(zip(ids.tolist(), supply(w, ids).tolist()))
+    for b, u in zip(full, draws.tolist()):
+        if u >= P.PARTNER_SWITCH or free[b.id] > 0:
+            continue
+        mine = partners(w, b.id)
+        worst = min(mine, key=lambda o: (sup.get(o, 0.0), o))
+        mine_set = set(mine)
+        cands = [o for c in sorted(reach[b.id]) for o in by_cell.get(c, ())
+                 if o.id != b.id and o.id not in mine_set and free[o.id] > 0
+                 and sup[o.id] >= P.PARTNER_SWITCH_GAIN * sup.get(worst, 0.0) and sup[o.id] > 0
+                 and not _parted(w, b.id, o.id)]
+        if not cands:
+            continue
+        best = max(cands, key=lambda o: (sup[o.id], -o.id))
+        tot = gift_totals(w, b.id, worst)
+        _unlink(w, b.id, worst)
+        w.partner_dropped[f"{min(b.id, worst)},{max(b.id, worst)}"] = w.t
+        free[worst] = free.get(worst, 0) + 1
+        _link(w, b.id, best.id)
+        free[best.id] -= 1
+        ow = w.bands[worst]
+        w.event("partnership_lapsed", cell=b.cell, band=b.id, partner=worst, gifts=tot,
+                causes=[{"band": worst}, {"note": f"{w.band_name(b)} gave up its partnership with {w.band_name(ow)}, "
+                                                  f"its worst-supplied partner, for a better-supplied one"}])
+        w.event("partnership_formed", cell=b.cell, band=b.id, partner=best.id,
+                causes=[{"band": best.id}, {"note": f"{w.band_name(b)}, settled and with no room for more partners, "
+                                                    f"took up {w.band_name(best)}, better supplied with tools, salt "
+                                                    f"and metal than {w.band_name(ow)}"}])
+
+
+def share_in_need(w, bands, ids, avail, need_now, keep_need):
+    """Within a season, before eating: a band that cannot meet this season's needs draws on partners with food to
+    spare beyond their own needs (keep_need), each giving up to PARTNER_SHARE of its spare. Food moves between
+    bands' food in hand; nothing is made. Returns the new food in hand."""
+    if not getattr(P, "TRADE", False) or getattr(w, "partner_of", None) is None or not len(ids):
+        return avail
+    pos = {int(b): k for k, b in enumerate(ids.tolist())}
+    short = np.maximum(need_now - avail, 0.0)
+    if not (short > 0).any():
+        return avail
+    avail = avail.copy()
+    spare = np.maximum(avail - keep_need, 0.0) * P.PARTNER_SHARE
+    from .language import ring2
+    r2 = ring2(w)
+    for k in np.nonzero(short > 0)[0].tolist():
+        bid = int(ids[k])
+        if bid >= len(w.partner_of):
+            continue
+        near = {int(c) for c in r2[bands[k].cell] if c >= 0}
+        givers, got = [], 0.0
+        for o in partners(w, bid):
+            j = pos.get(o)
+            if j is None or spare[j] <= 0 or short[k] - got <= 1e-9:
+                continue
+            if bands[j].cell not in near:
+                continue                     # a partner who has moved out of reach cannot help (Codex review 013)
+            give = min(spare[j], short[k] - got)
+            spare[j] -= give
+            avail[j] -= give
+            got += give
+            givers.append(o)
+        if got > 0:
+            avail[k] += got
+            b = bands[k]
+            w.event("helped_by_partners", cell=b.cell, band=bid, amount=round(got, 3), givers=givers,
+                    causes=[{"band": g} for g in givers] + [{"note": f"{w.band_name(b)} could not meet its needs this "
+                                                                    f"season; its gift partners gave food they could "
+                                                                    f"spare"}])
+    return avail
+
+
+# --- stage 3: down-the-line exchange ---------------------------------------------------------------------------------
+
+def _pairs(w, live, cells):
+    """Pairs of bands (positions in live) that exchange: same cell or adjacent cells; with sail, coastal bands across
+    one sea cell. Returns (i, j, kind) arrays, kind 0 land, 1 by water, 2 across the sea."""
+    pl = w.planet
+    nb = pl.grid.neighbours
+    by_cell: dict = {}
+    for k, c in enumerate(cells.tolist()):
+        by_cell.setdefault(c, []).append(k)
+    from . import technology
+    sail = technology.practised_quality(w)[np.asarray([b.id for b in live]), technology.INDEX["sail"]] > 0
+    wet = pl.coast | pl.lake | pl.river
+    I, J, KIND = [], [], []
+    for c, ks in by_cell.items():
+        for a in range(len(ks)):
+            for b in range(a + 1, len(ks)):
+                I.append(ks[a]); J.append(ks[b]); KIND.append(1 if wet[c] else 0)
+        near = [int(x) for x in nb[c] if x > c and pl.land[x]]
+        for d in near:
+            for ka in ks:
+                for kb in by_cell.get(d, ()):
+                    I.append(ka); J.append(kb); KIND.append(1 if (wet[c] and wet[d]) else 0)
+        if pl.coast[c]:
+            across = {int(z) for x in nb[c] if x >= 0 and not pl.land[x] for z in nb[x]
+                      if z > c and z >= 0 and pl.land[z] and pl.coast[z]} - set(int(x) for x in nb[c])
+            for d in sorted(across):
+                for ka in ks:
+                    for kb in by_cell.get(d, ()):
+                        if sail[ka] or sail[kb]:
+                            I.append(ka); J.append(kb); KIND.append(2)
+    return np.array(I, dtype=np.int64), np.array(J, dtype=np.int64), np.array(KIND, dtype=np.int64)
+
+
+def _partner_pairs(w, live, ids, cells, I, J, KIND):
+    """Add partners who are not already neighbours (same or adjacent cell) as pairs of kind 3 (stage 4a)."""
+    if getattr(w, "partner_of", None) is None:
+        return I, J, KIND
+    pos = {int(b): k for k, b in enumerate(np.asarray(ids).tolist())}
+    nb = w.planet.grid.neighbours
+    have = set(zip(np.minimum(I, J).tolist(), np.maximum(I, J).tolist()))   # e.g. across a sea cell (Codex review 015)
+    PI, PJ = [], []
+    for k, bid in enumerate(np.asarray(ids).tolist()):
+        if bid >= len(w.partner_of):
+            continue
+        c = int(cells[k])
+        near = set(int(x) for x in nb[c] if x >= 0)
+        for o in partners(w, bid):
+            j = pos.get(o)
+            if j is None or o <= bid:
+                continue
+            d = int(cells[j])
+            if d == c or d in near or (min(k, j), max(k, j)) in have:
+                continue                      # already exchanging as neighbours
+            PI.append(k); PJ.append(j)
+    if not PI:
+        return I, J, KIND
+    return (np.concatenate([I, np.array(PI, dtype=np.int64)]), np.concatenate([J, np.array(PJ, dtype=np.int64)]),
+            np.concatenate([KIND, np.full(len(PI), 3, dtype=np.int64)]))
+
+
+def down_the_line(w, live, ids, cells):
+    """Exchange between neighbouring bands, a share of the way towards equal holdings per person (conserving)."""
+    if not getattr(P, "TRADE", False):
+        return
+    # what a band holds now has reached it, by any route (production, gifts, people moving), even when it has no
+    # one to exchange with this year (Codex review 015)
+    w.goods_reached[ids] |= w.goods[ids] > P.ARRIVE_MIN
+    if len(ids) < 2:
+        return
+    from . import technology
+    I, J, KIND = _pairs(w, live, cells)
+    I, J, KIND = _partner_pairs(w, live, ids, cells, I, J, KIND)
+    if not len(I):
+        return
+    sizes = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
+    q = technology.practised_quality(w)
+    def best(key):
+        v = q[ids, technology.INDEX[key]].astype(float)
+        return np.maximum(v[I], v[J])
+    E = P.TECH_EFFECT
+    land = 1 + E.get("pack_animals", 0) * best("pack_animals") + E.get("carts", 0) * best("carts")
+    water = 1 + E.get("canoes_trade", 0) * best("canoes")
+    rate = P.DTL_RATE * np.where(KIND == 0, land, np.where(KIND == 1, np.maximum(land, water), best("sail")))
+    rate = np.where(KIND == 3, P.PARTNER_TRADE_RATE * land, rate)       # partners who are not neighbours (stage 4a)
+    # (across the sea, exchange scales with the better sail's quality, as crossings do: Ben, 14 Nov 2026)
+    rate = np.clip(rate, 0, 0.5)
+    sa, sb = sizes[I], sizes[J]
+    # Each pair closes a share of the gap in holdings per person; summed over all of a band's pairs, that share must
+    # stay at or below one half, or many simultaneous inflows push a well-connected band past every donor (Codex
+    # review 014). Pairs touching a band over the limit are scaled down together, so each band's new holding per
+    # person stays between its own and its neighbours'.
+    # The limit is worked out separately for goods that partners trade and goods they do not, so links that carry no
+    # pottery do not slow pottery between neighbours (Codex review 015).
+    def limited(r):
+        cond = np.zeros(len(ids))
+        np.add.at(cond, I, r * sb / (sa + sb))
+        np.add.at(cond, J, r * sa / (sa + sb))
+        lim = np.where(cond > 0.5, 0.5 / np.maximum(cond, 1e-300), 1.0)
+        return r * np.minimum(lim[I], lim[J])
+    rate_work = limited(rate)
+    rate_other = limited(np.where(KIND == 3, 0.0, rate))
+    before = w.goods[ids].copy()
+    received = np.zeros(len(ids))
+    given = np.zeros(len(ids))
+    top_src = {}
+    reached = w.goods_reached[ids] | (before > P.ARRIVE_MIN)    # by any route: production, gifts, people moving
+    for gi in range(G):
+        g = before[:, gi]
+        if not g.any():
+            continue
+        # towards equal holdings per person: m* = (ga sb - gb sa) / (sa + sb); positive flows a -> b
+        r = rate_work if GOODS[gi] in P.PARTNER_TRADE_GOODS else rate_other
+        f = r * (g[I] * sb - g[J] * sa) / (sa + sb)
+        out = np.zeros(len(ids))
+        np.add.at(out, I, np.maximum(f, 0))
+        np.add.at(out, J, np.maximum(-f, 0))
+        scale = np.where(out > 0, np.minimum(1.0, 0.5 * g / np.maximum(out, 1e-300)), 1.0)
+        f = np.where(f > 0, f * scale[I], f * scale[J])          # no band gives more than half of what it holds
+        delta = np.zeros(len(ids))
+        np.add.at(delta, I, -f)
+        np.add.at(delta, J, f)
+        w.goods[ids, gi] = g + delta
+        moved = float(np.abs(f).sum())
+        if moved:
+            w.goods_ledger[GOODS[gi]]["moved_out"] += moved
+            w.goods_ledger[GOODS[gi]]["moved_in"] += moved
+        # gross flows, pair by pair, so a band that passes goods on is counted (Codex review 014)
+        np.add.at(received, J, np.maximum(f, 0))
+        np.add.at(received, I, np.maximum(-f, 0))
+        np.add.at(given, I, np.maximum(f, 0))
+        np.add.at(given, J, np.maximum(-f, 0))
+        # first arrivals: a band this good has never reached now holds some (wear can take it below the line again
+        # without a second "first" arrival)
+        new = np.nonzero(~reached[:, gi] & (g + delta > P.ARRIVE_MIN))[0]
+        reached[:, gi] |= (g + delta > P.ARRIVE_MIN)
+        if len(new):
+            inflow = {}
+            for a, b_, x, kd in zip(I.tolist(), J.tolist(), f.tolist(), KIND.tolist()):
+                if x > 0:
+                    inflow.setdefault(b_, []).append((x, a, kd))
+                elif x < 0:
+                    inflow.setdefault(a, []).append((-x, b_, kd))
+            for k in new.tolist():
+                _, src, kd = max(inflow.get(k, [(0.0, -1, 0)]))
+                top_src.setdefault(k, []).append((GOODS[gi], src, kd))
+    for k, arrivals in top_src.items():
+        b = live[k]
+        for good, src, kd in arrivals:
+            if src < 0:
+                continue
+            o = live[src]
+            how = "its trading partner" if kd == 3 else "its neighbour"
+            w.event("good_arrived", cell=b.cell, band=b.id, good=good, source=o.id, route="partner" if kd == 3 else "neighbour",
+                    causes=[{"band": o.id}, {"note": f"{good.replace('_', ' ')} first reached {w.band_name(b)} "
+                                                      f"from {w.band_name(o)}, {how}, by exchange"}])
+    w.goods_reached[ids] = reached
+    _trade_in_size(w)
+    w.trade_in[ids] += received                         # goods received by exchange (stage 5's trade need)
+    from ..state import log_row
+    for k in np.nonzero((received > 0) | (given > 0))[0].tolist():
+        log_row(w, "exchange_log", [w.year, int(ids[k]), round(float(received[k]), 4), round(float(given[k]), 4),
+                                    [g for g, _, _ in top_src.get(k, [])]], P.EXCHANGE_LOG_CAP)
+
+
+def to_json(w) -> dict:
+    from . import traders
+    return {"traders": traders.to_json(w), "exchange_log": getattr(w, "exchange_log", []), "gift_log": getattr(w, "gift_log", []),
+            "partner_dropped": getattr(w, "partner_dropped", {})}
+
+
+def from_json(w, d: dict):
+    from . import traders
+    traders.from_json(w, (d or {}).get("traders"))
+    w.exchange_log = (d or {}).get("exchange_log", [])
+    w.gift_log = (d or {}).get("gift_log", [])
+    w.partner_dropped = dict((d or {}).get("partner_dropped", {}))
+
+
+def check_begin(w):
+    if getattr(w, "goods", None) is None:
+        return
+    w._goods_check = (totals(w).copy(), {g: dict(v) for g, v in w.goods_ledger.items()})
+
+
+def check_end(w):
+    """Every unit of every good has a recorded source and fate (nothing from nothing)."""
+    c = getattr(w, "_goods_check", None)
+    if c is None or getattr(w, "goods", None) is None:
+        return
+    before, led = c
+    now = totals(w)
+    for i, g in enumerate(GOODS):
+        L, L0 = w.goods_ledger[g], led[g]
+        flows = (L["produced"] - L0["produced"]) - (L["worn"] - L0["worn"]) - (L["lost"] - L0["lost"])
+        if abs((now[i] - before[i]) - flows) > 1e-6 * max(1.0, abs(before[i])):
+            w.invariant_failures.append(f"t={w.t}: {g} change {now[i] - before[i]:.4f} vs flows {flows:.4f}")
+    if (w.goods < -1e-9).any():
+        w.invariant_failures.append(f"t={w.t}: negative goods")
+
+
+from .. import params as P  # noqa: E402
+
+
+# --------------------------------------------------------------------------- stage 5: what goods change
+# Ben, 16 November 2026 (build notes, "Trade stage 5"). Every factor below is 0..1 and every effect a starting value.
+# GOODS_EFFECTS False is the knock-out of all of them.
+
+def _effects_on() -> bool:
+    return bool(getattr(P, "TRADE", False) and getattr(P, "GOODS_EFFECTS", False))
+
+
+def per_person(w, ids, names) -> np.ndarray:
+    """Holdings per person of the named goods, summed (0 where goods are not set up)."""
+    ids = np.asarray(ids)
+    if getattr(w, "goods", None) is None or not len(ids):
+        return np.zeros(len(ids))
+    n = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
+    rows = np.minimum(ids, len(w.goods) - 1)
+    held = w.goods[rows][:, [GI[g] for g in names]].sum(axis=1)
+    return np.where(ids < len(w.goods), held, 0.0) / n
+
+
+def goods_materials(w, ids, materials) -> np.ndarray:
+    """live x materials: does each band hold enough of a good to count as having its material (MATERIAL_HELD per
+    person)? A people working imported tin depends on the trade that brings it (M4 spec 4.3)."""
+    out = np.zeros((len(ids), len(materials)), dtype=bool)
+    if not _effects_on() or not getattr(P, "MATERIALS_FROM_GOODS", False):
+        return out
+    for g, m in P.GOOD_MATERIAL.items():
+        if m in materials:
+            out[:, materials.index(m)] = per_person(w, ids, (g,)) >= P.MATERIAL_HELD
+    return out
+
+
+def metal_factor(w, ids) -> np.ndarray:
+    """0..1: metal tools need metal (copper, tin, iron) held, METAL_NEED per person for the full effect."""
+    if not _effects_on():
+        return np.ones(len(ids))
+    return np.clip(per_person(w, ids, ("copper", "tin", "iron")) / P.METAL_NEED, 0.0, 1.0)
+
+
+def salt_factor(w, ids) -> np.ndarray:
+    """0..1: salt held, SALT_NEED per person for the full effect."""
+    if not _effects_on():
+        return np.zeros(len(ids))
+    return np.clip(per_person(w, ids, ("salt",)) / P.SALT_NEED, 0.0, 1.0)
+
+
+def prestige_factor(w, polity_id: int) -> float:
+    """0..1: prestige goods in the ruler's store per member of the polity, PRESTIGE_NEED for the full effect."""
+    if not _effects_on() or polity_id < 0 or getattr(w, "treasury", None) is None or polity_id >= len(w.treasury):
+        return 0.0
+    held = float(w.treasury[polity_id, [GI[g] for g in P.PRESTIGE_GOODS]].sum())
+    if held <= 0:
+        return 0.0
+    # Members are looked up fresh each call, so a band changing polity within a tick counts at once (Codex review
+    # 018); only band sizes are kept for the tick (speed), so births and deaths within a tick are not seen here.
+    c = getattr(w, "_sizes_tick", None)
+    if c is None or c[0] != w.t or len(c[1]) != len(w.bands):
+        c = (w.t, w.band_sizes().astype(float))
+        w._sizes_tick = c
+    members = np.nonzero(w.polity_of[:len(c[1])] == polity_id)[0]
+    n = float(c[1][members].sum()) if len(members) else 0.0
+    return float(np.clip(held / max(n, 1.0) / P.PRESTIGE_NEED, 0.0, 1.0))
+
+
+def craft_share(w, ids) -> np.ndarray:
+    """Craft years: adult working years that ordinary members spend making goods instead of food. For each good a
+    band makes at a source, CRAFT_TIME x the technique's quality, times the ordinary practitioners (the practising
+    share of adults less specialists). Specialists' making comes from surplus and costs no food time (Ben, 16
+    November 2026; Costin 1991). foraging takes this many adults' work from the band's food effort, so the share
+    lost grows with the makers against everyone's food work (Ben, 19 November 2026). Derived from the current
+    state, so nothing is saved; cached by tick."""
+    ids = np.asarray(ids)
+    if not _effects_on() or not len(ids):
+        return np.zeros(len(ids))
+    c = getattr(w, "_craft", None)
+    if c is not None and c[0] == w.t and c[1].shape[0] == len(ids) and np.array_equal(c[1], ids):
+        return c[2]
+    from . import technology
+    live = [w.bands[int(i)] for i in ids]
+    cells = np.array([b.cell for b in live])
+    q = technology.practised_quality(w)
+    share = np.zeros(len(ids))
+    for g in GOODS:
+        where, tech = SOURCES[g]
+        ok = _deposit(w, cells, where) if where else np.ones(len(ids), dtype=bool)
+        level = q[ids, technology.INDEX[tech]].astype(float) if tech else np.ones(len(ids))
+        share += P.CRAFT_TIME[g] * level * ok
+    # craft years: ordinary practitioners (as technology.skilled counts them) x the time each spends (Codex
+    # reviews 018, 019; Ben, 19 November 2026: time scales with the makers, set against the band's food work)
+    spec = np.asarray(w.spec[ids], dtype=float) if hasattr(w, "spec") else np.zeros(len(ids))
+    ordinary = np.maximum(technology._adults(w, live, ids) - spec, 0.0)
+    share = share * P.TECH_PRACTISE_SHARE * ordinary
+    w._craft = (w.t, ids.copy(), share)
+    return share
+
+
+def _trade_in_size(w):
+    a = getattr(w, "trade_in", None)
+    if a is None or len(a) < len(w.goods):
+        out = np.zeros(len(w.goods))
+        if a is not None:
+            out[:len(a)] = a
+        w.trade_in = out
+
+
+def trade_need(w, ids, cells) -> np.ndarray:
+    """0..1: how much a band trades: goods it received last year by exchange with neighbours and partners, as
+    gifts and from traders, all goods, per person, over TRADE_NEED_REF (Ben, 16 November 2026, after Codex review
+    018: real exchange, not imported stock). The technology pass runs before trade, so it reads last year's."""
+    ids = np.asarray(ids)
+    if getattr(w, "goods", None) is None or not len(ids):
+        return np.zeros(len(ids))
+    _trade_in_size(w)
+    n = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
+    return np.clip(w.trade_in[ids] / n / P.TRADE_NEED_REF, 0.0, 1.0)

@@ -16,17 +16,44 @@ def init(w):
     w.region_z = rng.normal(size=w.planet.n_regions)
     w.region_factor = _factor(w.region_z)
     w.stock = seasonal_max(w).copy()
+    w.stock_broad = broad_max(w).copy()
+
+
+def broad_share(w) -> np.ndarray:
+    """Per cell: the broad-spectrum food (small game, birds, fish, marginal plants) that only foragers with the right
+    gear can take, as a share of the ordinary wild food (M4a; Ben, 14 November 2026). It is the sum of the full
+    effects of the foraging gear usable there: hunting gear everywhere, fishing gear by water."""
+    p = w.planet
+    if not getattr(P, "TECH_FORAGE_GEAR", False):       # switched off (Ben, 14 November 2026): see M4 build notes
+        return np.zeros(p.n)
+    E = getattr(P, "TECH_EFFECT", {}) if getattr(P, "TECHNOLOGY", False) else {}
+    land = sum(E.get(k, 0.0) for k in ("fire_hardening", "cordage", "bow", "copper_working"))
+    water = sum(E.get(k, 0.0) for k in ("fish_traps", "canoes"))
+    wet = (p.coast | p.lake | p.river).astype(float)
+    return land + water * wet
+
+
+def broad_max(w, quarter=None):
+    """The broad-spectrum pool is not scaled by the land's game and forest factors: those are parts of the ordinary
+    wild food (Codex review 020, finding 3)."""
+    return seasonal_max(w, quarter, land=False) * broad_share(w)
 
 
 def _factor(z):
     return np.clip(np.exp(P.CLIMATE_SIGMA * z), P.CLIMATE_MIN, P.CLIMATE_MAX)
 
 
-def seasonal_max(w, quarter=None):
+def seasonal_max(w, quarter=None, land=True):
+    """Ordinary wild food at its seasonal level; with land=True, after what lost game and forest take from it
+    (M4a land)."""
     p = w.planet
     q = w.quarter if quarter is None else quarter
-    return (p.capacity * P.SEASON_DAYS * P.STOCK_MULTIPLIER * p.season_food[:, q]
+    base = (p.capacity * P.SEASON_DAYS * P.STOCK_MULTIPLIER * p.season_food[:, q]
             * w.region_factor[p.region] * w.food_modifier * w.hazard_food)
+    if not land:
+        return base
+    from . import land as _land
+    return base * _land.wild_factor(w)
 
 
 def yearly(w):
@@ -46,8 +73,16 @@ def yearly(w):
 
 
 def regrow(w):
-    target = seasonal_max(w)
+    natural = seasonal_max(w, land=False)
+    from . import land
+    target = natural * land.wild_factor(w)
+    land.note_wild(w, None, None, target)               # the year's maxima, for hunting pressure (M4a land)
     before = w.stock.sum()
     w.stock += P.REGROWTH * (target - w.stock)
     np.maximum(w.stock, 0.0, out=w.stock)
     w.ledger["regrowth"] += float(w.stock.sum() - before)
+    if getattr(w, "stock_broad", None) is not None:
+        before = w.stock_broad.sum()
+        w.stock_broad += P.REGROWTH * (natural * broad_share(w) - w.stock_broad)
+        np.maximum(w.stock_broad, 0.0, out=w.stock_broad)
+        w.ledger["regrowth"] += float(w.stock_broad.sum() - before)

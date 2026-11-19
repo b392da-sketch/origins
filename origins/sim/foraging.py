@@ -34,10 +34,12 @@ def move(w):
     cur = w.stock[cells] / np.maximum(occ[cells], 1)
     nbs = nb[cells]
     valid = (nbs >= 0) & planet.land[np.clip(nbs, 0, None)]
-    vals = np.where(valid, w.stock[np.clip(nbs, 0, None)] / (occ[np.clip(nbs, 0, None)] + s[:, None]), -1.0)
+    with np.errstate(divide="ignore", invalid="ignore"):     # empty bands divide by zero; they never move (s > 0 below)
+        vals = np.where(valid, w.stock[np.clip(nbs, 0, None)] / (occ[np.clip(nbs, 0, None)] + s[:, None]), -1.0)
     settled = w.farm_share[ids] >= 0.5                 # villages stay with their fields
     want = (vals.max(1) > cur * P.MOVE_THRESHOLD) & (s > 0) & ~settled
     cand = np.nonzero(want)[0]
+    cache = {}
     for k in cand[w.rng["movement"].permutation(len(cand))]:
         b = bands[int(k)]
         sz = s[k]
@@ -47,13 +49,49 @@ def move(w):
         j = int(np.argmax(v))
         if v[j] > here * P.MOVE_THRESHOLD:
             best = int(ns[j])
+            occ_here = float(occ[b.cell])
             occ[b.cell] -= sz
             occ[best] += sz
+            from . import land
             b.last_move = (f"moved for food: {v[j] / P.SEASON_DAYS:.2f} vs "
                            f"{here / P.SEASON_DAYS:.2f} food units per person-day available")
+            ev = _land_move(w, b, here, float(v[j]), occ_here, cache)
+            if ev >= 0:
+                b.last_move += f"; the land: event {ev}"
             b.cell = best
             b.trail = (b.trail + [(w.t, best)])[-40:]
             w.reveal_pending.add(b.id)
+
+
+def _land_move(w, b, here, there, occ_here, cache) -> int:
+    """If the land's loss decided a move, record it as an event citing the land events (Codex reviews 020 and 021,
+    finding 5). The counterfactual restores only this season's regrowth at the band's cell to its natural level
+    (regrowth runs just before movement): stock + REGROWTH x (natural target - target), per person. Lost game or
+    forest is cited only if the band would then have stayed. Worn soil reaches migration through the farming choice
+    (farming._land_abandoned), not through wild food, so it is not cited here. Returns the event id, or -1."""
+    from . import land, climate
+    if not getattr(P, "LAND", False) or getattr(w, "land_flags", None) is None:
+        return -1
+    c = b.cell
+    events = [int(w.land_event[c, j]) for j, k in enumerate(land.KINDS)
+              if k in ("game", "forest") and w.land_flags[c, j] and w.land_event[c, j] >= 0]
+    if not events:
+        return -1
+    if "natural" not in cache:
+        cache["natural"] = climate.seasonal_max(w, land=False)
+        cache["wf"] = land.wild_factor(w)
+    natural = float(cache["natural"][c])
+    actual = natural * float(cache["wf"][c])
+    here_nat = here + P.REGROWTH * max(natural - actual, 0.0) / max(occ_here, 1.0)
+    if there > here_nat * P.MOVE_THRESHOLD:
+        return -1                                       # it would have left anyway
+    fac = land.kind_factors(w, c)
+    kinds = {int(w.land_event[c, j]): k for j, k in enumerate(land.KINDS)}
+    events.sort(key=lambda e: fac[kinds[e]])
+    note = (f"{w.band_name(b)} left: {here / P.SEASON_DAYS:.2f} food units per person-day where it was, against "
+            f"{there / P.SEASON_DAYS:.2f} next door; with this season's regrowth at the land's natural level it would "
+            f"have had {here_nat / P.SEASON_DAYS:.2f}, and stayed")
+    return w.event("land_move", cell=c, band=b.id, causes=[{"note": note}] + [{"event": e} for e in events])
 
 
 def forage_and_eat(w):
@@ -82,22 +120,58 @@ def forage_and_eat(w):
     cells = np.fromiter((b.cell for b in bands), dtype=np.int64, count=L)
     from . import farming, surplus
     effort *= surplus.work_share(w, ids, w.live_sizes())   # specialists eat but do not produce food
+    if getattr(P, "TRADE", False):
+        from . import trade as _trade
+        # making goods costs ordinary makers food time: their craft years, at a full adult's work each, taken from
+        # the band's food effort, at most half of it (stage 5; Ben, 19 November 2026)
+        adult = float(P.work(np.array([30.0]), np.array([False]))[0]) * P.SEASON_DAYS * P.FORAGE_RATE
+        effort = np.maximum(effort - np.minimum(_trade.craft_share(w, ids) * adult, 0.5 * effort), 0.0)
     effort, farm_food = farming.season_food_live(w, ids, cells, effort)
+    # Wild food: the ordinary stock, plus broad-spectrum food (small game, birds, fish, marginal plants) that only
+    # foragers with the right gear can take (M4a; Ben, 14 November 2026: gear lets the land yield more to foragers,
+    # not a richer return per day; the broad spectrum revolution, Flannery 1969, Stiner 2001). Each band's share of
+    # the broad pool follows the quality of the gear it practises (technology.forage_access, 0..1).
+    from . import technology
+    raw_effort = effort
+    access = technology.forage_access(w, ids, cells)
     cell_effort = np.zeros(w.planet.n)
     np.add.at(cell_effort, cells, effort)
+    cell_reach = np.zeros(w.planet.n)
+    np.add.at(cell_reach, cells, effort * access)
     used = np.nonzero(cell_effort)[0]
-    a = w.stock[used]
     e = cell_effort[used]
-    h = np.where(a > 1e-9, a * (1 - np.exp(-e / np.maximum(a, 1e-9))), 0.0)
-    w.stock[used] = a - h
-    cell_h = np.zeros(w.planet.n)
-    cell_h[used] = h
-    band_h = np.where(cell_effort[cells] > 0, cell_h[cells] * effort / np.maximum(cell_effort[cells], 1e-12), 0.0)
-    w.ledger["harvest"] += float(h.sum())
+    am = w.stock[used]
+    broad = getattr(w, "stock_broad", None)
+    ab_all = broad[used] if broad is not None else np.zeros(len(used))
+    # ordinary food first (higher-ranked); broad-spectrum food only with the effort left over, at a lower return per
+    # unit of work (lower-ranked resources: the diet-breadth model; Kelly 1995; Louderback 2022): returns per day fall
+    # as foragers turn to it, so the pressure that leads to farming remains (Ben, 14 November 2026)
+    hm = np.where(am > 1e-9, am * (1 - np.exp(-e / np.maximum(am, 1e-9))), 0.0)
+    left = np.maximum(e - hm, 0.0) * np.clip(cell_reach[used] / np.maximum(e, 1e-12), 0, 1)
+    eb = left * P.TECH_BROAD_RETURN
+    hb = np.where(ab_all > 1e-9, ab_all * (1 - np.exp(-eb / np.maximum(ab_all, 1e-9))), 0.0)
+    H = hm + hb
+    w.stock[used] = am - hm
+    from . import land
+    land.note_wild(w, used, hm, None)                   # the year's take, for hunting pressure (M4a land)
+    if broad is not None:
+        broad[used] = ab_all - hb
+    cell_hm = np.zeros(w.planet.n)
+    cell_hb = np.zeros(w.planet.n)
+    cell_hm[used] = hm
+    cell_hb[used] = hb
+    band_h = (np.where(cell_effort[cells] > 0, cell_hm[cells] * effort / np.maximum(cell_effort[cells], 1e-12), 0.0)
+              + np.where(cell_reach[cells] > 0, cell_hb[cells] * effort * access / np.maximum(cell_reach[cells], 1e-12), 0.0))
+    w.ledger["harvest"] += float(H.sum())
 
     store = np.fromiter((b.store for b in bands), dtype=float, count=L)
-    farming.record_forage_return_live(w, ids, effort, band_h)
+    farming.record_forage_return_live(w, ids, raw_effort, band_h)
     avail = store + band_h + farm_food
+    # gift partners help in a bad season (M4a trade, stage 2): food moves before eating, nothing is made
+    from . import trade
+    _horizon = ((P.HARVEST_QUARTER - w.quarter - 1) % P.TICKS_PER_YEAR) + 1
+    _need = need_child + need_rest
+    avail = trade.share_in_need(w, bands, ids, avail, _need, _need * (1 + w.farm_share[ids] * (_horizon - 1)))
     give_c = np.minimum(avail, need_child)
     give_r = np.minimum(avail - give_c, need_rest)
     frac_c = np.where(need_child > 0, give_c / np.maximum(need_child, 1e-12), 1.0)
@@ -110,10 +184,10 @@ def forage_and_eat(w):
         # farmers store grain (granaries, pits, pots): more room and slower spoilage, in proportion to farming
         grain = np.minimum(1.0, 2 * fs)          # a band farming half its work or more stores mostly grain
         cap = (P.STORE_DAYS + grain * P.GRANARY_DAYS) * total_need / P.SEASON_DAYS
-        spoil = P.STORE_SPOIL * (1 - grain) + P.GRAIN_SPOIL * grain
+        spoil = P.STORE_SPOIL * technology.spoil_multiplier(w, ids) * (1 - grain) + P.GRAIN_SPOIL * grain
     else:
         cap = P.STORE_DAYS * total_need / P.SEASON_DAYS
-        spoil = P.STORE_SPOIL
+        spoil = P.STORE_SPOIL * technology.spoil_multiplier(w, ids)
     kept = np.minimum(left, cap) * (1 - spoil)
     spoiled = left - kept
     # food security: farmers must make what they hold last until the next harvest, so their margin is measured
@@ -122,6 +196,18 @@ def forage_and_eat(w):
     seasons = 1 + fs * (horizon - 1)
     margin = np.where(total_need > 0, avail / np.maximum(total_need * seasons, 1e-12), 1.6)
     ratio_b = np.where(total_need > 0, eaten / np.where(total_need > 0, total_need, 1.0), 1.0)
+    if getattr(P, "LAND", False) and getattr(w, "game", None) is not None:
+        # the food account (Ben, 20 November 2026, after Codex review 021): the wild food lost game and forest took
+        # from each band this season, as this season's regrowth short of its natural level, times the share of the
+        # stock harvested on its cell and the band's share of that harvest; and its shortfall against needs
+        from . import climate
+        natural = climate.seasonal_max(w, land=False)
+        missing = P.REGROWTH * np.maximum(natural - natural * land.wild_factor(w), 0.0)
+        frac = np.zeros(w.planet.n)
+        frac[used] = np.where(am > 1e-9, hm / np.maximum(am, 1e-9), 0.0)
+        lost_wild = (missing[cells] * frac[cells]
+                     * np.where(cell_effort[cells] > 0, effort / np.maximum(cell_effort[cells], 1e-12), 0.0))
+        land.note_account(w, ids, np.maximum(total_need - eaten, 0.0), lost_wild)
     mg = np.minimum(margin, 3.0).tolist()
     kp = kept.tolist()
     rb = ratio_b.tolist()
@@ -139,4 +225,4 @@ def forage_and_eat(w):
                  np.maximum(0.0, c - P.CONDITION_LOSS * (1 - ratio)))
     p.condition[idx] = c
     w.season_stats = {"ratio": float(eaten.sum() / max(total_need.sum(), 1e-9)),
-                      "harvest": float(h.sum()), "need": float(total_need.sum())}
+                      "harvest": float(H.sum()), "need": float(total_need.sum())}

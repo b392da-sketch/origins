@@ -30,7 +30,7 @@ C = {name: i for i, name in enumerate(CAUSES)}
 STREAMS = ["climate", "deaths", "partners", "births", "movement", "fission", "names", "founding",
            "language", "customs", "hazards", "crossing",
            "farming", "surplus", "polity", "conflict",
-           "technology"]   # new streams are appended, never inserted
+           "technology", "trade", "disease"]   # new streams are appended, never inserted
 
 # ids, ticks and cells all fit in 32 bits; people are never removed, so their rows are kept compact
 FIELDS = {
@@ -39,7 +39,7 @@ FIELDS = {
     "birth": np.int32, "death": np.int32, "mother": np.int32, "father": np.int32,
     "partner": np.int32, "band": np.int32, "preg_due": np.int32, "preg_father": np.int32,
     "youngest": np.int32, "partner_since": np.int32, "death_bad": np.int32,
-    "death_cell": np.int32, "lang": np.int32, "role": np.int8, "wealth": np.float32, "birth_cell": np.int32, "folded": np.int32, "unfolded": np.int32, "death_interv": np.int32, "death_hazard": np.int32,
+    "death_cell": np.int32, "lang": np.int32, "role": np.int8, "wealth": np.float32, "birth_cell": np.int32, "folded": np.int32, "unfolded": np.int32, "death_interv": np.int32, "death_hazard": np.int32, "death_land": np.int32,
 }
 _ZERO_DEFAULT = {"alive", "sex", "cause", "condition", "death_cond", "death_ratio", "role", "wealth"}
 
@@ -419,6 +419,10 @@ class World:
         polity.init(self)
         conflict.init(self)
         technology.init(self)
+        from .sim import trade
+        trade.init(self)
+        from .sim import land
+        land.init(self)
         self.people.languages = self.languages
         self.hazards: list = []                    # active hazards (sim/hazards.py)
         self.hazard_food = np.ones(n)              # hazard effect on wild food, recovering over years
@@ -473,6 +477,9 @@ class World:
         polity.ensure(self, b.id, parent)
         conflict.ensure(self, b.id, parent)
         technology.ensure(self, b.id, parent)
+        from .sim import trade, disease
+        trade.ensure(self, b.id, parent)
+        disease.ensure(self, b.id, parent)
         self.bands[b.id] = b
         if self._pool is not None:
             self._pool[b.id] = b

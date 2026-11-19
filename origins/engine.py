@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from . import interventions
 from . import params as P
-from .sim import bands, climate, customs, demography, farming, foraging, groups, conflict, hazards, language, observe, pastoral, polity, surplus, technology
+from .sim import bands, climate, customs, demography, farming, foraging, groups, conflict, hazards, land, language, observe, pastoral, polity, surplus, technology, trade
 
 PHASES = [
     ("interventions", interventions.restore_due),
@@ -28,6 +28,8 @@ PHASES = [
     ("polity", lambda w: polity.yearly(w) if w.quarter == P.HARVEST_QUARTER else None),
     ("conflict", lambda w: conflict.yearly(w) if w.quarter == P.HARVEST_QUARTER else None),
     ("technology", lambda w: technology.yearly(w) if w.quarter == P.HARVEST_QUARTER else None),
+    ("trade", lambda w: trade.yearly(w) if w.quarter == P.HARVEST_QUARTER else None),
+    ("land", lambda w: land.yearly(w) if w.quarter == P.HARVEST_QUARTER else None),
     ("customs", lambda w: customs.yearly(w) if w.quarter == 1 else None),
     ("language", lambda w: language.check(w)
      if w.quarter == 2 and w.year % P.LANGUAGE_CHECK_YEARS == 0 and w.t > 0 else None),
@@ -38,6 +40,7 @@ def step(w, ticks: int = 1):
     for _ in range(ticks):
         observe.begin_tick(w)
         for _name, fn in PHASES:
+            w._tech_eff = None          # technique effects are judged afresh in each phase (Codex review 010, finding 4)
             fn(w)
         observe.end_tick(w)
         w.t += 1

@@ -61,6 +61,16 @@ def kill(w, ids: np.ndarray, causes: np.ndarray):
     p.death_cell[ids] = c
     p.death_bad[ids] = np.where(c >= 0, w.region_bad_event[w.planet.region[np.clip(c, 0, None)]], -1)
     p.death_interv[ids] = np.where(c >= 0, w.intervention_event[np.clip(c, 0, None)], -1)
+    hungry = (causes == C["hunger"]) | (p.condition[ids] < 0.5)
+    if hungry.any() and getattr(w, "land_flags", None) is not None:
+        from . import land                               # the land's loss behind a hunger death: the food account
+        felt = {}                                        # test (Ben, 20 November 2026, after Codex review 021)
+        for i in np.nonzero(hungry & (c >= 0))[0].tolist():
+            key = (int(c[i]), int(b[i]))
+            if key not in felt:
+                fe = land.felt(w, key[1], key[0])
+                felt[key] = fe[0] if fe else -1
+            p.death_land[ids[i]] = felt[key]
     rich = ids[p.wealth[ids] > 0]
     if len(rich):
         from .surplus import inherit
@@ -176,12 +186,19 @@ def partnerships(w):
             if rng.random() < customs.residence_share(w, int(p.band[j])):   # the husband's people's custom
                 kids = idx[(p.mother[idx] == i) & (age < 12)]
                 src, dst = int(p.band[i]), int(p.band[j])
+                n_src = int((p.band[idx] == src).sum())
+                movers = 1 + len(kids)
                 p.band[i] = p.band[j]
                 p.band[kids] = p.band[j]
                 p.lang[kids] = w.bands[int(p.band[j])].language     # young children grow up speaking it
             else:
                 src, dst = int(p.band[j]), int(p.band[i])
+                n_src = int((p.band[idx] == src).sum())
+                movers = 1
                 p.band[j] = p.band[i]
+            # whoever moves takes their share of their band's goods (Codex review 012)
+            from . import trade
+            trade.move_share(w, src, dst, movers / max(n_src, 1))
             # the one who moves brings what they know, at the level one person can carry (Codex review 009, finding 3)
             from . import technology
             technology.combine(w, w.bands[src], w.bands[dst], "marriage", 1)

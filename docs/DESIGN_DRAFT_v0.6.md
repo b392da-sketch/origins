@@ -12,6 +12,8 @@ A self-running world that begins with a single band of people and grows, over te
 
 The target is **plausible and legible**, not "realistic" in the sense of calibrated to real history. Different runs should produce different histories from the same rules.
 
+**True to human life** (Ben, 15 November 2026). The project infuses as much of human behaviour, social dynamics and anthropological and historical findings as it can, so that the world is an organic, true-to-life representation of humanity. True to life means true in its mechanisms (how people actually behave, organise, exchange, fight and believe, as the evidence shows), not a replay of Earth's history: the runs still diverge. In practice: every mechanism starts from the literature with verified sources; behaviour emerges from those mechanisms rather than being scripted; each added mechanism must show in the gates that it changes behaviour; and where the evidence is thin or disputed, the build notes say so.
+
 Most of the effort goes into the mechanics and complexity of the simulation. The display is 2D.
 
 ---
@@ -224,8 +226,8 @@ Each milestone ends with a gate Ben approves. No new layer begins until the curr
 | M2 | Domestication, farming, storage, settlement; surplus and specialists; switch from prehistoric to historical clock | Behaviours 3–4 |
 | M3 | Leadership, chiefdoms, early states; institutions; conflict and conquest; individual-to-group folding | Behaviours 5–6 |
 | M4a | Technology network: emergence, diffusion, loss; trade; people changing the land; diseases from domestic animals; writing and place names; pastoralism; circumscription (M4 specification v1, approved 12 November 2026) | Behaviour 7 |
-| M4b | Military technology, methods of warfare and logistics, reconnaissance and strategy; crime, norms and enforcement; lineages, personal ties and reputation; chronicles (specified after G4a) | Warfare, crime and personal-ties checks |
-| M5 | Belief and religion layer; rituals with real costs; god mode. With it (section 16): myths and songs that drift from the events they remember | Behaviour 9 |
+| M4b | Military technology, methods of warfare and logistics, reconnaissance and strategy; crime, norms and enforcement; lineages, personal ties and reputation; chronicles; proposed: customs with consequences (section 16, item 23) (specified after G4a) | Warfare, crime and personal-ties checks |
+| M5 | Belief and religion layer; rituals with real costs; god mode. With it (section 16): myths and songs that drift from the events they remember; proposed: ritual and belief giving customs weight (item 23) | Behaviour 9 |
 | M6 | Long-run economy and the escape from the population ceiling. With it (section 16): inherited traits shaped by selection, if not added earlier | Behaviour 8 |
 | Throughout | Divergence across runs; causal traceability | Behaviour 10 and the standing requirement |
 
@@ -335,6 +337,14 @@ Deferred or rejected, with reasons:
       - Claude Code does fast experiments and anything that needs the laptop.
     - **Load:** at most about 4 tests at a time, so the laptop stays usable.
     - *To set up after the G3 gate.* A handover note will come first.
+
+**Proposed, to be specified with M4b** (Ben, 15 November 2026: added to the roadmap as a proposal; design to follow after G4a, literature first)
+
+23. **Customs with consequences.** Customs shape how people use technology, trade and fight, and conditions shape customs in turn. This extends item 15 (norms, M4b) and section 9 (belief and ritual, M5) rather than adding a separate layer. Starting points from a first literature check:
+    - **Residence and war shape each other:** matrilocal peoples far more often fight only outsiders (Ember & Ember 1971, *American Anthropologist* 73: 571–594). M1's residence custom now drifts at random; it could answer to war and steer whom a band fights.
+    - **Threat tightens norms:** nations that had faced more territorial threats have stricter norms (Gelfand et al. 2011, *Science* 332: 1100–1104). A possible effect, to be tested and not assumed: tighter peoples take up foreign techniques and customs more slowly but keep what they know better.
+    - **Ritual can do economic work:** Balinese water-temple networks coordinated irrigation timing across villages, limiting both water shortage and pests (Lansing & Kremer 1993, *American Anthropologist* 95(1): 97–114). *M5.*
+    - **Conditions:** each effect has a knock-out test in its gate (switched off, behaviour must change measurably), and customs respond to conditions rather than fixing a people's character.
 
 **Considered and left out:** detailed inner lives and personalities for individuals. Inventing them would narrate more than the simulation computes, against the principle that every answer comes from recorded causes.
 
