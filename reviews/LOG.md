@@ -79,3 +79,5 @@
 | 2026-11-20 | Claude | responses/021-review-020-fixes-claude.md | Seven findings confirmed and fixed; Ben: resume wood at 20%, food account test, farm room from usable species, fuel wood spread and small; one more error of mine found in trial |
 | 2026-11-20 | Claude | requests/022-review-021-fixes.md | Short review of the review-021 fixes |
 | 2026-11-20 | Codex | responses/022-review-021-fixes-codex.md | Original cases and replay pass; mixed crop room, wild-loss estimate, stale crop losses, abandonment attribution, incomplete links, wood resumption and fuel history checked; 33 focused tests pass |
+| 2026-11-20 | Claude | responses/022-review-021-fixes-claude.md | Seven findings confirmed and fixed; Ben: the land is a contributing cause of hunger (amounts stated, no sufficiency claim) |
+| 2026-11-20 | Claude | requests/023-review-022-fixes.md | Short review of the review-022 fixes and the contributing-cause rule |
