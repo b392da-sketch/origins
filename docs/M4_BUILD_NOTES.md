@@ -975,3 +975,24 @@ All six findings confirmed (`reviews/responses/028-diseases-from-animals-claude.
 | Diseases on | 358,896 | 317 deaths | 10.7% |
 
 With diseases on, one wild disease appeared (k about 258,000) and circulated for 3 years on one cell. The GitHub herd pair runs on one commit (`66dea8c`) in three herding histories: runs 44688553058 (on) and 44688555405 (off).
+
+### After Codex review 029 (20 November 2026)
+
+All six findings confirmed and fixed (`reviews/responses/029-review-028-fixes-claude.md`; tests `tests/test_disease.py::Review029`):
+- **Pregnancies move with the women** who split off or transfer, and are capped at the number of women of 15–49, also after maternal deaths.
+- **Adults' immunity among survivors counts the deaths of people of 50 and over,** at a fixed share of adults (`DZ_OLD_SHARE` 0.15, a starting value).
+- **Each epidemic in a year starts from the people left by the earlier ones.** G1's hazard watch follows named epidemics on the cell alone.
+- **G1 check 9 counts arrivals by contact only.** Returns from the animals count among the other units; new diseases are counted apart (`dz_new_*`).
+- **For check 10:**
+  - each band keeps the last year each disease circulated among it (`dz_last`);
+  - each row of the per-cell record holds the people and deaths of bands that had and had never met the disease, the years since they last had it, the herders on the cell, and the people on the cell and around it;
+  - the G3 record samples whole diseases above 100,000 rows.
+
+**Trial** (planet 3, year-9,700 save, 300 years; tunable starting values; no invariant failures; one history):
+
+| Run | People at the end | Deaths from disease | From hunger |
+|---|---|---|---|
+| Diseases off (M1 outbreaks) | 329,166 | 19.6% | 4.4% |
+| Diseases on | 357,507 | 328 deaths | 10.6% |
+
+With diseases on, one wild disease circulated for 4 years on up to 9 cells. The full suite passes (222 tests).
