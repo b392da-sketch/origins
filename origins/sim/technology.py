@@ -617,6 +617,7 @@ def yearly(w):
     hard = (P.TECH_EASY_KEEP / np.array([t.keep for t in TECHNIQUES], dtype=float)) ** P.TECH_DIFFICULTY
     chance = P.TECH_INVENT * (P.TECH_NEED_FLOOR + need) * pop[:, None] * hard[None, :]
     seen = _stimulus(w, live, ids, cells)
+    base = chance.copy()                                 # without the stimulus (Codex review 032, finding 5)
     for k, mult in getattr(P, "TECH_STIMULUS", {}).items():
         chance[:, INDEX[k]] *= np.where(seen[:, INDEX[k]] >= 0, mult, 1.0)
     rng = w.rng["technology"]
@@ -632,13 +633,21 @@ def yearly(w):
         if t.materials:
             why += "; materials: " + ", ".join(_material_source(w, b, group) for group in t.materials)
         causes = [{"note": why}]
-        src = int(seen[i, k])
-        if t.key in getattr(P, "TECH_STIMULUS", {}) and src >= 0:
-            causes = [{"band": src}, {"note": why + f"; they knew that {w.band_name(w.bands[src])} wrote, though not "
-                                      "how: the idea, not the script, was borrowed (stimulus diffusion)"}]
+        src = int(seen[i, k]) if t.key in getattr(P, "TECH_STIMULUS", {}) else -1
+        extra = {}
+        if src >= 0:
+            # exposure is recorded always; the stimulus is named as the cause only where the draw would have failed
+            # without it (Codex review 032, finding 5)
+            needed = bool(draw[i, k] >= base[i, k])
+            extra = {"stimulus": src, "stimulus_needed": needed}
+            if needed:
+                causes = [{"band": src}, {"note": why + f"; they knew that {w.band_name(w.bands[src])} wrote, though "
+                                          "not how: the idea, not the script, was borrowed (stimulus diffusion)"}]
+            else:
+                causes = [{"band": src}, {"note": why + f"; {w.band_name(w.bands[src])} nearby wrote, but they would "
+                                          "have invented it without that knowledge"}]
         w.event("invention", cell=b.cell, band=b.id, technique=t.key, causes=causes,
-                need=t.need, pressure=round(float(top), 3), connected=int(connected[i]),
-                **({"stimulus": src} if src >= 0 else {}))
+                need=t.need, pressure=round(float(top), 3), connected=int(connected[i]), **extra)
         firsts = w.tech_firsts if hasattr(w, "tech_firsts") else {}
         if t.key not in firsts:
             firsts[t.key] = len(w.events) - 1
@@ -655,7 +664,30 @@ def yearly(w):
         spec = spec * np.isin(ids, np.fromiter(seats, dtype=np.int64, count=len(seats)))
         sc[ids] += (spec - sc[ids]) / P.TECH_SCRIBE_YEARS
     keep_and_spread(w, live, ids, cells, sizes, connected, need)
-    _mark(w, live, ids, cells)                          # after every acquisition this year (Codex review 018)
+    _mark(w, live, ids, cells)
+    if w.year % P.TECH_WRITING_LOG_YEARS == 0:
+        _log_writing(w, live, ids, cells)
+
+
+def _log_writing(w, live, ids, cells):
+    """Every TECH_WRITING_LOG_YEARS: each band that holds writing or keeps scribes, with its polity's tier, its
+    scribes, writing's level and whether it practises it now (Codex review 032, finding 4: the gate must tell
+    writing in use from writing remembered, and set it against how long chiefdoms and states last)."""
+    log = getattr(w, "tech_writing_log", None)
+    if log is None:
+        log = w.tech_writing_log = []
+    sc = _scribes(w)[ids]
+    lv = w.tech[ids, WRITING].astype(float)
+    pick = np.nonzero((lv > 0) | (sc >= P.TECH_SCRIBE_MIN))[0]
+    if not len(pick):
+        return
+    ok = _possible(w, ids[pick], cells[pick])[:, WRITING]
+    for j, i in enumerate(pick.tolist()):
+        pid = int(w.polity_of[ids[i]]) if hasattr(w, "polity_of") and ids[i] < len(w.polity_of) else -1
+        p = w.polities.get(pid) if pid >= 0 else None
+        seat = p is not None and int(p.seat) == int(ids[i])
+        log.append([int(w.year), int(ids[i]), pid, int(p.tier) if p is not None else -1, bool(seat),
+                    round(float(sc[i]), 1), round(float(lv[i]), 3), bool(lv[i] > 0 and ok[j])])                          # after every acquisition this year (Codex review 018)
 
 
 def _stimulus(w, live, ids, cells) -> np.ndarray:

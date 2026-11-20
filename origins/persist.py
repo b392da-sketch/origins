@@ -73,7 +73,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
         "env": environment(),
         "language": language.to_json(w), "hazards": w.hazards,
         "farming": farming.to_json(w), "surplus": surplus.to_json(w), "polity": polity.to_json(w), "trade": __import__("origins.sim.trade", fromlist=["x"]).to_json(w),
-        "conflict": conflict.to_json(w), "timing": w.timing, "first_herders": getattr(w, "first_herders", None), "tech_firsts": getattr(w, "tech_firsts", {}), "goods_ledger": getattr(w, "goods_ledger", None), "log_strides": w.log_strides,
+        "conflict": conflict.to_json(w), "timing": w.timing, "first_herders": getattr(w, "first_herders", None), "tech_firsts": getattr(w, "tech_firsts", {}), "tech_writing_log": getattr(w, "tech_writing_log", []), "goods_ledger": getattr(w, "goods_ledger", None), "log_strides": w.log_strides,
         "disease": __import__("origins.sim.disease", fromlist=["x"]).to_json(w),
         "places": __import__("origins.sim.places", fromlist=["x"]).to_json(w),
     }
@@ -214,6 +214,7 @@ def from_bytes(data: bytes, planet=None) -> World:
         w.herder_since = h
     w.first_herders = meta.get("first_herders")
     w.tech_firsts = dict(meta.get("tech_firsts", {}))
+    w.tech_writing_log = [list(r) for r in meta.get("tech_writing_log", [])]    # from review 032; older saves: none
     from .sim import trade as _trade                  # goods (M4a trade); saves from before have none
     g = arrays.get("goods")
     led = meta.get("goods_ledger")
@@ -360,6 +361,7 @@ def digest(w: World) -> str:
              "language": language.to_json(w), "hazards": w.hazards, "farming": farming.to_json(w),
              "disease": __import__("origins.sim.disease", fromlist=["x"]).to_json(w),
              "places": __import__("origins.sim.places", fromlist=["x"]).to_json(w),
+             "tech_writing_log": getattr(w, "tech_writing_log", []),
              "polity": polity.to_json(w), "conflict": conflict.to_json(w),
              "partner_dropped": getattr(w, "partner_dropped", {}),
              "routes_seen": sorted(getattr(w, "routes_seen", set())),

@@ -84,7 +84,9 @@ class Naming(unittest.TestCase):
         ev = [i for i, e in enumerate(w.events) if e["kind"] == "place_named"]
         self.assertTrue(ev)
         self.assertTrue(all(explain.resolvable(w, {"event": i}) for i in ev))
-        self.assertIn("named the river", w.events[ev[0]]["causes"][1]["note"])
+        rv = [i for i in ev if w.events[i]["data"]["feature"] == "river"]
+        self.assertIn("named the river", w.events[rv[0]]["causes"][-1]["note"])
+        self.assertEqual(layer[6], rv[0])                 # the layer knows its event
 
     def test_a_named_place_is_not_renamed_by_the_same_people_or_its_daughters(self):
         w, b, river = _river_world()
@@ -284,3 +286,160 @@ class Writing(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Review032(unittest.TestCase):
+    """Codex review 032: findings reproduced, then fixed."""
+
+    def _name(self, w, u=0.0):
+        real = w.rng["places"]
+        w.rng["places"] = _Draw(u)
+        try:
+            places.yearly(w)
+        finally:
+            w.rng["places"] = real
+
+    def _second_people(self, w, b, bands):
+        from origins.sim.language import Language
+        new_id = w.next_lang
+        w.next_lang += 1
+        w.languages[new_id] = Language(new_id, -1, w.t, lexicon={m: [list(e[0]), e[1], e[2]]
+                                                                for m, e in w.languages[b.language].lexicon.items()})
+        for o in bands:
+            o.language = new_id
+        w.bands_changed()
+        return new_id
+
+    def test_a_rule_on_the_naming_tick_is_in_the_name(self):
+        from origins.sim import language
+        w = World.new(1, 1, generate(1))
+        lid = w.living_bands()[0].language
+        language._apply_rule(w.languages[lid], "laryngeal_loss", 42)
+        self.assertNotIn("h2", places.generic(w, lid, "river", 42))
+        self.assertIn("h2", places.generic(w, lid, "river", 41))
+
+    def test_conquest_is_seen_in_any_band_of_the_holders(self):
+        from origins.sim.polity import Polity
+        w, b, river = _river_world()
+        w.t = 40
+        self._name(w)
+        bands = w.living_bands()
+        self.assertGreaterEqual(len(bands), 3)
+        holder2, newcomer = bands[1], bands[2]
+        nid = self._second_people(w, b, bands[2:])
+        from origins.sim import conflict, polity
+        conflict.ensure(w, max(x.id for x in bands), -1)
+        polity.ensure(w, max(x.id for x in bands), -1)
+        pid = 999
+        w.polities[pid] = Polity(pid, newcomer.id, 0, "conquerors")
+        w.polity_of[holder2.id] = pid
+        w.conquered_at[holder2.id] = 79                  # the second holder band, not the first, was conquered
+        seen = []
+        real = places.keep_chance
+        places.keep_chance = lambda size, remote, newcomers, conquest: (seen.append(conquest), real(size, remote, newcomers, conquest))[1]
+        try:
+            w.t = 80
+            self._name(w)
+        finally:
+            places.keep_chance = real
+        self.assertIn(True, seen)
+
+    def test_conquered_people_may_take_their_conquerors_name(self):
+        from origins.sim.polity import Polity
+        from origins.sim import conflict, polity
+        w, b, river = _river_world()
+        bands = w.living_bands()
+        conq = bands[1]
+        nid = self._second_people(w, b, [conq])
+        w.t = 40
+        self._name(w)                                    # both peoples name the river, each in its own speech
+        p = next(p for p in w.places if p["kind"] == "river" and p["key"] == river[1])
+        self.assertIsNotNone(places.name_in(w, p, nid))
+        conflict.ensure(w, max(x.id for x in bands), -1)
+        polity.ensure(w, max(x.id for x in bands), -1)
+        w.polities[999] = Polity(999, conq.id, 0, "conquerors")
+        w.polity_of[b.id] = 999
+        w.conquered_at[b.id] = 75
+        w.t = 80
+        self._name(w)
+        layer = places.name_in(w, p, b.language)
+        self.assertEqual(layer[3], "imposed")
+        self.assertEqual(layer[4], nid)
+        self.assertEqual(tuple(layer[2]), tuple(places.current(w, places.name_in(w, p, nid), nid)))
+        self.assertTrue(explain.resolvable(w, {"event": layer[6]}))
+
+    def test_a_kept_name_cites_the_naming_it_was_heard_from(self):
+        w, b, river = _river_world()
+        w.t = 40
+        self._name(w)
+        p = next(p for p in w.places if p["kind"] == "river" and p["key"] == river[1])
+        first = p["layers"][0][6]
+        nid = self._second_people(w, b, w.living_bands()[1:])
+        w.t = 80
+        self._name(w)
+        layer = places.name_in(w, p, nid)
+        self.assertEqual(layer[3], "kept")
+        self.assertIn({"event": first}, w.events[layer[6]]["causes"])
+
+    def test_regions_are_named_as_the_land_of_a_people_or_described(self):
+        w, b, river = _river_world()
+        w.t = 40
+        self._name(w)
+        feats, near = places.features(w.planet)
+        self.assertTrue(any(f[0] == "region" for f in feats))
+        regs = [p for p in w.places if p["kind"] == "region"]
+        self.assertTrue(regs)
+        self.assertIn("land", w.events[regs[0]["layers"][0][6]]["causes"][-1]["note"])
+
+    def test_the_stimulus_is_named_only_where_it_was_needed(self):
+        from origins.sim import groups
+        w = World.new(1, 1, generate(1))
+        a = w.living_bands()[0]
+        b = w.new_band(a.cell, parent=a.id)
+        for x in (a, b):
+            if x.mode == "individual":
+                groups.fold(w, x)
+        w.tech[:] = 0.0
+        for x in (a, b):
+            w.tech[x.id, T.INDEX["tallies"]] = 1.0
+            T._scribes(w)[x.id] = 5.0
+        w.tech[a.id, T.WRITING] = 1.0
+        w.spec[:] = 0.0
+
+        class Zero:
+            def random(self, shape=None):
+                return np.zeros(shape) if shape is not None else 0.0
+
+            def choice(self, n, p=None):
+                return 0
+        real = w.rng["technology"]
+        w.rng["technology"] = Zero()
+        try:
+            T.yearly(w)
+        finally:
+            w.rng["technology"] = real
+        ev = [e for e in w.events if e["kind"] == "invention" and e["data"].get("technique") == "writing"]
+        self.assertTrue(ev)
+        self.assertEqual(ev[0]["data"]["stimulus"], a.id)
+        self.assertFalse(ev[0]["data"]["stimulus_needed"])        # a zero draw succeeds without the stimulus
+
+    def test_the_writing_log_tells_practice_from_memory(self):
+        from origins.sim import groups
+        w = World.new(1, 1, generate(1))
+        a = w.living_bands()[0]
+        if a.mode == "individual":
+            groups.fold(w, a)
+        w.tech[:] = 0.0
+        w.tech[a.id, T.INDEX["tallies"]] = 1.0
+        w.tech[a.id, T.WRITING] = 0.8
+        live = w.living_bands()
+        ids = np.array([x.id for x in live])
+        cells = np.array([x.cell for x in live])
+        T._scribes(w)[:] = 0.0
+        T._log_writing(w, live, ids, cells)
+        T._scribes(w)[a.id] = 5.0
+        T._log_writing(w, live, ids, cells)
+        rows = [r for r in w.tech_writing_log if r[1] == a.id]
+        self.assertEqual([r[7] for r in rows], [False, True])
+        w2 = persist.from_bytes(persist.to_bytes(w), w.planet)
+        self.assertEqual(persist.digest(w), persist.digest(w2))

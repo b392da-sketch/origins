@@ -113,11 +113,22 @@ def finish(w, ws, rs, seconds, pr, institutions):
                                     round(float(np.median(lv[lv[:, i] > 0, i])), 3) if (lv[:, i] > 0).any() else 0.0]
                                 for i, k in enumerate(T.KEYS)}
         rec["tech_firsts"] = {k: w.events[e]["t"] // 4 for k, e in getattr(w, "tech_firsts", {}).items()}
+        # writing in use against writing remembered, with the polity's tier and scribes (Codex review 032, finding 4):
+        # every 10 years, [year, band, polity, tier, is seat, scribes, writing level, practised now]
+        rec["writing_log_fields"] = ["year", "band", "polity", "tier", "seat", "scribes", "writing", "practised"]
+        rec["writing_log"] = getattr(w, "tech_writing_log", [])
+        rec["writing_inventions"] = [[e["t"] // 4, e["band"], e["data"].get("stimulus", -1),
+                                      e["data"].get("stimulus_needed")] for e in w.events
+                                     if e["kind"] == "invention" and e["data"].get("technique") == "writing"]
         tsample = [{"event": e["id"]} for e in w.events if e["kind"] in tk]
         if len(tsample) > 400:
             tsample = [tsample[i] for i in sorted(rng.choice(len(tsample), 400, replace=False))]
         tok = [explain.resolvable(w, r) for r in tsample]
         rec["tech_explain_checked"], rec["tech_explain_resolvable"] = len(tok), int(sum(tok))
+    # M4a place names: every place with its layers (year, language, how, heard from), no forms
+    if getattr(w, "places", None) is not None:
+        rec["places"] = [{"kind": p["kind"], "size": round(float(p["size"]), 3),
+                          "layers": [[l[0] // 4, l[1], l[3], l[4]] for l in p["layers"]]} for p in w.places]
     # M4a diseases: the named diseases, and each year's epidemic of each (year, disease, cells, deaths, new/passed
     # again/by contact/kept), with whether its cause chain resolves (sampled)
     if getattr(w, "diseases", None) is not None:
