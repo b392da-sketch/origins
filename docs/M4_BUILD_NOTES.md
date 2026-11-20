@@ -899,7 +899,7 @@ Ben's decisions (20 November 2026): the full model now; flight and isolation now
 
 - **No herd diseases on planet 3 here:** no animal is domesticated by year 10,000 (cattle only cultivated), so none can arise. A GitHub trial runs the four herding histories of G3 with diseases on and off.
 - **Before herds, epidemics are rare and short-lived,** as Black (1975) found among isolated peoples. Everyday illness stays in the background deaths ("accident or illness", 37% of all deaths in this history). M1's carried-forward item (outbreaks about 9% of deaths) is answered by this design rather than matched.
-- **Hunger deaths rise** (about 4.7% to 10.7%) when epidemics no longer thin crowded farming regions. Whether that is too much is a question for the gate.
+- **Hunger's share of deaths rises** (about 4.7% to 10.7%). *The reading that this is because epidemics no longer thin crowded regions is withdrawn (Codex review 028): the change in causes also changes both denominators, and the arms follow different population paths.*
 - **Diseases kill adults too:** about 28–33% of disease deaths were children under 15. Lasting immunity in adults builds up only where a disease keeps returning.
 
 ### After Codex review 023 (20 November 2026)
@@ -952,3 +952,26 @@ Both change records only. Codex found the land and hunger accounts otherwise sou
 - **The rounding tolerance** (1e-9 of a band's losses) can also hide a genuine remainder that small. That is negligible as food; it affects only the note and the tally.
 
 Records only.
+
+### After Codex review 028 (20 November 2026)
+
+All six findings confirmed (`reviews/responses/028-diseases-from-animals-claude.md`; tests `tests/test_disease.py::Review028`):
+- **Immunity of joining people** is weighted by their share of the band after the move. It was counted twice before.
+- **Deaths and immunity by cohort** (`disease.cohort`): the ill, the dead (never more than the ill), and immunity among survivors.
+- **Pregnancies after deaths:** pending pregnancies are kept in proportion to surviving women of 15–49, rounded to whole counts, on every path that removes people from groups: ordinary deaths, hazards, war and diseases. This changes births slightly in every history.
+- **G1's contact test** is counted in matched units, disease by disease.
+- **A per-cell record of every epidemic** (`w.dz_log`; in the G3 record). It holds how the disease came and from which cell, the people, the share who could catch it, whether the bands there had never met it (`dz_seen`), and the cell's deaths. G1's hazard watch follows named diseases cell by cell from it.
+- **The knock-out** (`DISEASE` False) is a switch within the current code, not a replay of pre-disease histories: the epidemic-response custom is still there and changes other draws.
+
+**A further error of mine, caught in trial:** the first version kept fractional pregnancies, which a later group split drove negative (`n < 0` in births). Both local trials and the first GitHub rerun crashed on it. Pregnancies are now whole counts, with a test.
+
+**Ben's decision (20 November 2026): G4a check 10 marks where diseases last.** Diseases that keep circulating for years are found mostly where herds and dense populations meet. Wild and small-group starts happen but fade. Deaths after first contact are heavier among peoples who had never met the disease. The specification is updated.
+
+**Trial** (planet 3, year-9,700 save, 300 years; tunable starting values; no invariant failures; one history; the histories diverge from the trials above):
+
+| Run | People at the end | Deaths from disease | From hunger |
+|---|---|---|---|
+| Diseases off (M1 outbreaks) | 326,491 | 18.7% | 4.5% |
+| Diseases on | 358,896 | 317 deaths | 10.7% |
+
+With diseases on, one wild disease appeared (k about 258,000) and circulated for 3 years on one cell. The GitHub herd pair runs on one commit (`66dea8c`) in three herding histories: runs 44688553058 (on) and 44688555405 (off).
