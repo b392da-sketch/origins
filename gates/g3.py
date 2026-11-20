@@ -59,7 +59,7 @@ def kept_polities(w, pl, rng) -> set:
     return keep
 
 
-def finish(w, ws, rs, seconds, pr, institutions):
+def finish(w, ws, rs, seconds, pr, institutions, write=True):
     from origins import explain, params
     rec = g2.finish(w, ws, rs, seconds, pr, params.STORAGE, write=False)
     rec["institutions"] = institutions
@@ -198,6 +198,8 @@ def finish(w, ws, rs, seconds, pr, institutions):
     rec["polity_explain_checked"], rec["polity_explain_resolvable"] = len(ok), int(sum(ok))
     OUT.mkdir(parents=True, exist_ok=True)
     tag = "" if institutions else "_noinst"
+    if not write:                                       # G4a adds its own measurements first (gates/g4.py)
+        return rec
     (OUT / f"run_w{ws}_s{rs}{tag}.json").write_text(json.dumps(rec))
 
 
