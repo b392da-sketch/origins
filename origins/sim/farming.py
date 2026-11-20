@@ -493,12 +493,14 @@ def season_food_live(w, ids, cells, effort):
     worked = np.where(crop_caps * cf > 0, crop / np.maximum(crop_caps * cf, 1e-12), 0.0)
     wanted = np.minimum(base * (1 - animal_part) * cw, crop_room * (1 - animal_part) * cf)
     need = np.where(crop_caps * cf > 0, wanted / np.maximum(crop_caps * cf, 1e-12), 0.0)
-    _cfac = land.crop_factor(w, cells)
+    _fert, _salt = land.crop_parts(w, cells)
+    _cfac = _fert * _salt
     lost_crop = crop * (1.0 - _cfac)                    # what worn or salted soil took (the food account)
+    _parts = (crop * (1.0 - _fert), crop * _fert * (1.0 - _salt))   # soil's part, then salt's of the rest
     crop = crop * _cfac                                 # worn or salted soil yields less (M4a land)
     if on.any():
         land.note_crops(w, ids[on], cells[on], worked[on], animal_part[on], need[on])
-    land.note_crop_loss(w, ids, lost_crop, cells)
+    land.note_crop_loss(w, ids, lost_crop, cells, _parts)
     grown = herd + crop
     if getattr(w, "farm_rr_real", None) is not None and on.any():
         # what fields and herds actually gave per worker-day this season (M4a land: choices see real yields)
