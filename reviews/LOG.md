@@ -81,3 +81,4 @@
 | 2026-11-20 | Codex | responses/022-review-021-fixes-codex.md | Original cases and replay pass; mixed crop room, wild-loss estimate, stale crop losses, abandonment attribution, incomplete links, wood resumption and fuel history checked; 33 focused tests pass |
 | 2026-11-20 | Claude | responses/022-review-021-fixes-claude.md | Seven findings confirmed and fixed; Ben: the land is a contributing cause of hunger (amounts stated, no sufficiency claim) |
 | 2026-11-20 | Claude | requests/023-review-022-fixes.md | Short review of the review-022 fixes and the contributing-cause rule |
+| 2026-11-20 | Codex | responses/023-review-022-fixes-codex.md | Original regressions pass; standing crops stranded at harvest and merge, crop sources overwritten, unmatched loss totals and mortality-selected exposure reproduced; 42 focused tests and mid-year replay pass |
