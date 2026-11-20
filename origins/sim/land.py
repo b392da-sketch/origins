@@ -481,7 +481,9 @@ def move_crop_loss(w, src: int, dst: int, frac: float):
             if top and e[src, j] >= 0 and e[dst, j] == e[src, j]:
                 # the same example on both sides: their loss attributed to it adds up (Codex review 026)
                 getattr(w, top)[dst, j] += getattr(w, top)[src, j] * frac
-            elif x > a[dst, j]:
+            elif (getattr(w, top)[src, j] * frac > getattr(w, top)[dst, j]) if top else (x > a[dst, j]):
+                # another event: the example behind the larger attributed loss wins (Codex review 027); after the
+                # harvest no example values are kept, so the larger linked part decides
                 e[dst, j] = e[src, j]
                 if top:                       # the example's loss is shared as the loss is (review 025)
                     getattr(w, top)[dst, j] = getattr(w, top)[src, j] * frac
