@@ -429,6 +429,8 @@ def hunger_event(w, band_id: int, cell: int) -> int:
             parts.append(f"worn or salted soil took {lc_l:,.0f} a season from its crops (the last harvest's loss, "
                          f"spread over the year)")
         other = (lw - lw_l) + (lc - lc_l)
+        if other <= 1e-9 * max(lw + lc, 1.0):          # rounding between the total and its parts (Codex review 025)
+            other = 0.0
         note = (f"{w.band_name(w.bands[band_id])} lacked {short:,.0f} of the food it needed this season; "
                 + " and ".join(parts)
                 + (f"; a further {other:,.0f} lost from its food is not tied to a recorded land event" if other > 0 else ""))
@@ -478,8 +480,10 @@ def move_crop_loss(w, src: int, dst: int, frac: float):
             x = a[src, j] * frac
             if x > a[dst, j]:
                 e[dst, j] = e[src, j]
-                if top:
-                    getattr(w, top)[dst, j] = getattr(w, top)[src, j]
+                if top:                       # the example's season loss is shared as the loss is (review 025)
+                    getattr(w, top)[dst, j] = getattr(w, top)[src, j] * frac
+            if top:
+                getattr(w, top)[src, j] *= (1.0 - frac)
             a[dst, j] += x
             a[src, j] -= x
 

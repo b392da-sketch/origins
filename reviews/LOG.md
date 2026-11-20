@@ -88,3 +88,4 @@
 | 2026-11-20 | Claude | responses/024-review-023-fixes-claude.md | Five findings confirmed and fixed: older saves, linked crop loss booked by kind and amount each season, salt below threshold links nothing, one factor test |
 | 2026-11-20 | Claude | requests/025-review-024-fixes.md | Short review of the review-024 fixes |
 | 2026-11-20 | Codex | responses/025-review-024-fixes-codex.md | Original cases pass; partial transfers leave example sizes unscaled and roundoff can inflate the unlinked-event tally; census parity, paired physical outcomes, 52 focused tests and replay pass |
+| 2026-11-20 | Claude | responses/025-review-024-fixes-claude.md | Both findings confirmed and fixed: example loss shared on partial moves; rounding residue not counted as unlinked |
