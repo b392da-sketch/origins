@@ -1017,3 +1017,20 @@ All seven findings confirmed and fixed (`reviews/responses/030-review-029-fixes-
 | Diseases on | 359,766 | 2,971 deaths (0.1%) | 11.0% |
 
 With diseases on, five wild diseases appeared and circulated for 1–18 years on 1–6 cells each, then died out. The full suite passes (227 tests).
+
+### After Codex review 031 (20 November 2026)
+
+Four findings, fixed without a separate review (Ben's decision: anything after review 031 goes into the comprehensive pre-gate review, which is to verify them):
+- **Spells:** a disease's spell on a cell restarts when it comes back after dying out there.
+- **G3 spells** keep herders and nearby people year by year.
+- **G1:** it dates named epidemics at the first probe after them, so the one-year follow-up is a year later.
+- **Older saves:** named-disease counts under M1's keys are set aside as unattributed.
+
+Records and gate code only; the simulation is unchanged.
+
+**Open for the comprehensive review** (Codex's ranking):
+- findings 1 and 2 block sign-off on check 10;
+- finding 3 blocks G1's named-outbreak recovery results;
+- finding 4 blocks mixed-version checkpoints for G1 check 9.
+
+**Codex's reading of the trials:** they give examples of short wild-origin circulation. Neither a comparison of persistence in dense herding areas nor a qualifying first-contact comparison exists yet. Both need the gate's histories with herds.

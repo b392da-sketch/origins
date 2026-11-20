@@ -133,9 +133,11 @@ def probe_year(w, pr):
         if k not in cy:
             cy[k] = [int(r[_dz.LOG_PEOPLE]), 0]
         cy[k][1] += int(r[_dz.LOG_DEATHS])
-    for (yr, c), (before, dead) in sorted(cy.items()):
+    for (_yr, c), (before, dead) in sorted(cy.items()):
         if dead > 0 and before > 0 and len(pr["hazard_watch"]) < 400:
-            pr["hazard_watch"].append({"id": -1, "kind": "outbreak", "cell": c, "year": yr, "deaths": dead,
+            # dated at this probe, the first after the epidemic, as the other hazards are: the probe runs every
+            # year, so the one-year follow-up comes at the next probe (Codex review 031, finding 3)
+            pr["hazard_watch"].append({"id": -1, "kind": "outbreak", "cell": c, "year": y, "deaths": dead,
                                        "before": float(before), "cell_only": True,
                                        "births_before": _area_births(w, c, cell_only=True)})
     pr["last_dz"] = len(log)

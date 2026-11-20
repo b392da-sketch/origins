@@ -417,5 +417,40 @@ class Review030(unittest.TestCase):
         self.assertTrue(all(r[5] >= 3 for r in rows))                  # years it had circulated at the source
 
 
+
+class Review031(unittest.TestCase):
+    """Codex review 031 (fixed before the comprehensive review, Ben's decision of 20 November 2026)."""
+
+    def test_a_return_after_dying_out_starts_a_new_spell(self):
+        w = world()
+        b = w.living_bands()[0]
+        d = add(w, b.cell, k=1e9, attack=0.9, cfr=0.0)
+        first_year(w)
+        w.dz_active[:, d] = False
+        w.dz_active[b.cell, d] = True
+        w.t += 40 * P.TICKS_PER_YEAR
+        w.dz_since[b.cell, d] = int(w.year) - 30                        # an old spell
+        w.diseases[d]["k"] = 1e-30                                      # it fails to keep going
+        old = P.DZ_RESPILL_WILD, P.DZ_SPREAD
+        P.DZ_RESPILL_WILD, P.DZ_SPREAD = 1.0, 0.0                       # and comes back from its animals
+        try:
+            w.diseases[d]["k"] = 1e30
+            disease.yearly(w)
+        finally:
+            P.DZ_RESPILL_WILD, P.DZ_SPREAD = old
+        self.assertTrue(w.dz_active[b.cell, d])
+        self.assertEqual(int(w.dz_since[b.cell, d]), int(w.year))      # Codex's case: not the old start
+
+    def test_older_named_counts_are_set_aside(self):
+        from origins import persist
+        w = world()
+        b = w.living_bands()[0]
+        add(w, b.cell, k=1e9, attack=0.9, cfr=0.0)
+        w.counts["ob_contact_infections"] = 5
+        w2 = persist.from_bytes(persist.to_bytes(w), w.planet)
+        self.assertNotIn("ob_contact_infections", w2.counts)
+        self.assertEqual(w2.counts["unattributed_ob_contact_infections"], 5)
+
+
 if __name__ == "__main__":
     unittest.main()

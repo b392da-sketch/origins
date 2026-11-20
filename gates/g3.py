@@ -141,17 +141,18 @@ def finish(w, ws, rs, seconds, pr, institutions):
                 sp[3] = r[0]
                 sp[4] += 1
                 sp[5] += r[_dz.LOG_DEATHS]
-                sp[6] = max(sp[6], r[-3])
-                sp[7] = max(sp[7], r[-2])
+                sp[6].append([r[-3], r[-2]])
             else:
                 if sp is not None:
                     spells.append(sp)
-                open_[k] = [r[1], r[2], r[0], r[0], 1, r[_dz.LOG_DEATHS], r[-3], r[-2]]
+                open_[k] = [r[1], r[2], r[0], r[0], 1, r[_dz.LOG_DEATHS], [[r[-3], r[-2]]]]
         spells += list(open_.values())
         rec["disease_spells"] = spells
+        # each spell keeps its herders and nearby people year by year, so whether herds and dense populations met
+        # during circulation can be read off (Codex review 031, finding 2)
         rec["disease_spell_fields"] = ["disease", "cell", "first year", "last year", "years", "deaths",
-                                       "most people herding domesticated animals on the cell",
-                                       "most people on the cell and its neighbours"]
+                                       "each year: [people herding domesticated animals on the cell, "
+                                       "people on the cell and its neighbours]"]
         rec["disease_spillovers"] = int(w.counts.get("dz_spillovers", 0))
         smp = [{"event": e["id"]} for e in obs]
         if len(smp) > 200:
