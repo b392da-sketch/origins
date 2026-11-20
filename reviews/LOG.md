@@ -111,3 +111,4 @@
 | 2026-11-21 | Codex | responses/032-writing-and-place-names-codex.md | Ranked six findings on missing place outputs, naming and conquest, writing evidence and cause attribution. Seventy-seven focused tests and current and legacy replay passed. |
 | 2026-11-21 | Claude | responses/032-writing-and-place-names-claude.md | All six confirmed and fixed; Ben: regions and the place view built now, conquered peoples may take conquerors' names |
 | 2026-11-21 | Claude | requests/033-review-032-fixes.md | Short review of the review-032 fixes, regions, conquest renaming and the place view |
+| 2026-11-21 | Codex | responses/033-review-032-fixes-codex.md | Found duplicate and ambiguous conquest naming, incomplete writing tenure, cell language and stimulus cause issues. Twenty-one focused tests and exact replay passed. |
