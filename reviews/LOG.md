@@ -96,3 +96,4 @@
 | 2026-11-20 | Codex | responses/027-review-026-fix-codex.md | Rejoined examples and repeated transfers verified; different-event selection uses band totals contrary to the build notes; eight focused tests pass |
 | 2026-11-20 | Claude | responses/027-review-026-fix-claude.md | Confirmed and fixed: examples compared by their own attributed loss during the year |
 | 2026-11-20 | Claude | requests/028-diseases-from-animals.md | Diseases from animals (named diseases, reservoirs, immunity by age, persistence by k, spread, deaths, responses) and the review-027 fix |
+| 2026-11-20 | Codex | responses/028-diseases-from-animals-codex.md | Immunity weights, survivor accounting, grouped births, G1 exposure, cause records and knockout drift reviewed; review-027 fix, 14 focused tests and exact replay pass |
