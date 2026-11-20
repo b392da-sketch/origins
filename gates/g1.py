@@ -111,6 +111,8 @@ def probe_year(w, pr):
     sizes = None
     if pr.get("last_event", 0) < len(w.events):
         for e in w.events[pr.get("last_event", 0):]:
+            if e["kind"] == "outbreak" and "disease" in e["data"]:
+                continue                     # named diseases are watched cell by cell from their log, below
             if e["kind"] in HAZARD_KINDS and e["cell"] >= 0 and len(pr["hazard_watch"]) < 400:
                 sizes = w.band_sizes() if sizes is None else sizes
                 pr["hazard_watch"].append({"id": e["id"], "kind": e["kind"], "cell": e["cell"], "year": y,
@@ -118,6 +120,16 @@ def probe_year(w, pr):
                                            "before": _area_pop(w, e["cell"], sizes),
                                            "births_before": _area_births(w, e["cell"])})
         pr["last_event"] = len(w.events)
+    # named diseases (M4a): each cell's own deaths against its own people before the epidemic (Codex review 028)
+    log = getattr(w, "dz_log", None) or []
+    for r in log[pr.get("last_dz", 0):]:
+        if r[8] > 0 and r[5] > 0 and len(pr["hazard_watch"]) < 400:
+            sizes = w.band_sizes() if sizes is None else sizes
+            # the area (the cell and its neighbours, as for the other hazards) now, plus the cell's own deaths
+            pr["hazard_watch"].append({"id": -1, "kind": "outbreak", "cell": int(r[2]), "year": y, "deaths": int(r[8]),
+                                       "before": _area_pop(w, int(r[2]), sizes) + int(r[8]),
+                                       "births_before": _area_births(w, int(r[2]))})
+    pr["last_dz"] = len(log)
     keep = []
     for h in pr["hazard_watch"]:
         age = y - h["year"]

@@ -125,6 +125,14 @@ def finish(w, ws, rs, seconds, pr, institutions):
         obs = [e for e in w.events if e["kind"] == "outbreak" and "disease" in e["data"]]
         rec["disease_outbreaks"] = [[e["t"] // 4, e["data"]["disease"], e["data"]["cells"], e["data"]["deaths"]]
                                     for e in obs]
+        # the per-cell record (Codex review 028, finding 5): how each cell got it, from where, its people, the
+        # share who could catch it, whether its bands had never met it, its deaths; thinned to 20,000 rows
+        log = list(getattr(w, "dz_log", []))
+        if len(log) > 20000:
+            log = [log[i] for i in sorted(rng.choice(len(log), 20000, replace=False))]
+        rec["disease_log"] = log
+        rec["disease_log_fields"] = ["year", "disease", "cell", "how (0 new, 1 again from animals, 2 contact, 3 kept)",
+                                     "from cell", "people", "share who could catch it", "never met it", "deaths"]
         rec["disease_spillovers"] = int(w.counts.get("dz_spillovers", 0))
         smp = [{"event": e["id"]} for e in obs]
         if len(smp) > 200:

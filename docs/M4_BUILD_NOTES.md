@@ -855,3 +855,100 @@ All seven findings confirmed and fixed (`reviews/responses/022-review-021-fixes-
 - 756 of 3,815 individual hunger deaths were in bands the land took food from.
 - 67% of lived-in cells have no wood within reach; many are in treeless biomes.
 - One history.
+
+### Diseases from animals, as built (20 November 2026)
+
+Ben's decisions (20 November 2026): the full model now; flight and isolation now, blame with M4b; hunger's effect per disease. `origins/sim/disease.py`, yearly at the season of M1's outbreaks, from a new random stream "disease" (appended). `DISEASE` False brings back M1's outbreaks, the knock-out. All values are starting values.
+
+- **Named diseases:** each has its own traits, drawn when it appears:
+  - attack (`DZ_ATTACK_RANGE`);
+  - deaths per adult case, log-uniform from 0.5% to 30% (`DZ_CFR_RANGE`);
+  - children's deaths against adults' (`DZ_CHILD_MULT_RANGE`), and people of 50 and over twice adults';
+  - lasting immunity or not (`DZ_LASTING` 0.8; waning 20% a year otherwise);
+  - how much hunger raises its deaths (`DZ_HUNGER_RANGE`);
+  - k, how many people who can still catch it it needs nearby to keep going.
+
+  Each has a `new_disease` event; each year's epidemic of each disease is an `outbreak` event citing it.
+- **Emergence:**
+  - **from herds:** each year on each cell, chance `DZ_EMERGE_HERD` 2e-7 × people herding a domesticated species × min(1, years since the species was first domesticated / `DZ_DOM_YEARS` 2,000) (Morand et al. 2014);
+  - **from wild animals:** `DZ_EMERGE_WILD` 2e-8 × people.
+- **Reservoirs** (Ben, 20 November 2026, after the first trial): a disease that dies out among people lives on in its animals and can pass again:
+  - herd diseases where people herd their species (`DZ_RESPILL_HERD` 2e-5 per herder a year);
+  - wild ones anywhere in the climate region where they first appeared (`DZ_RESPILL_WILD` 2e-6 per person a year);
+  - most such starts are short-lived (Black 1975; Lloyd-Smith et al. 2009).
+- **Immunity per band, children and adults:** survivors are immune; each year a fifteenth of children become adults and newborns arrive with none, so a disease that stays shifts to children. Joining bands combine immunity by numbers.
+- **Persistence:** a disease circulating on a cell keeps going next year with chance 1 − exp(−people who can still catch it on the cell and its neighbours / k). k is log-uniform from 3,000 to 500,000 (Ben, 20 November 2026, raised from 300–30,000 after the reservoir trial; Bartlett 1957 measured about 250,000 for measles; Black 1975).
+- **Spread:** to cells within two rings, partners' cells and traders' seats, with chance `DZ_SPREAD` 0.3 × attack × the share who can catch it there × (1 + `DZ_FAMINE_SPREAD` 2 × hunger at the source) × the response's carry factor.
+- **Deaths:** by age, × (1 + the disease's hunger trait × shortfall × `DZ_HUNGER` 2), doubled when half or more of a band's adults are ill at once (`DZ_CRISIS_SHARE`; Jones 2003). No genetic weakness at first contact.
+- **Responses:** the custom "response to epidemics" (carry on / flight / isolate the sick). The sizes are guesses: neither literature check found measured effects.
+  - **flight:** attack × 0.7, carried × 1.5;
+  - **isolating the sick:** attack × 0.6, carried × 0.5, crisis deaths halved (Hewlett & Amola 2003).
+- **Records:**
+  - saves keep diseases, immunity and circulation, all in the digest;
+  - the G3 record lists the diseases and each outbreak (year, disease, cells, deaths), the spillovers, and a cause-chain check;
+  - G1's exposure counts carry on.
+
+**Trials** (planet 3, `snap_p3s1_8500_plus1200.zip` at year 9,700, 300 years, `local/scripts/trial_disease.py`; no invariant failures in any; one history):
+
+| Run | People at the end | Deaths from disease | From hunger | Diseases (outbreak events) |
+|---|---|---|---|---|
+| M1 outbreaks (`DISEASE` False) | 318,095 | 18.8% | 4.7% | (380) |
+| Named, first rates (wild 2e-9, no reservoirs, k 300–30,000) | 363,491 | 24 deaths | 10.6% | 1 (1) |
+| + reservoirs, wild 2e-8 | 341,441 | 4.1% | 10.1% | 2 (140), both still circulating after 70 years |
+| + k 3,000–500,000 (as built) | 360,397 | 0.9% | 10.7% | 2 (79), circulating 34 and 45 years, then gone |
+
+- **No herd diseases on planet 3 here:** no animal is domesticated by year 10,000 (cattle only cultivated), so none can arise. A GitHub trial runs the four herding histories of G3 with diseases on and off.
+- **Before herds, epidemics are rare and short-lived,** as Black (1975) found among isolated peoples. Everyday illness stays in the background deaths ("accident or illness", 37% of all deaths in this history). M1's carried-forward item (outbreaks about 9% of deaths) is answered by this design rather than matched.
+- **Hunger deaths rise** (about 4.7% to 10.7%) when epidemics no longer thin crowded farming regions. Whether that is too much is a question for the gate.
+- **Diseases kill adults too:** about 28–33% of disease deaths were children under 15. Lasting immunity in adults builds up only where a disease keeps returning.
+
+### After Codex review 023 (20 November 2026)
+
+All five findings confirmed and fixed (`reviews/responses/023-review-022-fixes-claude.md`; tests `tests/test_land.py::Review023`, which fail on the code before the fix):
+- **Harvest when nobody farms:** standing crops are still brought in.
+- **A small band joining another** brings its standing crop and its crop loss. A band that ends with nobody to take its fields loses both.
+- **Crop losses keep the soil and salt events of the fields they came from**, recorded when the crops were grown (`land_crop_ev`, `land_acc_ev`; `land_crop_cell` is gone). A later sowing elsewhere, a move or the fields' recovery no longer changes them.
+- **A `land_hunger` event counts as the land's only the pools with a linked event.** Other losses are stated apart (`unlinked`). The note says the crop figure is the harvest's loss spread over the year, and gives no capped percentage.
+- **Every band-season of exposure is counted** (`w.counts`, `land_exp_*`). The `land_hunger` events are a sample made where deaths are recorded.
+
+**Trial** (planet 3, year-9,700 save, 300 years; tunable starting values; no invariant failures; one history): land off 503,114; land on 326,460, so the land costs about 35% of the people here.
+
+Every band-season, land on:
+- 80,344 band-seasons were short of food;
+- 67,259 of them (84%) had a land loss linked to a recorded event: wild food only 43,116, crops only 1, both 24,142;
+- the linked losses, capped at what each band lacked, came to 45% of all food lacked.
+
+So in this history lost game and forest touch most shortfalls, and worn soil almost never does so alone. This is exposure, not cause.
+
+Deaths:
+- 797 of 3,829 individual deaths from hunger (21%) are linked to a `land_hunger` event;
+- 1,057 of the 7,732 events also record losses tied to no event.
+
+### After Codex review 024 (20 November 2026)
+
+All five findings confirmed and fixed (`reviews/responses/024-review-023-fixes-claude.md`; tests `tests/test_land.py::Review024`, which fail on the code before the fix). The "largest season stands for the year" shortcut is gone:
+- **Exact linked amounts:** the soil part and the salt part of each season's crop loss are booked as linked (`land_acc_k`, then `land_crop_k`) only where that condition has a recorded event and actually reduced the yield;
+- **Events as examples:** an event is kept only as the example a record cites, and moves with its own loss;
+- **One factor test:** the exposure count uses the same factor tests as the events;
+- **Older saves:** crop amounts from older saves are carried as unlinked, and they load safely with the land off.
+
+**Trial** (planet 3, year-9,700 save, 300 years, land on; tunable starting values; one history):
+- The fixes change records only: 326,460 people at the end, as before, with no invariant failures.
+- 80,344 band-seasons were short of food. 67,259 of them (84%) had a linked land loss: wild food only 43,044, crops only 1, both 24,214.
+- Linked losses came to 45% of all food lacked.
+- 1,594 of 7,732 `land_hunger` events also record unlinked losses.
+
+### After Codex review 025 (20 November 2026)
+
+Both findings confirmed and fixed (`reviews/responses/025-review-024-fixes-claude.md`; tests `tests/test_land.py::Review025`):
+- an example event's season loss is now shared on a partial move, so a later larger loss can replace it;
+- a rounding remainder between the crop loss and its parts no longer counts as unlinked.
+
+Both change records only. Codex found the land and hunger accounts otherwise sound: parts sum to the loss, the exposure count matches the events under every knock-out of the yield shares, and replay is exact.
+
+### After Codex review 026 (20 November 2026)
+
+- **Examples:** an example event's comparison value is the linked loss attributed to it so far. It adds up across seasons and across rejoined parts of a band that cite the same event, so the example is the event behind the most attributed loss among the examples compared. During the year a move compares the two examples' own losses (Codex review 027); once the harvest has passed, no example values are kept, and for last year's loss the larger linked part decides.
+- **The rounding tolerance** (1e-9 of a band's losses) can also hide a genuine remainder that small. That is negligible as food; it affects only the note and the tally.
+
+Records only.

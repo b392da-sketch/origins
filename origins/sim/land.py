@@ -59,7 +59,14 @@ def init(w):
     w.land_lost_wild = np.zeros(0)             # ... wild food lost game and forest took from its harvest
     w.land_lost_crop = np.zeros(0)             # ... crops worn or salted soil took, per season, from the last harvest
     w.land_crop_acc = np.zeros(0)              # ... crops lost so far this year, before the harvest
-    w.land_crop_cell = np.zeros(0, dtype=np.int64)   # ... the cell where soil last took its crops (-1: none)
+    # ... of the crop loss, the parts taken by worn soil and by salt where that condition had a recorded event,
+    # booked season by season (Codex review 024): per season from the last harvest, and this year so far; with, per
+    # kind, the event of the season with the largest such loss, cited as the example (and that loss)
+    w.land_crop_k = np.zeros((0, 2))
+    w.land_crop_ev = -np.ones((0, 2), dtype=np.int64)
+    w.land_acc_k = np.zeros((0, 2))
+    w.land_acc_kev = -np.ones((0, 2), dtype=np.int64)
+    w.land_acc_ktop = np.zeros((0, 2))
     w.land_flags = np.zeros((n, len(KINDS)), dtype=bool)   # crossed and not yet recovered
     w.land_event = -np.ones((n, len(KINDS)), dtype=np.int64)
     w.land_since = -np.ones((n, len(KINDS)), dtype=np.int64)   # year the use began that led to the crossing
@@ -126,11 +133,17 @@ def cropped_share(w, cells) -> np.ndarray:
 
 def crop_factor(w, cells) -> np.ndarray:
     """Per band (by cell): what fertility and salt leave of crop yields."""
+    fert, salt = crop_parts(w, cells)
+    return fert * salt
+
+
+def crop_parts(w, cells):
+    """Per band (by cell): what fertility leaves of crop yields, and what salt leaves of the rest."""
     if not getattr(P, "LAND", False) or getattr(w, "game", None) is None:
-        return np.ones(len(cells))
+        return np.ones(len(cells)), np.ones(len(cells))
     fert = P.FERT_FLOOR + (1.0 - P.FERT_FLOOR) * w.fertility[cells]
     over = np.clip((w.salt[cells] - P.SALT_THRESH) / (1.0 - P.SALT_THRESH), 0.0, 1.0)
-    return fert * (1.0 - P.SALT_MAX_LOSS * over)
+    return fert, 1.0 - P.SALT_MAX_LOSS * over
 
 
 # ------------------------------------------------------------------ yearly accounts, kept by other systems
@@ -351,80 +364,108 @@ def kind_factors(w, cell: int) -> dict:
             "soil": float(fert), "salt": 1.0 - P.SALT_MAX_LOSS * over}
 
 
+def _links(w, band_id: int, cell: int):
+    """The land events behind each pool of a band's loss this season: (wild events, crop events). Lost game and
+    forest are looked up on the band's cell (this season's wild food). Worn and salted soil are the events recorded
+    where the crops were grown, when they were grown (Codex review 023, finding 3), so a later move, a sowing
+    elsewhere, or the soil's recovery does not change them."""
+    wild, crop = [], []
+    lw, lc = float(w.land_lost_wild[band_id]), float(w.land_lost_crop[band_id])
+    if lw > 0:
+        for j, kind in enumerate(KINDS[:2]):
+            e = int(w.land_event[cell, j])
+            if w.land_flags[cell, j] and e >= 0 and kind_factors(w, cell)[kind] < 1.0:
+                wild.append(e)
+    ck = getattr(w, "land_crop_k", None)
+    if lc > 0 and ck is not None and band_id < len(ck):
+        crop = [int(w.land_crop_ev[band_id, j]) for j in range(2)
+                if ck[band_id, j] > 0 and w.land_crop_ev[band_id, j] >= 0]
+    return wild, crop
+
+
+def crop_linked(w, band_id: int) -> float:
+    """Of a band's crop loss per season, the part taken by soil or salt conditions with a recorded event."""
+    ck = getattr(w, "land_crop_k", None)
+    if ck is None or band_id >= len(ck):
+        return 0.0
+    return float(min(ck[band_id].sum(), w.land_lost_crop[band_id]))
+
+
 def felt(w, band_id: int, cell: int) -> list:
     """The land events behind a band's shortfall this season, as contributing causes (Ben, 20 November 2026, after
-    Codex review 022): every flagged loss that took food from a band that went short. Lost game and forest are
-    looked up on the band's cell (this season's wild food); worn and salted soil on the cell where its crops were
-    grown. Ranked by the size of their pool's loss. No claim that the land alone caused the shortfall: the amounts
-    are stated in hunger_event."""
+    Codex review 022): every recorded loss that took food from a band that went short, ranked by the size of its
+    pool's loss. No claim that the land alone caused the shortfall: the amounts are stated in hunger_event."""
     if not getattr(P, "LAND", False) or getattr(w, "land_flags", None) is None:
         return []
     a = getattr(w, "land_short", None)
-    if a is None or band_id >= len(a):
+    if a is None or band_id >= len(a) or float(w.land_short[band_id]) <= 0:
         return []
-    short, lw, lc = float(w.land_short[band_id]), float(w.land_lost_wild[band_id]), float(w.land_lost_crop[band_id])
-    if short <= 0 or lw + lc <= 0:
-        return []
-    cc = getattr(w, "land_crop_cell", None)
-    crop_cell = int(cc[band_id]) if cc is not None and band_id < len(cc) else -1
-    out = []
-    for j, kind in enumerate(KINDS):
-        wild = kind in ("game", "forest")
-        c = cell if wild else crop_cell
-        lost = lw if wild else lc
-        if c < 0 or lost <= 0:
-            continue
-        e = int(w.land_event[c, j])
-        if not w.land_flags[c, j] or e < 0 or kind_factors(w, c)[kind] >= 1.0:
-            continue
-        out.append((-lost, j, e))
-    return [e for _l, _j, e in sorted(out)]
+    wild, crop = _links(w, band_id, cell)
+    lw, lc = float(w.land_lost_wild[band_id]), float(w.land_lost_crop[band_id])
+    first, second = (wild, crop) if lw >= lc else (crop, wild)
+    return first + second
 
 
 def hunger_event(w, band_id: int, cell: int) -> int:
-    """One event per band and season linking its hunger to the land, with the amounts: what lost game and forest
-    took from its wild food and what worn or salted soil took from its crops, against what it lacked (Ben,
-    20 November 2026: contributing cause). -1 if the land took nothing from a band that went short."""
+    """One event per band and season linking its hunger to the land, with the amounts (Ben, 20 November 2026:
+    contributing cause). Only the pools with a linked land event are counted as the land's; a loss from a pool
+    with no recorded event is stated apart (Codex review 023, finding 4). The crop amount is the last harvest's
+    loss spread evenly over the year's seasons, a budget convention, not the food missing this season. Made where
+    a death is recorded; every band-season of exposure is counted in note_account. -1 if nothing is linked."""
     cache = getattr(w, "_land_hunger", None)
     if cache is None or cache[0] != w.t:
         cache = w._land_hunger = (w.t, {})
     if band_id in cache[1]:
         return cache[1][band_id]
-    ev = felt(w, band_id, cell)
     e = -1
-    if ev:
+    if felt(w, band_id, cell):
+        wild, crop = _links(w, band_id, cell)
         short, lw, lc = float(w.land_short[band_id]), float(w.land_lost_wild[band_id]), float(w.land_lost_crop[band_id])
+        lw_l, lc_l = (lw if wild else 0.0), (crop_linked(w, band_id) if crop else 0.0)
         parts = []
-        if lw > 0:
-            parts.append(f"lost game and forest took {lw:,.0f} from its wild food")
-        if lc > 0:
-            parts.append(f"worn or salted soil took about {lc:,.0f} a season from its crops")
+        if lw_l > 0:
+            parts.append(f"lost game and forest took {lw_l:,.0f} from its wild food this season")
+        if lc_l > 0:
+            parts.append(f"worn or salted soil took {lc_l:,.0f} a season from its crops (the last harvest's loss, "
+                         f"spread over the year)")
+        other = (lw - lw_l) + (lc - lc_l)
+        if other <= 1e-9 * max(lw + lc, 1.0):          # rounding between the total and its parts (Codex review 025)
+            other = 0.0
         note = (f"{w.band_name(w.bands[band_id])} lacked {short:,.0f} of the food it needed this season; "
-                + " and ".join(parts) + f" (together {min(lw + lc, short) / short:.0%} of what it lacked, at most)")
-        e = w.event("land_hunger", cell=cell, band=band_id, causes=[{"note": note}] + [{"event": x} for x in ev],
-                    short=round(short, 1), lost_wild=round(lw, 1), lost_crop=round(lc, 1))
+                + " and ".join(parts)
+                + (f"; a further {other:,.0f} lost from its food is not tied to a recorded land event" if other > 0 else ""))
+        e = w.event("land_hunger", cell=cell, band=band_id,
+                    causes=[{"note": note}] + [{"event": x} for x in felt(w, band_id, cell)],
+                    short=round(short, 1), lost_wild=round(lw_l, 1), lost_crop=round(lc_l, 1),
+                    unlinked=float(other))
     cache[1][band_id] = e
     return e
 
 
 def _band_rows(w, n):
-    for name in ("land_short", "land_lost_wild", "land_lost_crop", "land_crop_acc", "land_crop_cell"):
+    for name in ("land_short", "land_lost_wild", "land_lost_crop", "land_crop_acc", "land_crop_k", "land_crop_ev",
+                 "land_acc_k", "land_acc_kev", "land_acc_ktop"):
         a = getattr(w, name, None)
+        if a is not None and name in ("land_crop_k", "land_crop_ev", "land_acc_k", "land_acc_kev", "land_acc_ktop") \
+                and (a.ndim != 2 or a.shape[1:] != (2,)):
+            a = None                                  # an older save's array of another shape: start afresh
         if a is None or len(a) < n:
-            size = max(n, 64) if a is None else max(n, 2 * len(a))
-            if name == "land_crop_cell":
-                b = np.full(size, -1, dtype=np.int64)
+            size = max(n, 64, 2 * len(a)) if a is not None else max(n, 64)
+            if name.endswith("ev"):
+                b = -np.ones((size, 2), dtype=np.int64)
+            elif name in ("land_crop_k", "land_acc_k", "land_acc_ktop"):
+                b = np.zeros((size, 2))
             else:
                 b = np.zeros(size)
-            if a is not None:
+            if a is not None and len(a):
                 b[:len(a)] = a
             setattr(w, name, b)
 
 
 def move_crop_loss(w, src: int, dst: int, frac: float):
-    """The crop loss goes with the share of the standing crop and stores that moves (Codex review 022, finding 3):
-    a band taking in people takes in their part of the loss, and the soil it was grown on if it has none of its
-    own."""
+    """The crop loss goes with the share of the standing crop and stores that moves (Codex review 022, finding 3).
+    The linked parts move with it, kind by kind; the receiving band takes the moving part's example event (with its
+    season's loss) where the moving part of that kind is the larger (Codex review 024, finding 2)."""
     if getattr(w, "land_crop_acc", None) is None or not getattr(P, "LAND", False):
         return
     _band_rows(w, max(src, dst) + 1)
@@ -433,34 +474,111 @@ def move_crop_loss(w, src: int, dst: int, frac: float):
         x = a[src] * frac
         a[dst] += x
         a[src] -= x
-    if w.land_crop_cell[dst] < 0:
-        w.land_crop_cell[dst] = w.land_crop_cell[src]
+    for amt, ev, top in (("land_acc_k", "land_acc_kev", "land_acc_ktop"), ("land_crop_k", "land_crop_ev", None)):
+        a, e = getattr(w, amt), getattr(w, ev)
+        for j in range(2):
+            x = a[src, j] * frac
+            if top and e[src, j] >= 0 and e[dst, j] == e[src, j]:
+                # the same example on both sides: their loss attributed to it adds up (Codex review 026)
+                getattr(w, top)[dst, j] += getattr(w, top)[src, j] * frac
+            elif (getattr(w, top)[src, j] * frac > getattr(w, top)[dst, j]) if top else (x > a[dst, j]):
+                # another event: the example behind the larger attributed loss wins (Codex review 027); after the
+                # harvest no example values are kept, so the larger linked part decides
+                e[dst, j] = e[src, j]
+                if top:                       # the example's loss is shared as the loss is (review 025)
+                    getattr(w, top)[dst, j] = getattr(w, top)[src, j] * frac
+            if top:
+                getattr(w, top)[src, j] *= (1.0 - frac)
+            a[dst, j] += x
+            a[src, j] -= x
 
 
-def note_crop_loss(w, ids, lost, cells=None):
+def drop_crop_loss(w, band_id: int):
+    """A band that ends with nobody to take its fields loses its standing crop and its loss record."""
+    if getattr(w, "land_crop_acc", None) is None:
+        return
+    _band_rows(w, band_id + 1)                    # older saves may hold some of these rows and not others (review 024)
+    w.land_crop_acc[band_id] = w.land_lost_crop[band_id] = 0.0
+    w.land_crop_k[band_id] = w.land_acc_k[band_id] = w.land_acc_ktop[band_id] = 0.0
+    w.land_crop_ev[band_id] = w.land_acc_kev[band_id] = -1
+
+
+def note_crop_loss(w, ids, lost, cells=None, parts=None):
     """farming, each season: crops worn or salted soil took from each band. At the harvest the year's loss becomes
-    the band's crop loss per season until the next harvest (the crops feed it through the year)."""
+    the band's crop loss per season until the next harvest (the crops feed it through the year). parts: the soil
+    and salt parts of the loss; each is booked as linked where that condition has a recorded event on the cell
+    (Codex review 024, findings 3 and 4: so a salt flag below the yield threshold links nothing, and each season's
+    linked amount is kept, not one season's events for the whole year)."""
     if not getattr(P, "LAND", False) or getattr(w, "game", None) is None:
         return
     ids = np.asarray(ids)
     _band_rows(w, int(np.max(ids, initial=-1)) + 1)
+    lost = np.asarray(lost, dtype=float)
     np.add.at(w.land_crop_acc, ids, lost)
-    if cells is not None:
-        took = np.asarray(lost) > 0
-        w.land_crop_cell[ids[took]] = np.asarray(cells)[took]
+    if cells is not None and parts is not None:
+        cells = np.asarray(cells)
+        for j, kind in enumerate(("soil", "salt")):
+            k = KINDS.index(kind)
+            part = np.asarray(parts[j], dtype=float)
+            ev = np.where(w.land_flags[cells, k], w.land_event[cells, k], -1)
+            on = (part > 0) & (ev >= 0)
+            if not on.any():
+                continue
+            oi, op, oe = ids[on], part[on], ev[on]
+            np.add.at(w.land_acc_k[:, j], oi, op)
+            # the example's comparison value is the linked loss attributed to it so far: a season citing the
+            # same event adds to it; another event takes over only with a larger season (Codex review 026)
+            same = w.land_acc_kev[oi, j] == oe
+            w.land_acc_ktop[oi[same], j] += op[same]
+            top = ~same & (op > w.land_acc_ktop[oi, j])
+            w.land_acc_kev[oi[top], j] = oe[top]
+            w.land_acc_ktop[oi[top], j] = op[top]
     if w.quarter == P.HARVEST_QUARTER:
         w.land_lost_crop[ids] = w.land_crop_acc[ids] / P.TICKS_PER_YEAR
+        w.land_crop_k[ids] = w.land_acc_k[ids] / P.TICKS_PER_YEAR
+        w.land_crop_ev[ids] = w.land_acc_kev[ids]
         w.land_crop_acc[ids] = 0.0
+        w.land_acc_k[ids] = 0.0
+        w.land_acc_kev[ids] = -1
+        w.land_acc_ktop[ids] = 0.0
 
 
-def note_account(w, ids, short, lost_wild):
-    """foraging, each season: each band's shortfall, and the wild food lost game and forest took from it."""
+def note_account(w, ids, short, lost_wild, cells=None):
+    """foraging, each season: each band's shortfall, and the wild food lost game and forest took from it. With the
+    cells, every band-season of exposure is counted (Codex review 023, finding 5: the events are made only where a
+    death is recorded): band-seasons short of food; of those, with a land loss linked to a recorded event, by pool;
+    and the food lacked and the linked loss, summed."""
     if not getattr(P, "LAND", False) or getattr(w, "game", None) is None:
         return
     ids = np.asarray(ids)
     _band_rows(w, int(np.max(ids, initial=-1)) + 1)
     w.land_short[ids] = short
     w.land_lost_wild[ids] = lost_wild
+    if cells is None:
+        return
+    cells = np.asarray(cells)
+    short = np.asarray(short, dtype=float)
+    lw = np.asarray(lost_wild, dtype=float)
+    lc = w.land_lost_crop[ids]
+    fm = forest_max(w)[cells]
+    jg, jf = KINDS.index("game"), KINDS.index("forest")
+    # the same factor tests as kind_factors, for all bands at once (Codex review 024, finding 5)
+    game_f = 1.0 - P.GAME_SHARE * (1.0 - w.game[cells]) - P.GAME_FAST_SHARE * (1.0 - w.game_fast[cells])
+    forest_f = np.where(fm > 0, 1.0 - P.FOREST_WILD * fm * (1.0 - w.forest[cells] / np.maximum(fm, 1e-9)), 1.0)
+    game_ok = w.land_flags[cells, jg] & (w.land_event[cells, jg] >= 0) & (game_f < 1.0)
+    forest_ok = w.land_flags[cells, jf] & (w.land_event[cells, jf] >= 0) & (forest_f < 1.0)
+    wl = (short > 0) & (lw > 0) & (game_ok | forest_ok)
+    ck = np.where(w.land_crop_ev[ids] >= 0, w.land_crop_k[ids], 0.0).sum(axis=1)
+    lc = np.minimum(ck, lc)                       # the linked part only (Codex review 024, finding 4)
+    cl = (short > 0) & (lc > 0)
+    c = w.counts
+    for k, v in (("land_exp_short", int((short > 0).sum())), ("land_exp_linked", int((wl | cl).sum())),
+                 ("land_exp_wild_only", int((wl & ~cl).sum())), ("land_exp_crop_only", int((cl & ~wl).sum())),
+                 ("land_exp_both", int((wl & cl).sum()))):
+        c[k] = c.get(k, 0) + v
+    c["land_exp_short_sum"] = c.get("land_exp_short_sum", 0.0) + float(short[short > 0].sum())
+    c["land_exp_linked_sum"] = c.get("land_exp_linked_sum", 0.0) + float(
+        np.minimum(np.where(wl, lw, 0.0) + np.where(cl, lc, 0.0), short)[wl | cl].sum())
 
 
 def history(w, cell) -> str:
@@ -477,4 +595,4 @@ def history(w, cell) -> str:
 
 ARRAYS = ("game", "game_fast", "forest", "fertility", "salt", "fallow", "land_flags", "land_event", "land_since", "land_take", "land_wild",
           "land_work", "land_seasons", "land_need", "land_manure", "land_irr", "land_fuel", "land_short", "land_lost_wild",
-          "land_lost_crop", "land_crop_acc", "land_crop_cell")
+          "land_lost_crop", "land_crop_acc", "land_crop_k", "land_crop_ev", "land_acc_k", "land_acc_kev", "land_acc_ktop")

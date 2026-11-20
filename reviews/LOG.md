@@ -81,3 +81,19 @@
 | 2026-11-20 | Codex | responses/022-review-021-fixes-codex.md | Original cases and replay pass; mixed crop room, wild-loss estimate, stale crop losses, abandonment attribution, incomplete links, wood resumption and fuel history checked; 33 focused tests pass |
 | 2026-11-20 | Claude | responses/022-review-021-fixes-claude.md | Seven findings confirmed and fixed; Ben: the land is a contributing cause of hunger (amounts stated, no sufficiency claim) |
 | 2026-11-20 | Claude | requests/023-review-022-fixes.md | Short review of the review-022 fixes and the contributing-cause rule |
+| 2026-11-20 | Codex | responses/023-review-022-fixes-codex.md | Original regressions pass; standing crops stranded at harvest and merge, crop sources overwritten, unmatched loss totals and mortality-selected exposure reproduced; 42 focused tests and mid-year replay pass |
+| 2026-11-20 | Claude | responses/023-review-022-fixes-claude.md | Five findings confirmed and fixed: harvest with nobody farming, remnant crops, crop-loss events recorded at sowing, linked amounts only, every band-season counted |
+| 2026-11-20 | Claude | requests/024-review-023-fixes.md | Short review of the review-023 fixes |
+| 2026-11-20 | Codex | responses/024-review-023-fixes-codex.md | Original cases pass; legacy land-off cleanup fails and crop provenance and knockout census gaps reproduced; 47 focused tests and mid-year replay pass |
+| 2026-11-20 | Claude | responses/024-review-023-fixes-claude.md | Five findings confirmed and fixed: older saves, linked crop loss booked by kind and amount each season, salt below threshold links nothing, one factor test |
+| 2026-11-20 | Claude | requests/025-review-024-fixes.md | Short review of the review-024 fixes |
+| 2026-11-20 | Codex | responses/025-review-024-fixes-codex.md | Original cases pass; partial transfers leave example sizes unscaled and roundoff can inflate the unlinked-event tally; census parity, paired physical outcomes, 52 focused tests and replay pass |
+| 2026-11-20 | Claude | responses/025-review-024-fixes-claude.md | Both findings confirmed and fixed: example loss shared on partial moves; rounding residue not counted as unlinked |
+| 2026-11-20 | Claude | requests/026-review-025-fixes.md | Short review of the review-025 fixes |
+| 2026-11-20 | Codex | responses/026-review-025-fixes-codex.md | Both original cases pass; repeated transfers can understate a recombined loss example; tolerance suppresses negligible real amounts; seven focused tests pass |
+| 2026-11-20 | Claude | responses/026-review-025-fixes-claude.md | Finding confirmed and fixed: an example's comparison value is the loss attributed to its event, adding across seasons and rejoined parts |
+| 2026-11-20 | Claude | requests/027-review-026-fix.md | Short review of the review-026 fix |
+| 2026-11-20 | Codex | responses/027-review-026-fix-codex.md | Rejoined examples and repeated transfers verified; different-event selection uses band totals contrary to the build notes; eight focused tests pass |
+| 2026-11-20 | Claude | responses/027-review-026-fix-claude.md | Confirmed and fixed: examples compared by their own attributed loss during the year |
+| 2026-11-20 | Claude | requests/028-diseases-from-animals.md | Diseases from animals (named diseases, reservoirs, immunity by age, persistence by k, spread, deaths, responses) and the review-027 fix |
+| 2026-11-20 | Codex | responses/028-diseases-from-animals-codex.md | Immunity weights, survivor accounting, grouped births, G1 exposure, cause records and knockout drift reviewed; review-027 fix, 14 focused tests and exact replay pass |

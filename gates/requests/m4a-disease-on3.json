@@ -1,0 +1,2 @@
+{"gate": "g3", "label": "m4a-disease-on3", "jobs": ["4:10", "5:7", "1:5"], "after_first": 1000, "params": {},
+ "note": "M4a trial: named diseases on, code a385b94 (review-028 fixes), three herding histories of G3 run 3 (planet 4 seed 7 dropped: it never reached farming). Pair: m4a-disease-off3, same code. 20 Nov 2026."}
