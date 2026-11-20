@@ -256,3 +256,106 @@ class Review035(unittest.TestCase):
         ids = groups.unfold(w, b)
         self.assertEqual(len(ids), 1)
         self.assertGreaterEqual(int(w.people.preg_due[ids[0]]), 0)
+
+
+class Review036(unittest.TestCase):
+    """Codex review 036 (interactions and invariants): findings reproduced, then fixed."""
+
+    def _world(self, years=5):
+        from origins import engine
+        from origins.state import World
+        from origins.worldgen import generate
+        w = World.new(1, 1, generate(1))
+        engine.step(w, 4 * years)
+        return w
+
+    def test_finding1_a_world_and_probes_from_different_checkpoints_are_refused(self):
+        import json, tempfile
+        from pathlib import Path
+        from origins import persist
+        from gates import g2
+        w = self._world(2)
+        ck = Path(tempfile.mkdtemp())
+        cp, meta = ck / "w1_s1.zip", ck / "w1_s1.json"
+        g2.save_planet(cp, w.planet)
+        persist.to_file(w, cp, fast=True)
+        meta.write_text(json.dumps({"t": int(w.t) - 4, "seconds": 1.0, "year": w.year - 1, "probe": g2.new_probe()}))
+        old_out = g4.OUT
+        g4.OUT = ck / "out"
+        try:
+            with self.assertRaises(RuntimeError):
+                g4.worker([(1, 1)], 1e9, ck, "")
+        finally:
+            g4.OUT = old_out
+
+    def test_finding2_cycles_and_unknown_references_do_not_resolve(self):
+        from origins import explain
+        w = self._world(1)
+        e = w.event("note", cell=0, band=w.living_bands()[0].id)
+        w.events[e]["causes"].append({"event": e}) if isinstance(w.events[e]["causes"], list) else None
+        if {"event": e} in w.events[e]["causes"]:
+            self.assertFalse(explain.resolvable(w, {"event": e}))
+        e2 = w.event("note", cell=0, band=w.living_bands()[0].id, causes=[{"event": len(w.events)}])
+        e3 = w.event("note", cell=0, band=w.living_bands()[0].id, causes=[{"event": e2}])
+        w.events[e2]["causes"][0]["event"] = e3 if isinstance(w.events[e2]["causes"], list) else None
+        if w.events[e2]["causes"][0]["event"] == e3:
+            self.assertFalse(explain.resolvable(w, {"event": e3}))
+        self.assertFalse(explain.resolvable(w, {"bogus": 123}))
+
+    def test_finding2_shared_good_references_do_not_change_answers_by_order(self):
+        from origins import explain
+        w = self._world(5)
+        refs = [{"event": i} for i in range(len(w.events) - 1, 0, -max(1, len(w.events) // 30))]
+        a = [explain.resolvable(w, r, good=set()) for r in refs]
+        g = set()
+        b = [explain.resolvable(w, r, good=g) for r in refs]
+        g = set()
+        c = [explain.resolvable(w, r, good=g) for r in refs[::-1]][::-1]
+        self.assertEqual(a, b)
+        self.assertEqual(a, c)
+
+    def test_finding3_fractional_men_and_negative_treasury_are_caught(self):
+        from origins.sim import observe, groups
+        w = self._world(2)
+        b = next(x for x in w.living_bands() if x.mode != "group")
+        groups.fold(w, b)
+        w._goods_check = None
+        observe.begin_tick(w) if hasattr(observe, "begin_tick") else None
+        n0 = len(w.invariant_failures)
+        G = w.groups
+        a = int(np.nonzero(G.M[b.group])[0][0])
+        G.M[b.group, a] -= 0.25
+        observe.end_tick(w)
+        self.assertGreater(len(w.invariant_failures), n0)
+        from origins.sim import trade
+        if getattr(w, "treasury", None) is not None and w.treasury.size:
+            n1 = len(w.invariant_failures)
+            trade.check_begin(w)
+            w.treasury.flat[0] -= 1.0
+            w.goods.flat[0] += 1.0
+            trade.check_end(w)
+            self.assertGreater(len(w.invariant_failures), n1)
+
+    def test_finding4_a_return_load_names_its_giver(self):
+        import inspect
+        from origins.sim import traders
+        self.assertIn('cz = [{"band": src}]', inspect.getsource(traders._carry))
+
+    def test_finding5_g1s_replay_steps_and_probes_both_worlds_alike(self):
+        import inspect
+        from gates import g1
+        src = inspect.getsource(g1.worker)
+        self.assertIn("probe_year(twin, twin_pr)", src)
+        self.assertNotIn("engine.step(twin, 40)", src)
+
+    def test_finding6_the_census_changes_nothing(self):
+        from origins import persist
+        w = self._world(3)
+        w.trade_in = None
+        w.t = 100 * 4                                    # a census year (the world is otherwise as it was)
+        self.assertEqual(w.year % g4.CENSUS_YEARS, 0)
+        d0 = persist.digest(w)
+        pr = {}
+        g4.census(w, pr)
+        self.assertTrue(pr.get("census"))
+        self.assertEqual(persist.digest(w), d0)

@@ -434,9 +434,11 @@ def _carry(w, A, B, cost, cells, bcost, bcells, cap, tq, holder, cols, sizes_all
         if not reached_before and w.goods[dst, col] > P.ARRIVE_MIN:
             w.goods_reached[dst, col] = True
             db = w.bands[dst]
+            # the giver and the traders' seat (on a return load they differ: Codex review 036, finding 4)
+            cz = [{"band": src}] + ([{"band": a}] if a != src else [])
             w.event("good_arrived", cell=db.cell, band=dst, good=g, source=src, route="trader",
-                    causes=[{"band": a}, {"note": f"{g.replace('_', ' ')} first reached {w.band_name(db)} with the "
-                                                   f"traders of {A.name}"}])
+                    causes=cz + [{"note": f"{g.replace('_', ' ')} first reached {w.band_name(db)} from "
+                                          f"{w.band_name(w.bands[src])} with the traders of {A.name}"}])
     lost, tolls = acc["lost"], acc["tolls"]
     paid = out["paid"] + [k for k in back["paid"] if k not in out["paid"]]
     evaded = out["evaded"] + [k for k in back["evaded"] if k not in out["evaded"]]

@@ -145,7 +145,10 @@ def census(w, pr):
     sk = T.skilled(w, live, ids)
     sk_cell = np.bincount(cells, weights=sk, minlength=w.planet.n)
     sk_reach = T._reach(w, cells, sk_cell[:, None])[:, 0]
+    ti = getattr(w, "trade_in", None)                 # the trade-need accessor may grow this array: put it back
+    ti_copy = None if ti is None else ti.copy()        # as it was, so the census changes nothing (review 036)
     needs = T._needs(w, live, ids, cells, sizes, cell_pop)
+    w.trade_in = ti_copy
     need = np.stack([needs[t.need] for t in T.TECHNIQUES], axis=1)
     eligible = T._possible(w, ids, cells) & (w.tech[ids] <= 0)        # what it could invent now (finding 5)
     n_elig = eligible.sum(axis=1)
@@ -222,7 +225,7 @@ def transmission(w):
         elif k == "technique_adopted":
             src = e["data"].get("source")
             prev = hold.get(int(src), {}).get(t) if src is not None else None
-            steps = prev[1] + 1 if prev is not None else None
+            steps = prev[1] + 1 if prev is not None and prev[1] is not None else None
             hold.setdefault(b, {})[t] = ["others", steps]
             if (b, t) not in seen:
                 seen.add((b, t))
@@ -374,6 +377,8 @@ def worker(jobs, budget, ckpt: Path, arm: str):
         if cp.exists():
             w = persist.from_bytes(cp.read_bytes(), g2.resume_planet(cp, ws))
             m = json.loads(meta.read_text())
+            if "t" in m and int(m["t"]) != int(w.t):        # a world and probes from different checkpoints (review 036)
+                raise RuntimeError(f"checkpoint {cp.name}: world at tick {w.t}, probes at tick {m['t']}")
             spent, pr = m["seconds"], m["probe"]
         else:
             w = World.new(ws, rs, _planet(ws))
@@ -397,7 +402,7 @@ def worker(jobs, budget, ckpt: Path, arm: str):
                 gc.collect()
                 persist.to_file(w, tmp, fast=True)
                 tmp.replace(cp)
-                meta.write_text(json.dumps({"seconds": spent + time.time() - start, "year": w.year, "probe": pr}))
+                meta.write_text(json.dumps({"t": int(w.t), "seconds": spent + time.time() - start, "year": w.year, "probe": pr}))
                 print(f"w{ws} s{rs}{tag}: checkpoint at year {w.year}", flush=True)
                 return
         finish(w, ws, rs, spent + time.time() - start, pr, tag)

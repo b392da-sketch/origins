@@ -266,46 +266,81 @@ def chain(w, ref: dict, depth: int = 5) -> dict:
     return node
 
 
+GATE_NODES = 50_000_000
+
+
 def resolvable(w, ref: dict, depth: int | None = None, max_nodes: int = 200_000, good: set | None = None) -> bool:
-    """True if every reference in the whole chain points at something that exists.
+    """True if every reference in the whole chain points at something that exists, is of a known kind, and the
+    chain has no cycle (a reference that leads back to itself explains nothing: Codex review 036, finding 2).
 
     The whole chain is followed (each reference once), not to a fixed depth: until 14 November 2026 only six
-    steps were followed (Codex review 004; lifted in M4a). A chain larger than max_nodes counts as unresolved, so a
-    gate never passes on a chain it did not finish. depth, if given, still limits the search (for quick looks).
+    steps were followed (Codex review 004; lifted in M4a). Without `good`, a chain larger than max_nodes counts as
+    unresolved, so a quick look never passes on a chain it did not finish. depth, if given, still limits the search.
 
-    good: a set shared across calls (a gate's samples from one history). Every reference visited by a call that
-    returned True has a whole chain that resolves, so later calls need not follow it again. Chains through a band
-    reach far back into its people's history (9-44 s each in a planet-3 world of 2 million events, 21 November
-    2026), and samples share most of that. Only with depth None; nodes already known good do not count towards
-    max_nodes. The answer for each sample is unchanged.
-    """
+    good: a set shared across calls (a gate's samples from one history). Every reference finished by a call that
+    returned True has a whole chain that resolves, so later calls need not follow it again (chains through a band
+    reach far back into its people's history). With `good`, the answer does not depend on which samples came first:
+    no chain fails for its size (the graph is finite and cycles are caught); a traversal beyond GATE_NODES expanded
+    references raises instead of answering (Codex review 036)."""
     p = w.people
-    stack = [(ref, 0)]
-    seen = set()
     use = good is not None and depth is None
+    KNOWN = ("note", "event", "death", "birth", "partnership", "band")
+
+    def key_of(r):
+        return tuple(sorted((k, str(v)) for k, v in r.items() if k in KNOWN))
+
+    def check(r):
+        if not any(k in r for k in KNOWN):
+            return False                                    # an unknown kind of reference resolves nothing
+        if "event" in r and not (0 <= int(r["event"]) < len(w.events)):
+            return False
+        for k in ("death", "birth", "partnership"):
+            if k in r and not (0 <= int(r[k]) < p.n):
+                return False
+        if "death" in r and p.death[int(r["death"])] < 0:
+            return False
+        if "band" in r:
+            w.bands[int(r["band"])]
+        return True
+
     try:
+        if not check(ref):
+            return False
+        on_path, done = set(), set()
+        k0 = key_of(ref)
+        stack = [(ref, k0, 0, None)]                        # (reference, key, depth, iterator over its causes)
+        expanded = 0
         while stack:
-            r, d = stack.pop()
-            key = tuple(sorted((k, str(v)) for k, v in r.items() if k in ("event", "death", "birth", "partnership", "person", "band", "note")))
-            if key in seen or (use and key in good):
-                continue
-            seen.add(key)
-            if len(seen) > max_nodes:
-                return False
-            if "event" in r and not (0 <= int(r["event"]) < len(w.events)):
-                return False
-            for k in ("death", "birth", "partnership"):
-                if k in r and not (0 <= int(r[k]) < p.n):
+            r, k, d, it = stack[-1]
+            if it is None:
+                if (use and k in good) or k in done:
+                    stack.pop()
+                    continue
+                on_path.add(k)
+                expanded += 1
+                if not use and expanded > max_nodes:
                     return False
-            if "death" in r and p.death[int(r["death"])] < 0:
-                return False
-            if depth is not None and d >= depth:
+                if use and expanded > GATE_NODES:
+                    raise RuntimeError(f"cause chain beyond {GATE_NODES:,} references")
+                causes = [] if (depth is not None and d >= depth) else list(describe(w, r).get("causes", []))
+                it = iter(causes)
+                stack[-1] = (r, k, d, it)
+            c = next(it, None)
+            if c is None:
+                on_path.discard(k)
+                done.add(k)
+                stack.pop()
                 continue
-            node = describe(w, r)
-            for c in node.get("causes", []):
-                stack.append((c, d + 1))
+            if not check(c):
+                return False
+            kc = key_of(c)
+            if kc in on_path and "note" not in c:
+                return False                                # a cycle
+            if kc in done or (use and kc in good) or "note" in c:
+                continue
+            stack.append((c, kc, d + 1, None))
         if use:
-            good |= seen
+            good |= done
         return True
     except (KeyError, IndexError, ValueError):
         return False

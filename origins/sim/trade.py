@@ -692,10 +692,13 @@ def check_end(w):
     for i, g in enumerate(GOODS):
         L, L0 = w.goods_ledger[g], led[g]
         flows = (L["produced"] - L0["produced"]) - (L["worn"] - L0["worn"]) - (L["lost"] - L0["lost"])
-        if abs((now[i] - before[i]) - flows) > 1e-6 * max(1.0, abs(before[i])):
+        if not np.isfinite(now[i]) or not np.isfinite(flows) or \
+                abs((now[i] - before[i]) - flows) > 1e-6 * max(1.0, abs(before[i])):
             w.invariant_failures.append(f"t={w.t}: {g} change {now[i] - before[i]:.4f} vs flows {flows:.4f}")
-    if (w.goods < -1e-9).any():
-        w.invariant_failures.append(f"t={w.t}: negative goods")
+    tre = getattr(w, "treasury", None)
+    if (w.goods < -1e-9).any() or not np.isfinite(w.goods).all() or \
+            (tre is not None and (not np.isfinite(tre).all() or (tre < -1e-9).any())):   # rulers' stores too (review 036)
+        w.invariant_failures.append(f"t={w.t}: negative or non-finite goods")
 
 
 from .. import params as P  # noqa: E402

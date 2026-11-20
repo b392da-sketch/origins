@@ -194,6 +194,8 @@ def worker(jobs, budget, ckpt: Path, storage: bool):
         if cp.exists():
             w = persist.from_bytes(cp.read_bytes(), resume_planet(cp, ws))
             m = json.loads(meta.read_text())
+            if "t" in m and int(m["t"]) != int(w.t):        # a world and probes from different checkpoints (review 036)
+                raise RuntimeError(f"checkpoint {cp.name}: world at tick {w.t}, probes at tick {m['t']}")
             spent, pr = m["seconds"], m["probe"]
         else:
             w = World.new(ws, rs, _planet(ws))
@@ -206,7 +208,7 @@ def worker(jobs, budget, ckpt: Path, storage: bool):
                 tmp = cp.with_suffix(".tmp")
                 persist.to_file(w, tmp, fast=True)
                 tmp.replace(cp)
-                meta.write_text(json.dumps({"seconds": spent + time.time() - start, "year": w.year, "probe": pr}))
+                meta.write_text(json.dumps({"t": int(w.t), "seconds": spent + time.time() - start, "year": w.year, "probe": pr}))
                 print(f"w{ws} s{rs}{tag}: checkpoint at year {w.year}", flush=True)
                 return
         finish(w, ws, rs, spent + time.time() - start, pr, storage)
