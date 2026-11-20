@@ -601,6 +601,7 @@ class Review022(unittest.TestCase):
         land._band_rows(w, max(a.id, d.id) + 1)
         w.land_crop_acc[a.id], w.land_lost_crop[a.id] = 40.0, 10.0
         w.land_crop_ev[a.id] = [7, -1]
+        w.land_crop_k[a.id] = [10.0, 0.0]
         w.land_crop_ev[d.id] = -1
         land.move_crop_loss(w, a.id, d.id, 0.25)
         self.assertAlmostEqual(float(w.land_crop_acc[d.id]), 10.0)
@@ -643,6 +644,7 @@ class Review022(unittest.TestCase):
         land._band_rows(w, b.id + 1)
         w.land_lost_crop[b.id] = 6.0                                    # crops grown on the land it left
         w.land_crop_ev[b.id] = [e_old, -1]
+        w.land_crop_k[b.id] = [6.0, 0.0]
         b.cell = nb
         w.bands_changed()
         land.note_account(w, np.array([b.id]), np.array([10.0]), np.array([5.0]))
@@ -762,9 +764,11 @@ class Review023(unittest.TestCase):
         w.land_flags[2, js], w.land_event[2, js] = True, e2
         w.land_flags[778, js], w.land_event[778, js] = True, e778
         w.t += (P.HARVEST_QUARTER - w.quarter) % P.TICKS_PER_YEAR
-        land.note_crop_loss(w, np.array([b.id]), np.array([40.0]), np.array([2]))      # the harvest: 40 from cell 2
+        land.note_crop_loss(w, np.array([b.id]), np.array([40.0]), np.array([2]),
+                            (np.array([40.0]), np.array([0.0])))                     # the harvest: 40 from cell 2
         w.t += 1
-        land.note_crop_loss(w, np.array([b.id]), np.array([1.0]), np.array([778]))     # next season, 1 on 778
+        land.note_crop_loss(w, np.array([b.id]), np.array([1.0]), np.array([778]),
+                            (np.array([1.0]), np.array([0.0])))                      # next season, 1 on 778
         land.note_account(w, np.array([b.id]), np.array([20.0]), np.array([0.0]))
         self.assertEqual(land.felt(w, b.id, b.cell), [e2])
         w.land_flags[2, js] = False                                    # the old fields recover: the record stands
@@ -778,6 +782,7 @@ class Review023(unittest.TestCase):
         land._band_rows(w, b.id + 1)
         w.land_lost_crop[b.id] = 6.0
         w.land_crop_ev[b.id] = [es, -1]
+        w.land_crop_k[b.id] = [6.0, 0.0]
         land.note_account(w, np.array([b.id]), np.array([10.0]), np.array([5.0]))      # 5 wild, no wild event
         e = land.hunger_event(w, b.id, c)
         d = w.events[e]["data"]
@@ -792,12 +797,95 @@ class Review023(unittest.TestCase):
         land._band_rows(w, b.id + 1)
         w.land_lost_crop[b.id] = 6.0
         w.land_crop_ev[b.id] = [es, -1]
+        w.land_crop_k[b.id] = [6.0, 0.0]
         n0 = len(w.events)
         land.note_account(w, np.array([b.id]), np.array([10.0]), np.array([0.0]), np.array([c]))
         self.assertEqual(w.counts["land_exp_short"], 1)
         self.assertEqual(w.counts["land_exp_crop_only"], 1)
         self.assertAlmostEqual(w.counts["land_exp_linked_sum"], 6.0)
         self.assertEqual(len(w.events), n0)                             # counted, no event without a death
+
+
+class Review024(unittest.TestCase):
+    """Codex review 024."""
+
+    def test_an_older_save_with_the_land_off_can_end_a_band(self):
+        from origins.sim import bands
+        w, _ = world()
+        b = w.living_bands()[0]
+        w.land_crop_acc, w.land_lost_crop = np.zeros(64), np.zeros(64)     # review-023 save: new arrays absent
+        w.land_crop_k = w.land_acc_k = w.land_acc_ktop = np.zeros(0)
+        w.land_crop_ev = w.land_acc_kev = -np.ones(0, dtype=np.int64)
+        old = P.LAND
+        P.LAND = False
+        try:
+            bands.end_band(w, b, "test")
+        finally:
+            P.LAND = old
+        self.assertEqual(w.land_crop_k.shape[1:], (2,))
+
+    def test_a_merge_keeps_each_example_event_with_its_own_loss(self):
+        w, _ = world()
+        a, d = w.living_bands()[0], w.living_bands()[1]
+        js = land.KINDS.index("soil")
+        e2, e778 = w.event("land_soil", cell=2), w.event("land_soil", cell=778)
+        w.land_flags[2, js], w.land_event[2, js] = True, e2
+        w.land_flags[778, js], w.land_event[778, js] = True, e778
+        for _ in range(2):                                              # the receiver: 12 twice at cell 2
+            land.note_crop_loss(w, np.array([d.id]), np.array([12.0]), np.array([2]), (np.array([12.0]), np.array([0.0])))
+        land.note_crop_loss(w, np.array([a.id]), np.array([20.0]), np.array([778]), (np.array([20.0]), np.array([0.0])))
+        land.move_crop_loss(w, a.id, d.id, 1.0)
+        self.assertAlmostEqual(float(w.land_acc_k[d.id, 0]), 44.0)
+        ev, top = int(w.land_acc_kev[d.id, 0]), float(w.land_acc_ktop[d.id, 0])
+        self.assertEqual((ev, top), (e2, 12.0))                       # the pair stays together
+
+    def test_salt_below_its_yield_threshold_links_nothing(self):
+        from origins.sim import farming
+        w, _ = world()
+        b = w.living_bands()[0]
+        jt = land.KINDS.index("salt")
+        es = w.event("land_salt", cell=2)
+        w.land_flags[2, jt], w.land_event[2, jt] = True, es
+        w.salt[2], w.fertility[2] = 0.2, 0.7
+        fert, salt = land.crop_parts(w, np.array([2]))
+        self.assertAlmostEqual(float(1 - fert[0]) * 100, 18.0)        # Codex's case: fertility takes 18 of 100
+        self.assertEqual(float(salt[0]), 1.0)                          # salt takes nothing
+        w.t += (P.HARVEST_QUARTER - w.quarter) % P.TICKS_PER_YEAR
+        land.note_crop_loss(w, np.array([b.id]), np.array([18.0]), np.array([2]),
+                            (np.array([100 * (1 - fert[0])]), np.array([100 * fert[0] * (1 - salt[0])])))
+        land.note_account(w, np.array([b.id]), np.array([10.0]), np.array([0.0]))
+        self.assertEqual(land.felt(w, b.id, b.cell), [])
+
+    def test_each_seasons_link_is_kept_by_amount(self):
+        w, _ = world()
+        b = w.living_bands()[0]
+        js = land.KINDS.index("soil")
+        e2 = w.event("land_soil", cell=2)
+        w.land_flags[2, js], w.land_event[2, js] = True, e2
+        land.note_crop_loss(w, np.array([b.id]), np.array([49.0]), np.array([2]), (np.array([49.0]), np.array([0.0])))
+        w.t += (P.HARVEST_QUARTER - w.quarter) % P.TICKS_PER_YEAR or P.TICKS_PER_YEAR
+        land.note_crop_loss(w, np.array([b.id]), np.array([51.0]), np.array([778]), (np.array([51.0]), np.array([0.0])))
+        self.assertAlmostEqual(float(w.land_lost_crop[b.id]), 25.0)
+        self.assertAlmostEqual(land.crop_linked(w, b.id), 49.0 / 4)    # Codex's case: 49 linked of 100
+
+    def test_the_census_uses_the_same_factor_test_as_the_events(self):
+        w, _ = world()
+        b = w.living_bands()[0]
+        c = int(np.nonzero(land.forest_max(w) > 0)[0][0])
+        b.cell = c
+        w.bands_changed()
+        jg = land.KINDS.index("game")
+        w.land_flags[c, jg], w.land_event[c, jg] = True, w.event("land_game", cell=c)
+        w.game[c], w.game_fast[c], w.forest[c] = 0.1, 0.1, 0.1
+        old = P.GAME_SHARE, P.GAME_FAST_SHARE
+        P.GAME_SHARE = P.GAME_FAST_SHARE = 0.0                          # game knocked out of wild food
+        try:
+            n0 = w.counts.get("land_exp_wild_only", 0)
+            land.note_account(w, np.array([b.id]), np.array([9.0]), np.array([6.0]), np.array([c]))
+            self.assertEqual(w.counts.get("land_exp_wild_only", 0), n0)
+            self.assertEqual(land.felt(w, b.id, c), [])
+        finally:
+            P.GAME_SHARE, P.GAME_FAST_SHARE = old
 
 
 if __name__ == "__main__":
