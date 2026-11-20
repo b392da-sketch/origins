@@ -360,6 +360,10 @@ class Review032(unittest.TestCase):
         w.polities[999] = Polity(999, conq.id, 0, "conquerors")
         w.polity_of[b.id] = 999
         w.conquered_at[b.id] = 75
+        w.t = 75
+        war = w.event("war", cell=b.cell, band=conq.id, target=b.id)
+        w.event("conquest", cell=b.cell, band=b.id, causes=[{"event": war}], polity=999, settlements=1,
+                whole_polity=False, moved=[b.id])
         w.t = 80
         self._name(w)
         layer = places.name_in(w, p, b.language)
@@ -443,3 +447,134 @@ class Review032(unittest.TestCase):
         self.assertEqual([r[7] for r in rows], [False, True])
         w2 = persist.from_bytes(persist.to_bytes(w), w.planet)
         self.assertEqual(persist.digest(w), persist.digest(w2))
+
+
+class Review033(unittest.TestCase):
+    """Codex review 033: findings reproduced, then fixed."""
+
+    def _name(self, w, u=0.0):
+        real = w.rng["places"]
+        w.rng["places"] = _Draw(u)
+        try:
+            places.yearly(w)
+        finally:
+            w.rng["places"] = real
+
+    def _conquered_world(self, n_conquered=2):
+        """A river with one conquering people (one band) and n_conquered bands of another, each naming it."""
+        from origins.sim.language import Language
+        from origins.sim.polity import Polity
+        from origins.sim import conflict, polity
+        w, b, river = _river_world()
+        bands = w.living_bands()
+        self.assertGreaterEqual(len(bands), n_conquered + 1)
+        conq, victims = bands[0], bands[1:1 + n_conquered]
+        nid = w.next_lang
+        w.next_lang += 1
+        w.languages[nid] = Language(nid, -1, w.t, lexicon={m: [list(e[0]), e[1], e[2]]
+                                                          for m, e in w.languages[b.language].lexicon.items()})
+        conq.language = nid
+        from origins.sim import language
+        language._apply_rule(w.languages[nid], "laryngeal_loss", 1)    # so the two peoples' words differ
+        w.bands_changed()
+        w.t = 40
+        old = P.PLACE_KEEP_BASE, P.PLACE_KEEP_SIZE, P.PLACE_KEEP_REMOTE
+        P.PLACE_KEEP_BASE = P.PLACE_KEEP_SIZE = P.PLACE_KEEP_REMOTE = 0.0   # each people gives its own name
+        try:
+            self._name(w)
+        finally:
+            P.PLACE_KEEP_BASE, P.PLACE_KEEP_SIZE, P.PLACE_KEEP_REMOTE = old
+        conflict.ensure(w, max(x.id for x in bands), -1)
+        polity.ensure(w, max(x.id for x in bands), -1)
+        w.polities[999] = Polity(999, conq.id, 0, "conquerors")
+        return w, conq, victims, river
+
+    def test_one_conquest_of_two_bands_imposes_the_name_once(self):
+        w, conq, victims, river = self._conquered_world(2)
+        w.t = 75
+        war = w.event("war", cell=conq.cell, band=conq.id, target=victims[0].id)
+        for v in victims:
+            w.polity_of[v.id] = 999
+            w.conquered_at[v.id] = 75
+        w.event("conquest", cell=victims[0].cell, band=victims[0].id, causes=[{"event": war}], polity=999,
+                settlements=2, whole_polity=True, moved=[v.id for v in victims])
+        w.t = 80
+        self._name(w)
+        p = next(p for p in w.places if p["kind"] == "river" and p["key"] == river[1])
+        self.assertEqual(sum(1 for l in p["layers"] if l[3] == "imposed"), 1)
+
+    def test_an_imposed_name_cites_its_own_conquest(self):
+        w, conq, victims, river = self._conquered_world(1)
+        v = victims[0]
+        w.t = 75
+        war = w.event("war", cell=conq.cell, band=conq.id, target=v.id)
+        mine = w.event("conquest", cell=v.cell, band=v.id, causes=[{"event": war}], polity=999, settlements=1,
+                       whole_polity=False, moved=[v.id])
+        other = w.event("conquest", cell=v.cell, band=conq.id, causes=[{"event": war}], polity=999, settlements=1,
+                        whole_polity=False, moved=[conq.id])          # same polity and tick, another target
+        w.polity_of[v.id] = 999
+        w.conquered_at[v.id] = 75
+        w.t = 80
+        self._name(w)
+        p = next(p for p in w.places if p["kind"] == "river" and p["key"] == river[1])
+        layer = next(l for l in p["layers"] if l[3] == "imposed")
+        cites = [c.get("event") for c in w.events[layer[6]]["causes"]]
+        self.assertIn(mine, cites)
+        self.assertNotIn(other, cites)
+
+    def test_the_gate_record_keeps_every_complex_chiefdom_and_writer(self):
+        from gates import g3
+        w = World.new(1, 1, generate(1))
+        pl = [[0, pid, 3, 2, 0, 0, 0, 0, 2 if pid == 7 else 0, 0] for pid in range(1601)]
+        w.tech_writing_log = [[0, 1, 1600, 0, True, 5.0, 0.6, True]]
+        keep = g3.kept_polities(w, pl, np.random.default_rng(0))
+        self.assertIn(7, keep)                            # a complex chiefdom of three settlements
+        self.assertIn(1600, keep)                         # a polity with a writer
+
+    def test_a_cell_panel_names_a_place_in_the_cells_own_speech(self):
+        from origins import server
+        w, conq, victims, river = self._conquered_world(1)
+        v = victims[0]
+        here = river[4][0]
+        other = next(c for c in river[4] if c != here)
+        conq.cell = here
+        for o in w.living_bands():
+            if o.id != conq.id:
+                o.cell = other                           # the other people, more of them, elsewhere on the river
+        w.bands_changed()
+        p_i = next(i for i, p in enumerate(w.places) if p["kind"] == "river" and p["key"] == river[1])
+        p = w.places[p_i]
+        mine = places.show(places.current(w, places.name_in(w, p, conq.language), conq.language))
+        got = next(x for x in server.cell_places(w, here) if x["id"] == p_i)
+        self.assertEqual(got["name"], mine)
+
+    def test_a_stimulus_that_was_not_needed_is_not_a_cause(self):
+        from origins.sim import groups
+        w = World.new(1, 1, generate(1))
+        a = w.living_bands()[0]
+        b = w.new_band(a.cell, parent=a.id)
+        for x in (a, b):
+            if x.mode == "individual":
+                groups.fold(w, x)
+        w.tech[:] = 0.0
+        for x in (a, b):
+            w.tech[x.id, T.INDEX["tallies"]] = 1.0
+            T._scribes(w)[x.id] = 5.0
+        w.tech[a.id, T.WRITING] = 1.0
+        w.spec[:] = 0.0
+
+        class Zero:
+            def random(self, shape=None):
+                return np.zeros(shape) if shape is not None else 0.0
+
+            def choice(self, n, p=None):
+                return 0
+        real = w.rng["technology"]
+        w.rng["technology"] = Zero()
+        try:
+            T.yearly(w)
+        finally:
+            w.rng["technology"] = real
+        ev = next(e for e in w.events if e["kind"] == "invention" and e["data"].get("technique") == "writing")
+        self.assertFalse(ev["data"]["stimulus_needed"])
+        self.assertNotIn({"band": a.id}, ev["causes"])

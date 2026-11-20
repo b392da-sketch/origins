@@ -45,6 +45,20 @@ def done(w) -> bool:
     return fv is not None and w.year >= w.events[fv]["data"]["year"] + after_first()
 
 
+def kept_polities(w, pl, rng) -> set:
+    """Polities whose whole histories the record keeps: all of them up to 1,500; beyond, a sample of 1,500, plus every
+    polity that ever held 5+ settlements, was ever a complex chiefdom or state, or had a band holding writing or
+    scribes, so writing can be set against tenure (Codex review 033, finding 3)."""
+    pids = sorted({r[1] for r in pl})
+    if len(pids) <= 1500:
+        return set(pids)
+    keep = set(int(x) for x in rng.choice(pids, 1500, replace=False))
+    keep |= {r[1] for r in pl if r[2] >= 5}
+    keep |= {r[1] for r in pl if r[8] >= 2}
+    keep |= {int(r[2]) for r in getattr(w, "tech_writing_log", []) if r[2] >= 0}
+    return keep
+
+
 def finish(w, ws, rs, seconds, pr, institutions):
     from origins import explain, params
     rec = g2.finish(w, ws, rs, seconds, pr, params.STORAGE, write=False)
@@ -52,13 +66,8 @@ def finish(w, ws, rs, seconds, pr, institutions):
     rec["after_first"] = after_first()
     pl = w.polity_log
     rng = np.random.default_rng([ws, rs, 11])
-    # keep whole polity histories: sample polities, not rows
-    pids = sorted({r[1] for r in pl})
-    if len(pids) > 1500:
-        keep = set(int(x) for x in rng.choice(pids, 1500, replace=False))
-        big = {r[1] for r in pl if r[2] >= 5}                  # always keep polities that ever held 5+ settlements
-        keep |= big
-        pl = [r for r in pl if r[1] in keep]
+    keep = kept_polities(w, pl, rng)                        # whole polity histories: sample polities, not rows
+    pl = [r for r in pl if r[1] in keep]
     rec["polity_log"] = pl
     rec["sec_stats"] = {str(k): v for k, v in w.sec_stats.items()}
     rec["polity_firsts"] = {k: w.events[e]["t"] // 4 for k, e in w.polity_firsts.items()}

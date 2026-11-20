@@ -643,9 +643,9 @@ def yearly(w):
             if needed:
                 causes = [{"band": src}, {"note": why + f"; they knew that {w.band_name(w.bands[src])} wrote, though "
                                           "not how: the idea, not the script, was borrowed (stimulus diffusion)"}]
-            else:
-                causes = [{"band": src}, {"note": why + f"; {w.band_name(w.bands[src])} nearby wrote, but they would "
-                                          "have invented it without that knowledge"}]
+            else:                                       # exposure, not a cause (Codex review 033, finding 5)
+                causes = [{"note": why + f"; {w.band_name(w.bands[src])} nearby wrote, but they would have invented "
+                                         "it without that knowledge"}]
         w.event("invention", cell=b.cell, band=b.id, technique=t.key, causes=causes,
                 need=t.need, pressure=round(float(top), 3), connected=int(connected[i]), **extra)
         firsts = w.tech_firsts if hasattr(w, "tech_firsts") else {}

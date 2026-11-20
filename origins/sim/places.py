@@ -464,67 +464,77 @@ def _conquered_by(w, hb, lid, t, conquest_ticks) -> bool:
     return w.bands[pp.seat].language in lineage_ids(w, lid)
 
 
-def _conquest_events(w, t, since) -> dict:
-    """(conquering polity, tick) -> the conquest event, for conquests after tick `since`."""
-    out = {}
+def _conquests_since(w, since) -> list:
+    """The conquest events after tick `since`, oldest first."""
+    out = []
     i = len(w.events) - 1
     while i >= 0:
         e = w.events[i]
         if e["t"] <= since:
             break
         if e["kind"] == "conquest":
-            out.setdefault((int(e["data"].get("polity", -1)), int(e["t"])), i)
+            out.append(i)
         i -= 1
-    return out
+    return out[::-1]
 
 
 def _conquered_adopt(w, rng, live, keys_of, idx, info, t, years):
     """Conquered peoples may take their conquerors' names (Ben, 21 November 2026, after Codex review 032, finding
-    3). For each band conquered since the last pass whose speech differs from its conquerors', each feature it lives by
-    that the conquerors' speech names, and that it names otherwise, takes the conquerors' name with chance
-    PLACE_ADOPT x (1 - PLACE_ADOPT_SIZE x size): settlements and small features most, as units the state names were
-    renamed most in Guangxi (Wang et al. 2011)."""
+    3). For each conquest since the last pass, each people it conquered whose speech differs from its conquerors'
+    takes the conquerors' name for each feature it lives by that the conquerors' speech names and it names otherwise,
+    with chance PLACE_ADOPT x (1 - PLACE_ADOPT_SIZE x size): settlements and small features most, as units the state
+    named were renamed most in Guangxi (Wang et al. 2011).
+
+    Driven by the conquest events, so each conquered band is tied to its own conquest and conquerors (Codex review
+    033, finding 2); one draw per conquered language and feature in a pass, so a people's name changes at most once
+    whatever the number of its bands (finding 1)."""
     since = t - years * P.TICKS_PER_YEAR
-    ca = getattr(w, "conquered_at", None)
-    if ca is None:
-        return
-    events = None
     from .language import label
-    for b in live:
-        if b.id >= len(ca) or not (since < int(ca[b.id]) <= t) or b.id not in keys_of:
+    done = set()
+    alive = {b.id for b in live}
+    for ev in _conquests_since(w, since):
+        e = w.events[ev]
+        pp = w.polities.get(int(e["data"].get("polity", -1)))
+        if pp is None:
             continue
-        pol = int(w.polity_of[b.id]) if b.id < len(w.polity_of) else -1
-        pp = w.polities.get(pol) if pol >= 0 else None
-        if pp is None or pp.seat < 0 or pp.seat not in w.bands.live:
+        war = e["causes"][0].get("event") if e["causes"] else None
+        if pp.seat >= 0 and pp.seat in w.bands.live:
+            seat = int(pp.seat)                        # the conquerors' seat now ...
+        elif war is not None and w.events[war]["band"] in w.bands.live:
+            seat = int(w.events[war]["band"])          # ... or the band that won the war
+        else:
             continue
-        lc = w.bands[pp.seat].language
-        if lc < 0 or lc in lineage_ids(w, b.language) or b.language in lineage_ids(w, lc):
-            continue                                    # same speech: nothing to impose
-        for k in keys_of[b.id]:
-            if k not in idx:
+        lc = w.bands[seat].language
+        if lc < 0:
+            continue
+        moved = e["data"].get("moved", [e["band"]])    # older saves: the target alone
+        for bid in sorted(int(x) for x in moved):
+            if bid not in alive or bid not in keys_of:
                 continue
-            place = w.places[idx[k]]
-            theirs = name_in(w, place, lc)
-            ours = name_in(w, place, b.language)
-            if theirs is None or ours is None or ours is theirs:
-                continue
-            size = info[k][1] if k in info else place["size"]
-            p_adopt = P.PLACE_ADOPT * (1.0 - P.PLACE_ADOPT_SIZE * size)
-            if rng.random() >= p_adopt:
-                continue
-            if events is None:
-                events = _conquest_events(w, t, since)
-            toks = current(w, theirs, lc)
-            note = (f"{label(w, w.languages[b.language])} speakers, conquered by {pp.name}, took their conquerors' name "
-                    f"for the {k[0]}, {show(toks)}, in place of {show(current(w, ours, b.language))} "
-                    f"({p_adopt:.0%} chance: size {size:.2f})")
-            causes = [{"band": b.id}, {"band": int(pp.seat)}]
-            ev = events.get((pol, int(ca[b.id])))
-            if ev is not None:
-                causes.append({"event": int(ev)})
-            if len(theirs) > 6 and theirs[6] >= 0:
-                causes.append({"event": int(theirs[6])})
-            _add_layer(w, place, idx[k], k, t, b.language, toks, "imposed", lc, note, b, causes)
+            b = w.bands[bid]
+            if lc in lineage_ids(w, b.language) or b.language in lineage_ids(w, lc):
+                continue                                # same speech: nothing to impose
+            for k in keys_of[bid]:
+                if k not in idx or (b.language, k) in done:
+                    continue
+                place = w.places[idx[k]]
+                theirs = name_in(w, place, lc)
+                ours = name_in(w, place, b.language)
+                if theirs is None or ours is None or ours is theirs:
+                    continue
+                done.add((b.language, k))
+                size = info[k][1] if k in info else place["size"]
+                p_adopt = P.PLACE_ADOPT * (1.0 - P.PLACE_ADOPT_SIZE * size)
+                if rng.random() >= p_adopt:
+                    continue
+                toks = current(w, theirs, lc)
+                note = (f"{label(w, w.languages[b.language])} speakers, conquered by {pp.name}, took their conquerors' "
+                        f"name for the {k[0]}, {show(toks)}, in place of {show(current(w, ours, b.language))} "
+                        f"({p_adopt:.0%} chance: size {size:.2f})")
+                causes = [{"band": bid}, {"band": seat}, {"event": int(ev)}]
+                if len(theirs) > 6 and theirs[6] >= 0:
+                    causes.append({"event": int(theirs[6])})
+                _add_layer(w, place, idx[k], k, t, b.language, toks, "imposed", lc, note, b, causes)
 
 
 def to_json(w):

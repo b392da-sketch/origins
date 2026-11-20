@@ -408,7 +408,7 @@ def _conquer(w, b, t, s, ts, is_pol, pol, eid) -> int:
             w.polity_via[x.id] = b.id
         w.conquered_at[x.id] = w.t
     w.event("conquest", cell=t.cell, band=t.id, causes=[{"event": eid}], polity=pol.id, settlements=len(moved),
-            whole_polity=bool(seat_fell))
+            whole_polity=bool(seat_fell), moved=[int(x.id) for x in moved])     # who was conquered (review 033)
     return 3 if seat_fell else 2
 
 
