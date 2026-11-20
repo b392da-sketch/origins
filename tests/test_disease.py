@@ -241,13 +241,13 @@ class Review028(unittest.TestCase):
             first_year(w)
         finally:
             P.DZ_SPREAD = old
-        cy = w.counts["ob_contact_cell_years"] - c0.get("ob_contact_cell_years", 0)
-        ci = w.counts["ob_contact_infections"] - c0.get("ob_contact_infections", 0)
+        cy = w.counts["dz_contact_cell_years"] - c0.get("dz_contact_cell_years", 0)
+        ci = w.counts["dz_contact_arrivals"] - c0.get("dz_contact_arrivals", 0)
         self.assertGreater(ci, 0)
         self.assertLessEqual(ci, cy)                                     # arrivals among the cells counted
         rows = [r for r in w.dz_log if r[1] == d]
         self.assertTrue(any(r[3] == 2 and r[4] >= 0 for r in rows))     # a contact row names its source cell
-        self.assertTrue(any(r[2] == b.cell and r[7] > 0 and r[9] == 0 for r in rows))   # the first cell: never met
+        self.assertTrue(any(r[2] == b.cell and r[8] > 0 and r[10] + r[12] == 0 for r in rows))   # never met
 
 
 
@@ -297,8 +297,9 @@ class Review029(unittest.TestCase):
         d2 = add(w, b.cell, k=1e9, attack=1.0, cfr=0.3, child=1.0, hunger=0.0)
         first_year(w)
         rows = {r[1]: r for r in w.dz_log if r[2] == b.cell}
-        self.assertGreater(rows[d1][14], 0)
-        self.assertEqual(rows[d2][5], rows[d1][5] - rows[d1][14])      # people at the second's start
+        P_, D_ = disease.LOG_PEOPLE, disease.LOG_DEATHS
+        self.assertGreater(rows[d1][D_], 0)
+        self.assertEqual(rows[d2][P_], rows[d1][P_] - rows[d1][D_])    # people at the second's start
 
     def test_a_return_from_animals_is_not_counted_as_contact(self):
         w = world()
@@ -315,20 +316,105 @@ class Review029(unittest.TestCase):
             disease.yearly(w)
         finally:
             P.DZ_SPREAD, P.DZ_RESPILL_WILD = old
-        self.assertGreater(w.counts["ob_contact_cell_years"] - c0.get("ob_contact_cell_years", 0), 0)
-        self.assertGreater(w.counts["ob_new_starts"] - c0.get("ob_new_starts", 0)
+        self.assertGreater(w.counts["dz_contact_cell_years"] - c0.get("dz_contact_cell_years", 0), 0)
+        self.assertGreater(w.counts["dz_other_starts"] - c0.get("dz_other_starts", 0)
                            + sum(1 for r in w.dz_log if r[3] == 1), 0)    # the reservoir did seed cells
-        self.assertEqual(w.counts["ob_contact_infections"] - c0.get("ob_contact_infections", 0), 0)
+        self.assertEqual(w.counts["dz_contact_arrivals"] - c0.get("dz_contact_arrivals", 0), 0)
 
     def test_the_record_can_measure_check_10(self):
-        self.assertEqual(len(disease.LOG_FIELDS), 15)
+        n = len(disease.LOG_FIELDS)
         w = world()
         b = w.living_bands()[0]
         add(w, b.cell, k=1e9, attack=0.9, cfr=0.1)
         first_year(w)
         r = w.dz_log[-1]
-        self.assertEqual(len(r), 15)
-        self.assertEqual(r[7] + r[9], r[5])                             # people split by whether they had met it
+        self.assertEqual(len(r), n)
+        self.assertEqual(r[8] + r[10] + r[12], r[disease.LOG_PEOPLE])  # people split by when they had met it
+
+
+
+class Review030(unittest.TestCase):
+    """Codex review 030 and Ben's definition of first contact (20 November 2026)."""
+
+    def _group(self):
+        from origins.sim import groups
+        w = world()
+        b = w.living_bands()[0]
+        groups.fold(w, b)
+        return w, b, w.groups, b.group
+
+    def test_a_move_never_leaves_more_pregnancies_than_women(self):
+        from origins.sim import groups
+        w, b, G, g = self._group()
+        G.F[g] = 0
+        G.F[g, 25:27] = 1                                               # two women, both pregnant
+        G.preg[g] = 0
+        G.preg[g, 0] = 2
+        hF = np.zeros_like(G.F[g])
+        hF[25] = 1                                                      # one of them moves
+        for _ in range(50):
+            moved = groups._split_pregnancies(G, g, hF, w.rng["fission"])
+            self.assertEqual(int(moved.sum()), 1)                       # exactly hers, never both
+
+    def test_conceptions_never_exceed_the_women_not_yet_pregnant(self):
+        from origins.sim import groups
+        w, b, G, g = self._group()
+        G.F[g] = 0
+        G.M[g] = 0
+        G.F[g, 25] = 1
+        G.M[g, 30] = 1
+        G.preg[g] = 0
+        G.cond_rest[g] = 1.0
+        old = P.CONCEPTION
+        P.CONCEPTION = 1e6                                              # a huge draw
+        try:
+            for _ in range(5):
+                groups.births(w)
+                self.assertLessEqual(float(G.preg[g].sum()), float(G.F[g, 15:50].sum()))
+        finally:
+            P.CONCEPTION = old
+
+    def test_older_rows_are_upgraded(self):
+        rows = disease.upgrade_log([[2, 0, 5, 3, -1, 30, 0.8, True, 1]])
+        self.assertEqual(len(rows[0]), len(disease.LOG_FIELDS))
+        self.assertEqual(rows[0][disease.LOG_DEATHS], 1)
+        self.assertEqual(rows[0][8], 30)                                # never met: all 30
+
+    def test_met_at_an_unknown_time_is_not_turned_into_never(self):
+        w = world()
+        a, b = w.living_bands()[0], w.living_bands()[1]
+        d = add(w, a.cell, k=1e9, attack=0.9, cfr=0.0)
+        w.dz_last[a.id, d] = -1
+        w.dz_last[b.id, d] = -2
+        mb = w.members(b.id)
+        w.people.band[mb] = a.id
+        w.people_changed()
+        disease.combine(w, b, a, len(mb))
+        self.assertEqual(int(w.dz_last[a.id, d]), -2)
+
+    def test_first_contact_rows_say_how_long_the_source_had_it(self):
+        w = world()
+        b = w.living_bands()[0]
+        d = add(w, b.cell, k=1e-9, attack=0.9, cfr=0.0)
+        first_year(w)
+        for _ in range(3):                                              # it circulates on at the first cell
+            w.t += P.TICKS_PER_YEAR
+            disease.yearly(w)
+        w.dz_active[:, d] = False
+        w.dz_active[b.cell, d] = True
+        w.dz_last[:, d] = -1                                            # the neighbours had never met it
+        w.dz_last[b.id, d] = int(w.year)
+        w.dz_imm[:, d] = 0.0
+        old = P.DZ_SPREAD
+        P.DZ_SPREAD = 1e9
+        try:
+            w.t += P.TICKS_PER_YEAR
+            disease.yearly(w)
+        finally:
+            P.DZ_SPREAD = old
+        rows = [r for r in w.dz_log if r[1] == d and r[3] == 2 and r[0] == w.year]
+        self.assertTrue(rows)
+        self.assertTrue(all(r[5] >= 3 for r in rows))                  # years it had circulated at the source
 
 
 if __name__ == "__main__":

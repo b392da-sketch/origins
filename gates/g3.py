@@ -125,23 +125,33 @@ def finish(w, ws, rs, seconds, pr, institutions):
         obs = [e for e in w.events if e["kind"] == "outbreak" and "disease" in e["data"]]
         rec["disease_outbreaks"] = [[e["t"] // 4, e["data"]["disease"], e["data"]["cells"], e["data"]["deaths"]]
                                     for e in obs]
-        # the per-cell record (Codex reviews 028 and 029; disease.LOG_FIELDS). Above 100,000 rows whole diseases
-        # are sampled, not rows, so each kept disease's circulation stays unbroken
+        # the per-cell record (Codex reviews 028-030; disease.LOG_FIELDS). Every arrival row is kept (new, again
+        # from its animals, by contact). Years kept on a cell are summed into spells: each unbroken run of a disease
+        # on a cell, so long-lasting diseases are not under-sampled and nothing is thinned.
         from origins.sim import disease as _dz
-        log = list(getattr(w, "dz_log", []))
-        if len(log) > 100000:
-            ids_ = sorted({r[1] for r in log})
-            keep, n_ = set(), 0
-            for d_ in rng.permutation(ids_).tolist():
-                k_ = sum(1 for r in log if r[1] == d_)
-                if n_ + k_ > 100000 and keep:
-                    continue
-                keep.add(d_)
-                n_ += k_
-            log = [r for r in log if r[1] in keep]
-            rec["disease_log_sampled"] = sorted(keep)
-        rec["disease_log"] = log
+        log = _dz.upgrade_log(getattr(w, "dz_log", []))
+        H = _dz.LOG_FIELDS.index("how (0 new, 1 again from its animals, 2 contact, 3 kept)")
+        rec["disease_log"] = [r for r in log if r[H] != 3]
         rec["disease_log_fields"] = _dz.LOG_FIELDS
+        spells, open_ = [], {}
+        for r in sorted(log, key=lambda r: (r[1], r[2], r[0])):
+            k = (r[1], r[2])
+            sp = open_.get(k)
+            if sp is not None and r[0] == sp[3] + 1 and r[H] == 3:
+                sp[3] = r[0]
+                sp[4] += 1
+                sp[5] += r[_dz.LOG_DEATHS]
+                sp[6] = max(sp[6], r[-3])
+                sp[7] = max(sp[7], r[-2])
+            else:
+                if sp is not None:
+                    spells.append(sp)
+                open_[k] = [r[1], r[2], r[0], r[0], 1, r[_dz.LOG_DEATHS], r[-3], r[-2]]
+        spells += list(open_.values())
+        rec["disease_spells"] = spells
+        rec["disease_spell_fields"] = ["disease", "cell", "first year", "last year", "years", "deaths",
+                                       "most people herding domesticated animals on the cell",
+                                       "most people on the cell and its neighbours"]
         rec["disease_spillovers"] = int(w.counts.get("dz_spillovers", 0))
         smp = [{"event": e["id"]} for e in obs]
         if len(smp) > 200:
