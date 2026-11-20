@@ -52,15 +52,45 @@ def init(w):
     w.dz_active = np.zeros((w.planet.n, ND_CAP), dtype=bool)         # circulating on the cell this year
     # band x disease: the last year it circulated among them; -1 never; -2 met at an unknown time (older saves)
     w.dz_last = -np.ones((64, ND_CAP), dtype=np.int32)
+    w.dz_since = -np.ones((w.planet.n, ND_CAP), dtype=np.int32)    # year it began circulating unbroken on the cell
     w.dz_log = []                   # one row per cell and disease each year it circulates there: LOG_FIELDS
 
 
 LOG_FIELDS = ["year", "disease", "cell", "how (0 new, 1 again from its animals, 2 contact, 3 kept)",
-              "from cell (contact; else -1)", "people at the epidemic's start", "share who could catch it",
-              "people who had never met it", "their deaths", "people who had met it", "their deaths",
-              "years since they last had it (the most recent of their bands; -1 none, -2 unknown)",
+              "from cell (contact; else -1)", "years it had circulated unbroken at that cell (contact; else -1)",
+              "people at the epidemic's start", "share who could catch it",
+              "people who had never met it", "their deaths",
+              "people who had met it within a generation (DZ_GENERATION years)", "their deaths",
+              "people who had met it longer ago, or at an unknown time (older saves)", "their deaths",
               "people herding domesticated animals on the cell", "people on the cell and its neighbours",
               "deaths"]
+LOG_DEATHS = LOG_FIELDS.index("deaths")
+LOG_PEOPLE = LOG_FIELDS.index("people at the epidemic's start")
+
+
+def upgrade_log(rows):
+    """Older saves' rows (review-028 and review-029 formats) in the current fields, unknowns as -1 (Codex review
+    030, finding 2)."""
+    out = []
+    n = len(LOG_FIELDS)
+    for r in rows:
+        r = list(r)
+        if len(r) == n:
+            out.append(r)
+            continue
+        new = [-1] * n
+        new[0:5] = r[0:5]
+        if len(r) == 9:                       # review 028: ..., people, catch, never met (all bands), deaths
+            new[LOG_PEOPLE], new[LOG_PEOPLE + 1], new[LOG_DEATHS] = r[5], r[6], r[8]
+            if r[7]:
+                new[8], new[9] = r[5], r[8]
+        elif len(r) == 15:                    # review 029: ..., people, catch, never p, d, met p, d, since, herd, near, deaths
+            new[LOG_PEOPLE], new[LOG_PEOPLE + 1] = r[5], r[6]
+            new[8], new[9] = r[7], r[8]
+            new[12], new[13] = r[9], r[10]    # met, time unknown here: counted as longer ago
+            new[14], new[15], new[LOG_DEATHS] = r[12], r[13], r[14]
+        out.append(new)
+    return out
 
 
 def ensure(w, band_id: int, parent: int):
@@ -104,7 +134,10 @@ def combine(w, src, dst, carriers: float):
     wt = min(1.0, c / max(n_after, c, 1.0))
     w.dz_imm[dst.id] = (1 - wt) * w.dz_imm[dst.id] + wt * w.dz_imm[src.id]
     _last_rows(w)
-    w.dz_last[dst.id] = np.maximum(w.dz_last[dst.id], w.dz_last[src.id])
+    a, b = w.dz_last[dst.id], w.dz_last[src.id]
+    known = np.maximum(a, b)                              # the latest known year, where either knows one
+    met_unknown = ((a == -2) | (b == -2)) & (known < 0)   # met at an unknown time beats never (review 030)
+    w.dz_last[dst.id] = np.where(met_unknown, -2, known)
 
 
 # ------------------------------------------------------------------ the year
@@ -203,21 +236,28 @@ def yearly(w):
         if how == "contact" and d < nd0:
             by_contact[m, d] = True
     other = peopled[:, None] & ~start[:, :nd0] & ~exposed[:, :nd0]
-    c_ = w.counts
-    c_["ob_contact_cell_years"] = c_.get("ob_contact_cell_years", 0) + int(exposed[:, :nd0].sum())
-    c_["ob_contact_infections"] = c_.get("ob_contact_infections", 0) + int((by_contact[:, :nd0] & exposed[:, :nd0]).sum())
-    c_["ob_other_cell_years"] = c_.get("ob_other_cell_years", 0) + int(other.sum())
-    c_["ob_new_starts"] = c_.get("ob_new_starts", 0) + int((newly & other).sum())
+    c_ = w.counts                   # under their own keys, never pooled with M1's outbreak counts (review 030)
+    c_["dz_contact_cell_years"] = c_.get("dz_contact_cell_years", 0) + int(exposed[:, :nd0].sum())
+    c_["dz_contact_arrivals"] = c_.get("dz_contact_arrivals", 0) + int((by_contact[:, :nd0] & exposed[:, :nd0]).sum())
+    c_["dz_other_cell_years"] = c_.get("dz_other_cell_years", 0) + int(other.sum())
+    c_["dz_other_starts"] = c_.get("dz_other_starts", 0) + int((newly & other).sum())
     c_["dz_new_cell_years"] = c_.get("dz_new_cell_years", 0) + int(peopled.sum())
     c_["dz_new_starts"] = c_.get("dz_new_starts", 0) + (nd - nd0)
     # 5. epidemics where it circulates: deaths and immunity
+    since = getattr(w, "dz_since", None)
+    if since is None or since.shape != active.shape:
+        since = w.dz_since = np.where(w.dz_active, int(w.year), -1).astype(np.int32)
+    src_years = {}
+    for (m, d), c in came_from.items():                  # how long it had circulated where it came from
+        src_years[(m, d)] = int(w.year - since[c, d]) if since[c, d] >= 0 else 0
+    w.dz_since = np.where(active, np.where(w.dz_active & (since >= 0), since, int(w.year)), -1).astype(np.int32)
     w.dz_active[:] = active
     if nd:
         near = pop + np.where(valid, pop[nbi], 0.0).sum(axis=1)
         herd_cell = np.zeros(n)
         for (c, _s), h in herders.items():
             herd_cell[c] += h
-        _epidemics(w, rng, bands, ids, cells, sizes, active, resp, source, came_from, near, herd_cell)
+        _epidemics(w, rng, bands, ids, cells, sizes, active, resp, source, came_from, near, herd_cell, src_years)
 
 
 def _age_and_wane(w, ids):
@@ -365,7 +405,8 @@ def _name(w, cell, host, d) -> str:
     return f"the {what} sickness ({d + 1})"
 
 
-def _epidemics(w, rng, bands, ids, cells, sizes, active, resp, source, came_from=None, near=None, herd_cell=None):
+def _epidemics(w, rng, bands, ids, cells, sizes, active, resp, source, came_from=None, near=None, herd_cell=None,
+               src_years=None):
     """Each band on a cell where a disease circulates: those who can catch it do, at the disease's attack share
     (less with flight or isolation); deaths by age; survivors immune."""
     nd = len(w.diseases)
@@ -414,18 +455,18 @@ def _epidemics(w, rng, bands, ids, cells, sizes, active, resp, source, came_from
         bc = cells[sel]
         sz = sizes[sel]
         never = last == -1
+        recent = (last >= 0) & (w.year - last < P.DZ_GENERATION)
+        longago = ~never & ~recent                          # longer ago, or at an unknown time (older saves)
         for c in sorted(set(bc.tolist())):
             m = bc == c
             people = float(sz[m].sum())
             catch = float((sz[m] * (P.DZ_CHILD_SHARE * (1 - ci[m]) + (1 - P.DZ_CHILD_SHARE) * (1 - ai[m]))).sum())
-            met = m & ~never
-            lm = last[met]
-            since = (int(w.year - lm.max()) if (lm >= 0).any() else -2) if met.any() else -1
             w.dz_log.append([int(w.year), d, int(c), how.get(source.get((c, d), "kept"), 3),
-                             int((came_from or {}).get((c, d), -1)), int(people),
-                             round(catch / max(people, 1e-9), 3),
+                             int((came_from or {}).get((c, d), -1)), int((src_years or {}).get((c, d), -1)),
+                             int(people), round(catch / max(people, 1e-9), 3),
                              int(sz[m & never].sum()), int(dead[m & never].sum()),
-                             int(sz[met].sum()), int(dead[met].sum()), since,
+                             int(sz[m & recent].sum()), int(dead[m & recent].sum()),
+                             int(sz[m & longago].sum()), int(dead[m & longago].sum()),
                              int(herd_cell[c]) if herd_cell is not None else -1,
                              int(near[c]) if near is not None else -1, int(dead[m].sum())])
         sizes[sel] = np.maximum(sizes[sel] - dead, 0.0)
@@ -505,8 +546,8 @@ def to_json(w):
 def from_json(w, d):
     init(w)
     w.diseases = d.get("diseases", [])
-    w.dz_log = [list(r) for r in d.get("log", [])]
+    w.dz_log = upgrade_log(d.get("log", []))
     w.dz_last = -np.ones((0, ND_CAP), dtype=np.int32)  # restored from the arrays, or derived from immunity
 
 
-ARRAYS = ("dz_imm", "dz_active", "dz_last")
+ARRAYS = ("dz_imm", "dz_active", "dz_last", "dz_since")

@@ -123,16 +123,19 @@ def probe_year(w, pr):
     # named diseases (M4a): each cell's year of epidemics, its deaths from all of them against its own people at the
     # first one's start, followed on the cell alone (Codex reviews 028 and 029: no mixing of a cell's deaths with
     # its neighbours' people)
+    from origins.sim import disease as _dz
     log = getattr(w, "dz_log", None) or []
     cy = {}
     for r in log[pr.get("last_dz", 0):]:
+        if len(r) != len(_dz.LOG_FIELDS):
+            continue                         # an older save's row not upgraded (review 030)
         k = (int(r[0]), int(r[2]))
         if k not in cy:
-            cy[k] = [int(r[5]), 0]
-        cy[k][1] += int(r[14])
-    for (_yr, c), (before, dead) in sorted(cy.items()):
+            cy[k] = [int(r[_dz.LOG_PEOPLE]), 0]
+        cy[k][1] += int(r[_dz.LOG_DEATHS])
+    for (yr, c), (before, dead) in sorted(cy.items()):
         if dead > 0 and before > 0 and len(pr["hazard_watch"]) < 400:
-            pr["hazard_watch"].append({"id": -1, "kind": "outbreak", "cell": c, "year": y, "deaths": dead,
+            pr["hazard_watch"].append({"id": -1, "kind": "outbreak", "cell": c, "year": yr, "deaths": dead,
                                        "before": float(before), "cell_only": True,
                                        "births_before": _area_births(w, c, cell_only=True)})
     pr["last_dz"] = len(log)
@@ -396,12 +399,12 @@ def worker(jobs, years, budget, ckpt: Path):
             probe_year(w, pr)
             if rs == 1 and replay is None and len(w.yearly) == 2500:
                 twin = persist.from_bytes(persist.to_bytes(w), w.planet)
-                engine.step(w, 40)
+                for _ in range(10):                  # probed every year, as in the main loop (review 030)
+                    engine.step(w, 4)
+                    probe_year(w, pr)
                 engine.step(twin, 40)
                 replay = persist.digest(w) == persist.digest(twin)
                 del twin
-                for _ in range(10):
-                    probe_year(w, pr)
             if time.time() > t_end:
                 save_planet(cp, w.planet)
                 tmp = cp.with_suffix(".tmp")

@@ -996,3 +996,24 @@ All six findings confirmed and fixed (`reviews/responses/029-review-028-fixes-cl
 | Diseases on | 357,507 | 328 deaths | 10.6% |
 
 With diseases on, one wild disease circulated for 4 years on up to 9 cells. The full suite passes (222 tests).
+
+### After Codex review 030 (20 November 2026)
+
+All seven findings confirmed and fixed (`reviews/responses/030-review-029-fixes-claude.md`; tests `tests/test_disease.py::Review030`):
+- **Pregnancies:** moving women are drawn among the women of childbearing age, pregnant or not; conceptions are capped at the women not already pregnant.
+- **Older saves:** their epidemic rows are upgraded on loading (`upgrade_log`), and their exposure records keep "met at an unknown time".
+- **G1:** it probes every year in its replay check. Named diseases count under their own keys, are reported apart from M1's outbreaks, and pass only with opportunities on both sides.
+- **The G3 record** keeps every arrival row plus every unbroken spell of a disease on a cell, so nothing is sampled away.
+
+**Ben's decisions (20 November 2026):**
+- **First contact** is a disease arriving by contact from a place where it has circulated unbroken for at least a generation (`DZ_GENERATION` 25 years), into bands that had never met it. `dz_since` records when circulation began on each cell, and each per-cell row splits people and deaths into never met, met within a generation, and met longer ago.
+- **The review loop:** one more short review of these fixes; anything further goes into the comprehensive pre-gate review.
+
+**Trial** (planet 3, year-9,700 save, 300 years; tunable starting values; no invariant failures; one history):
+
+| Run | People at the end | Deaths from disease | From hunger |
+|---|---|---|---|
+| Diseases off (M1 outbreaks) | 326,646 | 18.9% | 4.6% |
+| Diseases on | 359,766 | 2,971 deaths (0.1%) | 11.0% |
+
+With diseases on, five wild diseases appeared and circulated for 1–18 years on 1–6 cells each, then died out. The full suite passes (227 tests).

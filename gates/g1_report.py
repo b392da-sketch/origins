@@ -233,18 +233,27 @@ def report(out: Path, years: int | None = None) -> str:
     checks.append(("8. Hazard responses", ok8, "; ".join(rows8) +
                    ". Every hazard death names its hazard in its cause chain (check 1)."))
 
-    # 9 outbreaks by contact
-    ci = sum(r["counts"].get("ob_contact_infections", 0) for r in runs)
-    cy = sum(r["counts"].get("ob_contact_cell_years", 0) for r in runs)
-    ns = sum(r["counts"].get("ob_new_starts", 0) for r in runs)
-    oy = sum(r["counts"].get("ob_other_cell_years", 0) for r in runs)
-    rc, ro = ci / max(cy, 1), ns / max(oy, 1)
-    ok9 = cy > 0 and rc >= 10 * max(ro, 1e-12)
+    # 9 outbreaks by contact. M1's outbreaks and M4a's named diseases count different units and are never pooled
+    # (Codex review 030): each mechanism is reported apart, and passes only with opportunities on both sides
+    rows9, ok9 = [], True
+    for label, keys in (("M1 outbreaks", ("ob_contact_infections", "ob_contact_cell_years", "ob_new_starts",
+                                          "ob_other_cell_years")),
+                        ("named diseases", ("dz_contact_arrivals", "dz_contact_cell_years", "dz_other_starts",
+                                            "dz_other_cell_years"))):
+        ci, cy, ns, oy = (sum(r["counts"].get(k, 0) for r in runs) for k in keys)
+        if cy == 0 and oy == 0:
+            continue
+        rc, ro = ci / max(cy, 1), ns / max(oy, 1)
+        ok = cy > 0 and oy > 0 and rc >= 10 * max(ro, 1e-12)
+        ok9 = ok9 and ok
+        unit = "area-years" if label == "M1 outbreaks" else "cell-and-disease-years"
+        how = "" if label == "M1 outbreaks" else " (reached by contact; otherwise, from its animals)"
+        rows9.append(f"{label}: {rc:.1%} when in contact ({ci:,} of {cy:,} {unit}) vs {ro:.3%} otherwise "
+                     f"({ns:,} of {oy:,}){how}: {rc / max(ro, 1e-12):,.0f} times higher")
+    ok9 = ok9 and bool(rows9)
     checks.append(("9. Outbreaks spread by contact", ok9,
-                   f"yearly chance a peopled area falls ill: {rc:.1%} when in contact with an outbreak ({ci:,} of {cy:,} "
-                   f"area-years; with named diseases, reached by contact, per cell and disease) vs {ro:.3%} otherwise "
-                   f"({ns:,} starts in {oy:,} area-years; with named diseases, from their animals): "
-                   f"{rc / max(ro, 1e-12):,.0f} times higher (pass mark 10×)"))
+                   "yearly chance a peopled area falls ill: " + "; ".join(rows9 or ["no outbreaks"]) +
+                   " (pass mark 10x, each mechanism apart)"))
 
     # 10 groups vs individuals at the food limit
     if grp:

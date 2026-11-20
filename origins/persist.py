@@ -233,6 +233,9 @@ def from_bytes(data: bytes, planet=None) -> World:
     for k in _disease.ARRAYS:
         if k in arrays and np.asarray(arrays[k]).size:
             setattr(w, k, np.array(arrays[k], dtype=getattr(w, k).dtype))
+    if "dz_seen" in arrays and "dz_last" not in arrays and np.asarray(arrays["dz_seen"]).size:
+        seen = np.asarray(arrays["dz_seen"], dtype=bool)          # review-028 saves: met, date unknown (review 030)
+        w.dz_last = np.where(seen, -2, -1).astype(np.int32)
     from .sim import customs as _customs
     _customs.widen(w)                                    # "response to epidemics" (M4a) for older saves
     from .sim import land as _land                       # the land answers back (M4a): older saves start untouched
