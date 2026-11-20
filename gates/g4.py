@@ -216,7 +216,7 @@ def extras(w, pr, rec, rng):
     chains = {}
     for k, evs in by_kind.items():
         smp = evs if len(evs) <= SAMPLE_CHAINS else [evs[i] for i in sorted(rng.choice(len(evs), SAMPLE_CHAINS, replace=False))]
-        chains[k] = [len(smp), int(sum(explain.resolvable(w, {"event": int(i)}) for i in smp))]
+        chains[k] = [len(smp), int(sum(explain.resolvable(w, {"event": int(i)}, good=w.__dict__.setdefault("_gate_good", set())) for i in smp))]
     rec["chains"] = chains
     rec["tech_pop_exponent"] = float(__import__("origins.params", fromlist=["x"]).TECH_POP_EXPONENT)
 

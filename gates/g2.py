@@ -121,7 +121,7 @@ def finish(w, ws, rs, seconds, pr, storage, status="completed", write=True):
     rng = np.random.default_rng([ws, rs, 99])
     dead = np.nonzero(p.death[:p.n] >= 0)[0]
     sample += [{"death": int(i)} for i in (rng.choice(dead, size=min(100, len(dead)), replace=False) if len(dead) else [])]
-    ok = [explain.resolvable(w, r) for r in sample]
+    ok = [explain.resolvable(w, r, good=w.__dict__.setdefault("_gate_good", set())) for r in sample]
     rec["explain_checked"], rec["explain_resolvable"] = len(ok), int(sum(ok))
     rec["landmasses"] = int(lab.max()) + 1
     if not write:

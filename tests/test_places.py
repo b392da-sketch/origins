@@ -578,3 +578,29 @@ class Review033(unittest.TestCase):
         ev = next(e for e in w.events if e["kind"] == "invention" and e["data"].get("technique") == "writing")
         self.assertFalse(ev["data"]["stimulus_needed"])
         self.assertNotIn({"band": a.id}, ev["causes"])
+
+
+class ChainSpeed(unittest.TestCase):
+    """The gates' chain checks (21 November 2026): a band's origin from an index, and samples sharing known-good
+    references, give the same answers as before."""
+
+    def test_band_origin_index_matches_a_scan_and_follows_new_events(self):
+        from origins import engine
+        w = World.new(1, 1, generate(1))
+        engine.step(w, 200)
+        for b in list(w.bands.live.values())[:20] + [w.bands[i] for i in range(min(5, w.next_band))]:
+            scan = next((e["id"] for e in w.events if e["kind"] == "fission" and e["data"].get("new_band") == b.id), None)
+            self.assertEqual(explain._fission_of(w, b.id), scan)
+        engine.step(w, 40)                                 # events added later are indexed too
+        for b in list(w.bands.live.values())[-10:]:
+            scan = next((e["id"] for e in w.events if e["kind"] == "fission" and e["data"].get("new_band") == b.id), None)
+            self.assertEqual(explain._fission_of(w, b.id), scan)
+
+    def test_shared_good_set_gives_the_same_answers(self):
+        from origins import engine
+        w = World.new(1, 1, generate(1))
+        engine.step(w, 200)
+        refs = [{"event": i} for i in range(0, len(w.events), max(1, len(w.events) // 50))]
+        refs += [{"event": len(w.events) + 5}, {"band": 10 ** 9}]           # two that do not resolve
+        good = set()
+        self.assertEqual([explain.resolvable(w, r) for r in refs], [explain.resolvable(w, r, good=good) for r in refs])

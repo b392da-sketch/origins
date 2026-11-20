@@ -132,7 +132,7 @@ def finish(w, ws, rs, seconds, pr, institutions, write=True):
         tsample = [{"event": e["id"]} for e in w.events if e["kind"] in tk]
         if len(tsample) > 400:
             tsample = [tsample[i] for i in sorted(rng.choice(len(tsample), 400, replace=False))]
-        tok = [explain.resolvable(w, r) for r in tsample]
+        tok = [explain.resolvable(w, r, good=w.__dict__.setdefault("_gate_good", set())) for r in tsample]
         rec["tech_explain_checked"], rec["tech_explain_resolvable"] = len(tok), int(sum(tok))
     # M4a place names: every place with its layers (year, language, how, heard from), no forms
     if getattr(w, "places", None) is not None:
@@ -178,7 +178,7 @@ def finish(w, ws, rs, seconds, pr, institutions, write=True):
         if len(smp) > 200:
             smp = [smp[i] for i in sorted(rng.choice(len(smp), 200, replace=False))]
         rec["disease_explain_checked"] = len(smp)
-        rec["disease_explain_resolvable"] = int(sum(explain.resolvable(w, r) for r in smp))
+        rec["disease_explain_resolvable"] = int(sum(explain.resolvable(w, r, good=w.__dict__.setdefault("_gate_good", set())) for r in smp))
     # conflict
     from origins.state import CAUSES
     fv = pr.get("fv_deaths")
@@ -194,7 +194,7 @@ def finish(w, ws, rs, seconds, pr, institutions, write=True):
     sample = [{"event": e["id"]} for e in w.events if e["kind"] in POLITY_EVENTS]
     if len(sample) > 400:
         sample = [sample[i] for i in sorted(rng.choice(len(sample), 400, replace=False))]
-    ok = [explain.resolvable(w, r) for r in sample]
+    ok = [explain.resolvable(w, r, good=w.__dict__.setdefault("_gate_good", set())) for r in sample]
     rec["polity_explain_checked"], rec["polity_explain_resolvable"] = len(ok), int(sum(ok))
     OUT.mkdir(parents=True, exist_ok=True)
     tag = "" if institutions else "_noinst"
