@@ -32,9 +32,9 @@ from .. import params as P
 from ..lang import changes as CH
 from ..lang.proto import PLACE_PROTO, parse, roman
 
-KINDS = ("river", "lake", "hill", "mountain", "coast", "settlement")
+KINDS = ("river", "lake", "hill", "mountain", "coast", "region", "settlement")
 GENERIC = {"river": "river", "lake": "lake", "hill": "hill", "mountain": "hill", "coast": "sea",
-           "settlement": "settlement"}
+           "settlement": "settlement"}          # a region's generic is the people's own word for 'earth' (land)
 # descriptors a people may give a feature of each kind, from its own words (meanings of the core vocabulary)
 DESCRIBE = {
     "river": ["great", "bright", "cold", "red", "old", "water", "wolf", "bear", "horse", "bird", "stone", "wood"],
@@ -43,11 +43,12 @@ DESCRIBE = {
     "mountain": ["great", "snow", "stone", "bright", "god", "sky", "cold", "old"],
     "coast": ["great", "bright", "cold", "salt", "wind", "bird", "dawn", "stone"],
     "settlement": ["new", "old", "great", "stone", "wood", "house", "salt", "cow", "sheep", "water"],
+    "region": ["great", "cold", "warm", "red", "bright", "dawn", "sun", "old"],
 }
 
 
 def init(w):
-    w.places = []                       # [{kind, cell, key, size, layers: [[t, lang, tokens, how, src_lang, note]]}]
+    w.places = []                       # [{kind, cell, key, size, layers: [[t, lang, tokens, how, src_lang, note, event]]}]
     w._place_key = {}
 
 
@@ -152,6 +153,22 @@ def features(planet):
         big = np.log1p(max(len(c) for c in comps))
         for comp in comps:
             out.append(("coast", comp[0], comp[0], float(np.log1p(len(comp)) / max(big, 1e-9)), comp))
+    # regions: each climate region's land, named as a whole by the peoples living in it (Codex review 032, finding 1;
+    # Ben, 21 November 2026). Anchored at the land cell nearest the region's centre.
+    land = np.nonzero(planet.land)[0]
+    if len(land):
+        reg = planet.region[land]
+        counts = np.bincount(reg, minlength=int(planet.n_regions))
+        big = np.log1p(counts.max())
+        xyz = planet.grid.xyz if hasattr(planet.grid, "xyz") else None
+        for r in np.nonzero(counts)[0].tolist():
+            cs = land[reg == r]
+            if xyz is not None:
+                c = xyz[cs].mean(axis=0)
+                anchor = int(cs[int(np.argmax(xyz[cs] @ c))])
+            else:
+                anchor = int(cs[0])
+            out.append(("region", int(r), anchor, float(np.log1p(len(cs)) / max(big, 1e-9)), sorted(cs.tolist())))
     near: dict = {}
     for i, (_k, _key, _a, _s, cs) in enumerate(out):
         for c in cs:
@@ -176,7 +193,8 @@ def evolve(w, lang_id: int, tokens, after: int, until: int | None = None) -> tup
     form = tuple(tokens)
     chain = [w.languages[i] for i in lineage_ids(w, lang_id)]
     for k, lang in enumerate(chain):
-        end = chain[k + 1].born if k + 1 < len(chain) else (until if until is not None else 10 ** 12)
+        # rules up to and including tick `until` (Codex review 032, finding 2: a rule on the naming tick was left out)
+        end = chain[k + 1].born if k + 1 < len(chain) else 10 ** 12
         if until is not None:
             end = min(end, until + 1)
         for ev in lang.history:
@@ -207,12 +225,33 @@ def current(w, layer, lang_id: int | None = None) -> tuple:
     return evolve(w, use, toks, t, until)
 
 
+def _latest(w, place: dict) -> dict:
+    """language -> the latest layer it gave, for one place; cached until the place gains a layer (Codex review 032:
+    scanning every layer for every language grew with the square of the layers)."""
+    cache = getattr(w, "_place_by", None)
+    if cache is None:
+        cache = w._place_by = {}
+    key = id(place)
+    hit = cache.get(key)
+    n = len(place["layers"])
+    if hit is not None and hit[0] == n and hit[1] is place:
+        return hit[2]
+    by = {}
+    for layer in place["layers"]:
+        cur = by.get(layer[1])
+        if cur is None or layer[0] >= cur[0]:
+            by[layer[1]] = layer
+    cache[key] = (n, place, by)
+    return by
+
+
 def name_in(w, place: dict, lang_id: int):
     """The layer a language uses for a place: the latest given in its own lineage, or None."""
-    lin = set(lineage_ids(w, lang_id))
+    by = _latest(w, place)
     best = None
-    for layer in place["layers"]:
-        if layer[1] in lin and (best is None or layer[0] >= best[0]):
+    for lid in lineage_ids(w, lang_id):
+        layer = by.get(lid)
+        if layer is not None and (best is None or layer[0] >= best[0]):
             best = layer
     return best
 
@@ -249,6 +288,12 @@ def _compound(first, second) -> list:
 
 
 def _new_name(w, rng, lang, kind: str, t: int) -> tuple[list, str]:
+    if kind == "region":                                # 'land of the people' or a described land (Ben, 21 Nov 2026)
+        earth = list(lang.lexicon["earth"][0])
+        if rng.random() < P.PLACE_REGION_PEOPLE:
+            return _compound(lang.lexicon["people"][0], earth), "'land of the people', after their own name for themselves"
+        m = DESCRIBE[kind][int(rng.integers(len(DESCRIBE[kind])))]
+        return _compound(lang.lexicon[m][0], earth), f"'{m} land' in their speech"
     gen = list(generic(w, lang.id, kind, t))
     bare = P.PLACE_BARE.get(kind, 0.0)
     if kind == "settlement" and rng.random() < P.PLACE_EPONYM:
@@ -321,19 +366,22 @@ def yearly(w):
     idx = _index(w)
     # people per feature and language, from the cells each feature is used from
     use: dict = {}                                      # (kind, key) -> {lang: people}
-    band_at: dict = {}                                  # (kind, key) -> {lang: a band of that language}
+    band_at: dict = {}                                  # (kind, key) -> {lang: [bands of that language by it]}
+    keys_of: dict = {}                                  # band id -> the features it lives by
     for i, b in enumerate(live):
         if sizes[i] <= 0 or b.language < 0:
             continue
         keys = [(feats[f][0], feats[f][1]) for f in near.get(int(b.cell), ())]
         if ("settlement", int(b.cell)) in idx:
             keys.append(("settlement", int(b.cell)))
+        keys_of[b.id] = keys
         for k in keys:
             d = use.setdefault(k, {})
             d[b.language] = d.get(b.language, 0.0) + float(sizes[i])
-            band_at.setdefault(k, {}).setdefault(b.language, b)
+            band_at.setdefault(k, {}).setdefault(b.language, []).append(b)
     info = {(feats[f][0], feats[f][1]): (feats[f][2], feats[f][3], len(feats[f][4])) for f in range(len(feats))}
     conquest_ticks = P.PLACE_CONQUEST_YEARS * P.TICKS_PER_YEAR
+    from .language import label
     for k in sorted(use):
         langs = use[k]
         place = w.places[idx[k]] if k in idx else None
@@ -359,26 +407,21 @@ def yearly(w):
                 place = w.places[-1]
             # holders: peoples here who already have a name for it
             holders = {h: langs[h] for h in langs if h != lid and name_in(w, place, h) is not None}
-            b = band_at[k][lid]
-            from .language import label
+            b = band_at[k][lid][0]
             kind_word = k[0]
+            causes = [{"band": b.id}]
             if holders:
                 src = max(sorted(holders), key=lambda h: holders[h])
                 newcomers = langs[lid] / (langs[lid] + sum(holders.values()))
-                conquest = False
-                ca = getattr(w, "conquered_at", None)
-                if ca is not None:
-                    for h in holders:
-                        hb = band_at[k][h]
-                        if hb.id < len(ca) and ca[hb.id] >= 0 and t - int(ca[hb.id]) <= conquest_ticks:
-                            pol = int(w.polity_of[hb.id]) if hb.id < len(w.polity_of) else -1
-                            pp = w.polities.get(pol) if pol >= 0 else None
-                            if pp is not None and pp.seat >= 0 and pp.seat in w.bands.live \
-                                    and w.bands[pp.seat].language in lineage_ids(w, lid) + [lid]:
-                                conquest = True
+                # conquest: any band of the holders by it conquered recently by a polity of the newcomers' speech
+                # (Codex review 032, finding 3: only the first band of each holder language was looked at)
+                conquest = any(_conquered_by(w, hb, lid, t, conquest_ticks) for h in sorted(holders)
+                               for hb in band_at[k][h])
                 pk = keep_chance(size, remote, newcomers, conquest)
                 src_layer = name_in(w, place, src)
                 heard = current(w, src_layer, src)
+                if len(src_layer) > 6 and src_layer[6] >= 0:
+                    causes.append({"event": int(src_layer[6])})   # the name they heard (Codex review 032, finding 6)
                 if rng.random() < pk:
                     toks, how = list(heard), "kept"
                     note = (f"{label(w, lang)} speakers came to the {kind_word} and kept the name {show(heard)} they heard "
@@ -392,14 +435,96 @@ def yearly(w):
                             f"{show(heard)} used by {label(w, w.languages[src])} speakers (kept with chance {pk:.0%}: "
                             f"size {size:.2f}, remoteness {remote:.2f}, newcomers {newcomers:.0%}"
                             + (", after conquest" if conquest else "") + ")")
-                place["layers"].append([int(t), int(lid), [str(x) for x in toks], how, int(src), note])
+                _add_layer(w, place, idx[k], k, t, lid, toks, how, src, note, b, causes)
             else:
                 toks, what = _new_name(w, rng, lang, k[0], t)
                 note = (f"{label(w, lang)} speakers, {langs[lid]:,.0f} of them living by it, named the {kind_word} "
                         f"{show(toks)} ({what})")
-                place["layers"].append([int(t), int(lid), [str(x) for x in toks], "new", -1, note])
-            w.event("place_named", cell=int(place["cell"]), band=b.id, causes=[{"band": b.id}, {"note": note}],
-                    place=idx[k], feature=k[0], language=int(lid), how=place["layers"][-1][3], name=show(toks))
+                _add_layer(w, place, idx[k], k, t, lid, toks, "new", -1, note, b, causes)
+    _conquered_adopt(w, rng, live, keys_of, idx, info, t, years)
+
+
+def _add_layer(w, place, i, k, t, lid, toks, how, src, note, b, causes):
+    """A new layer: [tick, language, form then, how, heard from, note, its event]."""
+    layer = [int(t), int(lid), [str(x) for x in toks], how, int(src), note, -1]
+    place["layers"].append(layer)
+    layer[6] = w.event("place_named", cell=int(place["cell"]), band=b.id, causes=causes + [{"note": note}],
+                       place=i, feature=k[0], language=int(lid), how=how, name=show(toks))
+
+
+def _conquered_by(w, hb, lid, t, conquest_ticks) -> bool:
+    """Was band hb conquered within conquest_ticks by a polity whose seat speaks lid's lineage (or a daughter)?"""
+    ca = getattr(w, "conquered_at", None)
+    if ca is None or hb.id >= len(ca) or ca[hb.id] < 0 or t - int(ca[hb.id]) > conquest_ticks:
+        return False
+    pol = int(w.polity_of[hb.id]) if hb.id < len(w.polity_of) else -1
+    pp = w.polities.get(pol) if pol >= 0 else None
+    if pp is None or pp.seat < 0 or pp.seat not in w.bands.live:
+        return False
+    return w.bands[pp.seat].language in lineage_ids(w, lid)
+
+
+def _conquest_events(w, t, since) -> dict:
+    """(conquering polity, tick) -> the conquest event, for conquests after tick `since`."""
+    out = {}
+    i = len(w.events) - 1
+    while i >= 0:
+        e = w.events[i]
+        if e["t"] <= since:
+            break
+        if e["kind"] == "conquest":
+            out.setdefault((int(e["data"].get("polity", -1)), int(e["t"])), i)
+        i -= 1
+    return out
+
+
+def _conquered_adopt(w, rng, live, keys_of, idx, info, t, years):
+    """Conquered peoples may take their conquerors' names (Ben, 21 November 2026, after Codex review 032, finding
+    3). For each band conquered since the last pass whose speech differs from its conquerors', each feature it lives by
+    that the conquerors' speech names, and that it names otherwise, takes the conquerors' name with chance
+    PLACE_ADOPT x (1 - PLACE_ADOPT_SIZE x size): settlements and small features most, as units the state names were
+    renamed most in Guangxi (Wang et al. 2011)."""
+    since = t - years * P.TICKS_PER_YEAR
+    ca = getattr(w, "conquered_at", None)
+    if ca is None:
+        return
+    events = None
+    from .language import label
+    for b in live:
+        if b.id >= len(ca) or not (since < int(ca[b.id]) <= t) or b.id not in keys_of:
+            continue
+        pol = int(w.polity_of[b.id]) if b.id < len(w.polity_of) else -1
+        pp = w.polities.get(pol) if pol >= 0 else None
+        if pp is None or pp.seat < 0 or pp.seat not in w.bands.live:
+            continue
+        lc = w.bands[pp.seat].language
+        if lc < 0 or lc in lineage_ids(w, b.language) or b.language in lineage_ids(w, lc):
+            continue                                    # same speech: nothing to impose
+        for k in keys_of[b.id]:
+            if k not in idx:
+                continue
+            place = w.places[idx[k]]
+            theirs = name_in(w, place, lc)
+            ours = name_in(w, place, b.language)
+            if theirs is None or ours is None or ours is theirs:
+                continue
+            size = info[k][1] if k in info else place["size"]
+            p_adopt = P.PLACE_ADOPT * (1.0 - P.PLACE_ADOPT_SIZE * size)
+            if rng.random() >= p_adopt:
+                continue
+            if events is None:
+                events = _conquest_events(w, t, since)
+            toks = current(w, theirs, lc)
+            note = (f"{label(w, w.languages[b.language])} speakers, conquered by {pp.name}, took their conquerors' name "
+                    f"for the {k[0]}, {show(toks)}, in place of {show(current(w, ours, b.language))} "
+                    f"({p_adopt:.0%} chance: size {size:.2f})")
+            causes = [{"band": b.id}, {"band": int(pp.seat)}]
+            ev = events.get((pol, int(ca[b.id])))
+            if ev is not None:
+                causes.append({"event": int(ev)})
+            if len(theirs) > 6 and theirs[6] >= 0:
+                causes.append({"event": int(theirs[6])})
+            _add_layer(w, place, idx[k], k, t, b.language, toks, "imposed", lc, note, b, causes)
 
 
 def to_json(w):
@@ -410,3 +535,4 @@ def from_json(w, d):
     init(w)
     w.places = (d or {}).get("places", [])
     w._place_key = None
+    w._place_by = None
