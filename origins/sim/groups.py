@@ -198,6 +198,20 @@ def update_condition(w, frac_child, frac_rest, pos=None):
 
 
 # ------------------------------------------------------------ demography
+def women(G, rows) -> np.ndarray:
+    """Women of childbearing age (15-49) in the given group rows."""
+    return G.F[rows, 15:50].sum(axis=1)
+
+
+def keep_pregnancies(G, rows, before):
+    """After deaths: pregnancies are kept in proportion to the women of childbearing age who survived, so a group
+    with no women left delivers nothing (Codex review 028, finding 3; every path that removes people from groups)."""
+    rows = np.atleast_1d(rows)
+    after = women(G, rows)
+    ratio = np.where(np.asarray(before) > 0, after / np.maximum(before, 1e-12), 0.0)
+    G.preg[rows] *= np.clip(ratio, 0.0, 1.0)[:, None]
+
+
 def _hazards(cond_child, cond_rest):
     a = _age
     base = P.SILER_A1 * np.exp(-P.SILER_B1 * a), np.full(AGES, P.SILER_A2), P.SILER_A3 * np.exp(P.SILER_B3 * a)
@@ -220,6 +234,7 @@ def deaths(w):
     acc = w.accum
     cause_codes = [C["infancy and early childhood"], C["accident or illness"], C["old age"], C["hunger"]]
     hunger_rows = np.zeros(len(rows), dtype=np.int64)
+    w0 = women(G, rows)
     for X in (G.F, G.M):
         counts = np.rint(X[rows]).astype(np.int64)
         acc["person_years"] += np.bincount(AGE_GROUP, weights=counts.sum(0), minlength=18) / P.TICKS_PER_YEAR
@@ -242,6 +257,7 @@ def deaths(w):
         np.add.at(hunger_rows, r_i, rem)
         w.counts["deaths"] += n
         acc["deaths"] += np.bincount(AGE_GROUP[a_i], weights=d, minlength=18)
+    keep_pregnancies(G, rows, w0)
     row_cells = _row_cells(w, G.band[rows])
     np.add.at(w.cell_hunger, row_cells, hunger_rows)
     size = G.F[rows].sum(1) + G.M[rows].sum(1) + hunger_rows

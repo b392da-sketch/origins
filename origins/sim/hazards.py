@@ -82,6 +82,8 @@ def kill_share(w, cell_probs: dict, cause: str, event_id: int, rng, occ=None) ->
         if b.mode != "group" or not b.alive:
             continue
         g = b.group
+        from .groups import women, keep_pregnancies
+        w0 = women(G, np.array([g]))
         for X in (G.F, G.M):
             cnt = np.rint(X[g]).astype(np.int64)
             d = rng.binomial(cnt, cell_probs[b.cell])
@@ -92,6 +94,7 @@ def kill_share(w, cell_probs: dict, cause: str, event_id: int, rng, occ=None) ->
                 w.counts["deaths"] += k
                 w.accum["deaths_by_cause"][code] += k
                 w.accum["deaths"] += np.bincount(AGE_GROUP, weights=d, minlength=18)
+        keep_pregnancies(G, np.array([g]), w0)
     return n
 
 

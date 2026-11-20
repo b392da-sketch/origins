@@ -235,7 +235,7 @@ Run across many histories on five planets, plus knock-out histories.
 | 7 | **Trade follows supply and distance** | goods' abundance falls with distance from their sources (a fall-off curve); trade rises in bad years where partners exist |
 | 8 | **Goods are conserved** | no accounting failures in any history (goods, food, people) |
 | 9 | **The land answers back** | yields fall under long irrigation without drainage and under exhausted soil; large game falls under heavy hunting; at least some famines and migrations trace to them |
-| 10 | **Diseases from animals** | new diseases arise only where herds and dense populations meet; deaths after first contact between long-separated peoples are heavier among those without resistance |
+| 10 | **Diseases from animals** | diseases that keep circulating for years are found mostly where herds and dense populations meet; diseases from wild animals and starts in small groups happen but fade; deaths after first contact between long-separated peoples are heavier among those who had never met the disease (reworded by Ben, 20 November 2026, after Codex review 028: the check marks where diseases last, not where they first appear) |
 | 11 | **Traceable** | every sampled invention, loss, adoption, trade and new disease has a complete cause chain |
 | 12 | **Same rules, different histories** (no mark) | which techniques appear, where and when, varies widely across histories |
 | 13 | **Speed** (no mark) | computing time per history |

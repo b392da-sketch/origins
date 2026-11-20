@@ -50,6 +50,11 @@ def init(w):
     w.diseases = []                                                   # list of dicts (traits, origin, events)
     w.dz_imm = np.zeros((64, ND_CAP, 2), dtype=np.float32)           # band x disease x (child, adult): immune share
     w.dz_active = np.zeros((w.planet.n, ND_CAP), dtype=bool)         # circulating on the cell this year
+    w.dz_seen = np.zeros((64, ND_CAP), dtype=bool)                   # band x disease: it has ever reached them
+    # one row per cell and disease each year it circulates there (Codex review 028, finding 5): year, disease, cell,
+    # how it came (0 new, 1 passed again from its animals, 2 contact, 3 kept), the cell it came from (contact; else
+    # -1), people, the share who could catch it, whether every band there had never met it before, deaths
+    w.dz_log = []
 
 
 def ensure(w, band_id: int, parent: int):
@@ -62,20 +67,38 @@ def ensure(w, band_id: int, parent: int):
         a = np.zeros((cap, ND_CAP, 2), dtype=np.float32)
         a[:len(w.dz_imm)] = w.dz_imm
         w.dz_imm = a
+    _seen_rows(w)
     if parent >= 0:
         w.dz_imm[band_id] = w.dz_imm[parent]                         # a daughter band shares its mother's history
+        w.dz_seen[band_id] = w.dz_seen[parent]
+
+
+def _seen_rows(w):
+    s = getattr(w, "dz_seen", None)
+    if s is None or len(s) < len(w.dz_imm):
+        out = np.zeros((len(w.dz_imm), ND_CAP), dtype=bool)
+        if s is not None and len(s):
+            out[:len(s)] = s
+        elif w.diseases:
+            out[:] = (w.dz_imm > 0).any(axis=2)                        # older saves: immunity shows past contact
+        w.dz_seen = out
 
 
 def combine(w, src, dst, carriers: float):
-    """People joining another band bring their immunity (shares weighted by numbers)."""
+    """People joining another band bring their immunity, weighted by numbers. Called after they have moved, so the
+    receiving band's size already counts them (Codex review 028, finding 1). One weight serves both age columns:
+    bands are modelled with a fixed share of children (DZ_CHILD_SHARE), not their actual ages."""
     if getattr(w, "dz_imm", None) is None or not w.diseases:
         return
-    n_dst = float(w.band_sizes()[dst.id]) if dst.id < len(w.band_sizes()) else 0.0
+    sizes = w.band_sizes()
+    n_after = float(sizes[dst.id]) if dst.id < len(sizes) else 0.0
     c = max(float(carriers), 0.0)
     if c <= 0:
         return
-    wt = c / max(n_dst + c, 1.0)
+    wt = min(1.0, c / max(n_after, c, 1.0))
     w.dz_imm[dst.id] = (1 - wt) * w.dz_imm[dst.id] + wt * w.dz_imm[src.id]
+    _seen_rows(w)
+    w.dz_seen[dst.id] |= w.dz_seen[src.id]
 
 
 # ------------------------------------------------------------------ the year
@@ -91,6 +114,7 @@ def yearly(w):
         return
     if len(w.dz_imm) <= max(b.id for b in bands):
         ensure(w, max(b.id for b in bands), -1)
+    _seen_rows(w)
     nd = len(w.diseases)
     ids = np.array([b.id for b in bands])
     cells = np.array([b.cell for b in bands])
@@ -125,6 +149,16 @@ def yearly(w):
                 source[(c, d)] = "kept"
     # 2. spread along contacts
     contacts = _contacts(w, bands, cells)
+    # G1's exposure units, per disease (Codex review 028, finding 4): peopled cells in contact with circulation
+    # (and not circulating themselves) at the start of spread, and the other peopled cells without it
+    start = active.copy()
+    exposed = np.zeros((n, ND_CAP), dtype=bool)
+    for d in range(nd):
+        for c in np.nonzero(start[:, d])[0].tolist():
+            for m in contacts.get(c, ()):
+                if pop[m] > 0 and not start[m, d]:
+                    exposed[m, d] = True
+    came_from = {}
     resp = _responses(w, ids)
     resp_cell = {}
     for i, c in enumerate(cells.tolist()):
@@ -145,25 +179,28 @@ def yearly(w):
                 if rng.random() < chance * share:
                     active[m, d] = True
                     source[(m, d)] = "contact"
-                    w.counts["ob_contact_infections"] = w.counts.get("ob_contact_infections", 0) + 1
+                    came_from[(m, d)] = c
     # 3. spillover again from the animals that carry each disease (Ben, 20 November 2026: reservoirs)
     herders = _herders(w, ids, cells, sizes)
     _respill(w, rng, pop, herders, active, source)
     # 4. emergence: new diseases from herds and from wild animals
     _emerge(w, rng, bands, ids, cells, sizes, pop, active, source, herders)
-    nd = len(w.diseases)
-    # exposure accounting for gate G1 check 9 (as M1): peopled cells in contact with circulation vs not
-    any_active = active[:, :nd].any(axis=1) if nd else np.zeros(n, dtype=bool)
-    exposed = set()
-    for c in np.nonzero(any_active)[0].tolist():
-        exposed.update(m for m in contacts.get(c, ()) if pop[m] > 0 and not any_active[m])
-    peopled = int((pop > 0).sum())
-    w.counts["ob_contact_cell_years"] = w.counts.get("ob_contact_cell_years", 0) + len(exposed)
-    w.counts["ob_other_cell_years"] = w.counts.get("ob_other_cell_years", 0) + peopled - len(exposed)
+    nd0, nd = nd, len(w.diseases)
+    # G1 check 9 in matched units: for each disease that existed at the start of the year, the cells in contact and
+    # how many fell ill (by any route), against the other peopled cells and how many fell ill; a disease new this
+    # year counts as one start among all peopled cells
+    peopled = pop > 0
+    newly = active[:, :nd0] & ~start[:, :nd0]
+    other = peopled[:, None] & ~start[:, :nd0] & ~exposed[:, :nd0]
+    c_ = w.counts
+    c_["ob_contact_cell_years"] = c_.get("ob_contact_cell_years", 0) + int(exposed[:, :nd0].sum())
+    c_["ob_contact_infections"] = c_.get("ob_contact_infections", 0) + int((newly & exposed[:, :nd0]).sum())
+    c_["ob_other_cell_years"] = c_.get("ob_other_cell_years", 0) + int(other.sum()) + int(peopled.sum())
+    c_["ob_new_starts"] = c_.get("ob_new_starts", 0) + int((newly & other).sum()) + (nd - nd0)
     # 5. epidemics where it circulates: deaths and immunity
     w.dz_active[:] = active
     if nd:
-        _epidemics(w, rng, bands, ids, cells, sizes, active, resp, source)
+        _epidemics(w, rng, bands, ids, cells, sizes, active, resp, source, came_from)
 
 
 def _age_and_wane(w, ids):
@@ -303,7 +340,6 @@ def _new(w, rng, cell, host, active, source, note, first_event):
     w.diseases.append(traits)
     active[cell, d] = True
     source[(cell, d)] = "new"
-    w.counts["ob_new_starts"] = w.counts.get("ob_new_starts", 0) + 1
 
 
 def _name(w, cell, host, d) -> str:
@@ -312,7 +348,7 @@ def _name(w, cell, host, d) -> str:
     return f"the {what} sickness ({d + 1})"
 
 
-def _epidemics(w, rng, bands, ids, cells, sizes, active, resp, source):
+def _epidemics(w, rng, bands, ids, cells, sizes, active, resp, source, came_from=None):
     """Each band on a cell where a disease circulates: those who can catch it do, at the disease's attack share
     (less with flight or isolation); deaths by age; survivors immune."""
     nd = len(w.diseases)
@@ -339,21 +375,45 @@ def _epidemics(w, rng, bands, ids, cells, sizes, active, resp, source):
         crisis = 1.0 + np.where(att * (1 - ai) >= P.DZ_CRISIS_SHARE,      # too many adults ill to care and feed
                                 P.DZ_CRISIS_EXTRA * np.where(isolate[sel], P.DZ_ISOLATE_CRISIS, 1.0), 0.0)
         base = dz["cfr"] * (1.0 + dz["hunger"] * hunger[sel] * P.DZ_HUNGER) * crisis
-        pc = np.minimum(1.0, att * (1 - ci) * base * dz["child"])
-        pa = np.minimum(1.0, att * (1 - ai) * base)
-        po = np.minimum(1.0, pa * P.DZ_OLD_MULT)
-        deaths = _kill(w, rng, [bands[i] for i in sel.tolist()], bid, pc, pa, po, eid)
-        w.events[eid]["data"]["deaths"] = int(deaths)
-        w.dz_imm[bid, d, CHILD] = (ci + att * (1 - ci)).astype(np.float32)
-        w.dz_imm[bid, d, ADULT] = (ai + att * (1 - ai)).astype(np.float32)
+        # those who fall ill, by cohort, and deaths among them: never more deaths than cases (Codex review 028,
+        # finding 2); survivors among the ill are immune, measured against the survivors
+        ac, pc, ci2 = cohort(att, ci, base * dz["child"])
+        aa, pa, ai2 = cohort(att, ai, base)
+        po = aa * np.minimum(1.0, base * P.DZ_OLD_MULT)
+        first_time = ~w.dz_seen[bid, d]
+        blist = [bands[i] for i in sel.tolist()]
+        dead = _kill(w, rng, blist, bid, pc, pa, po, eid)
+        w.events[eid]["data"]["deaths"] = int(dead.sum())
+        w.dz_imm[bid, d, CHILD] = ci2.astype(np.float32)
+        w.dz_imm[bid, d, ADULT] = ai2.astype(np.float32)
+        w.dz_seen[bid, d] = True
+        # the per-cell record
+        how = {"new": 0, "spillover": 1, "contact": 2, "kept": 3}
+        bc = cells[sel]
+        for c in sorted(set(bc.tolist())):
+            m = bc == c
+            people = float(sizes[sel][m].sum())
+            catch = float((sizes[sel][m] * (P.DZ_CHILD_SHARE * (1 - ci[m]) + (1 - P.DZ_CHILD_SHARE) * (1 - ai[m]))).sum())
+            w.dz_log.append([int(w.year), d, int(c), how.get(source.get((c, d), "kept"), 3),
+                             int((came_from or {}).get((c, d), -1)), int(people),
+                             round(catch / max(people, 1e-9), 3), bool(first_time[m].all()), int(dead[m].sum())])
 
 
-def _kill(w, rng, blist, bid, pc, pa, po, event_id) -> int:
-    """Deaths by age in the given bands: individuals at once, groups row by row."""
+def cohort(att, imm, per_case):
+    """One cohort in an epidemic: the share who fall ill (attack x the share who can catch it), the share who die
+    (the ill x deaths per case, never more than the ill), and the immune share among the survivors (Codex review 028,
+    finding 2)."""
+    ill = att * (1 - imm)
+    dead = ill * np.minimum(1.0, per_case)
+    return ill, dead, np.clip((imm + ill - dead) / np.maximum(1 - dead, 1e-12), 0.0, 1.0)
+
+
+def _kill(w, rng, blist, bid, pc, pa, po, event_id) -> np.ndarray:
+    """Deaths by age in the given bands: individuals at once, groups row by row. Returns deaths per band."""
     from . import demography
     from .groups import AGES, AGE_GROUP
     code = C["disease outbreak"]
-    n = 0
+    out = np.zeros(len(bid), dtype=np.int64)
     p = w.people
     idx = w.alive_idx()
     if len(idx):
@@ -371,35 +431,42 @@ def _kill(w, rng, blist, bid, pc, pa, po, event_id) -> int:
             if len(hit):
                 demography.kill(w, hit, np.full(len(hit), code, dtype=np.int8))
                 p.death_hazard[hit] = event_id
-                n += len(hit)
+                pos = {int(b): j for j, b in enumerate(bid.tolist())}
+                for b in p.band[hit].tolist():
+                    out[pos[int(b)]] += 1
     G = w.groups
+    from .groups import women, keep_pregnancies
     age = np.arange(AGES)
     for j, b in enumerate(blist):
         if b.mode != "group" or not b.alive:
             continue
         pr = np.where(age < 15, pc[j], np.where(age < 50, pa[j], po[j]))
+        w0 = women(G, np.array([b.group]))
         for X in (G.F, G.M):
             cnt = np.rint(X[b.group]).astype(np.int64)
             dd = rng.binomial(cnt, pr)
             if dd.any():
                 X[b.group] -= dd
                 k = int(dd.sum())
-                n += k
+                out[j] += k
                 w.counts["deaths"] += k
                 w.accum["deaths_by_cause"][code] += k
                 w.accum["deaths"] += np.bincount(AGE_GROUP, weights=dd, minlength=18)
-    return n
+        keep_pregnancies(G, np.array([b.group]), w0)        # no births from women who died (review 028)
+    return out
 
 
 # ------------------------------------------------------------------ saves
 
 def to_json(w):
-    return {"diseases": getattr(w, "diseases", [])}
+    return {"diseases": getattr(w, "diseases", []), "log": getattr(w, "dz_log", [])}
 
 
 def from_json(w, d):
     init(w)
     w.diseases = d.get("diseases", [])
+    w.dz_log = [list(r) for r in d.get("log", [])]
+    w.dz_seen = np.zeros((0, ND_CAP), dtype=bool)      # restored from the arrays, or derived from immunity
 
 
-ARRAYS = ("dz_imm", "dz_active")
+ARRAYS = ("dz_imm", "dz_active", "dz_seen")

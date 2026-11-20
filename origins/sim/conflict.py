@@ -126,6 +126,8 @@ def _kill(w, b, n, eid, rng, men_share=0.85) -> int:
         if g < 0:
             return 0
         done = 0
+        from .groups import women, keep_pregnancies
+        w0 = women(G, np.array([g]))
         for X, ages, k in ((G.M, slice(16, 46), int(round(n * men_share))), (G.F, slice(10, 50), n - int(round(n * men_share)))):
             cnt = np.rint(X[g, ages]).astype(np.int64)
             tot = int(cnt.sum())
@@ -136,6 +138,7 @@ def _kill(w, b, n, eid, rng, men_share=0.85) -> int:
             X[g, ages] -= d
             done += k
             w.accum["deaths"] += np.bincount(AGE_GROUP[ages], weights=d, minlength=18)
+        keep_pregnancies(G, np.array([g]), w0)
         w.counts["deaths"] += done
         w.accum["deaths_by_cause"][C["killed in war"]] += done
         return done
