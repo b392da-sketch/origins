@@ -185,24 +185,74 @@ class Writing(unittest.TestCase):
         w.tech[:] = 0.0
         return w, a, b
 
-    def test_writing_is_practised_by_specialists_only(self):
+    def test_writing_is_practised_by_scribes_only(self):
         w, a, b = self._two()
-        w.spec[a.id] = 3.0
+        T._scribes(w)[a.id] = 3.0
         live = w.living_bands()
         ids = np.array([x.id for x in live])
         S = T.skilled_by_technique(w, live, ids)
         i = list(ids).index(a.id)
         self.assertEqual(S[i, T.WRITING], 3.0)
         self.assertAlmostEqual(S[i, T.INDEX["pottery"]], float(T.skilled(w, live, ids)[i]))
+        self.assertEqual(T.keep_needed()[T.WRITING], P.TECH_SCRIBES_KEEP)
+        self.assertEqual(T.keep_needed()[T.INDEX["pottery"]], T.TECHNIQUES[T.INDEX["pottery"]].keep)
+
+    def test_a_people_without_scribes_cannot_write(self):
+        w, a, b = self._two()
+        w.tech[a.id, T.INDEX["tallies"]] = 1.0
+        T._scribes(w)[a.id] = 0.5
+        live = w.living_bands()
+        ids = np.array([x.id for x in live])
+        cells = np.array([x.cell for x in live])
+        self.assertFalse(T._possible(w, ids, cells)[list(ids).index(a.id), T.WRITING])
+        ok, missing = T.prerequisites_met(w, a, T.TECHNIQUES[T.WRITING])
+        self.assertFalse(ok)
+        self.assertTrue(any("scribes" in m for m in missing))
+        T._scribes(w)[a.id] = 2.0
+        self.assertTrue(T._possible(w, ids, cells)[list(ids).index(a.id), T.WRITING])
+
+    def test_scribes_follow_specialists_over_a_generation(self):
+        from origins.sim.polity import Polity
+        w, a, b = self._two()
+        T._scribes(w)[:] = 0.0
+        w.spec[b.id] = 50.0                              # specialists of a band that is no polity's seat: no scribes
+        w.polities = {0: Polity(0, a.id, 0, "test")}
+        w.spec[a.id] = 50.0
+        T.yearly(w)
+        self.assertAlmostEqual(float(T._scribes(w)[a.id]), 50.0 / P.TECH_SCRIBE_YEARS, places=6)
+        self.assertEqual(float(T._scribes(w)[b.id]), 0.0)
+        w.spec[b.id] = 0.0
+        w.spec[a.id] = 0.0                               # one year without specialists: most scribes remain
+        before = float(T._scribes(w)[a.id])
+        T.yearly(w)
+        self.assertAlmostEqual(float(T._scribes(w)[a.id]), before * (1 - 1 / P.TECH_SCRIBE_YEARS), places=6)
+
+    def test_scribes_join_with_their_people_and_daughters_start_without(self):
+        w, a, b = self._two()
+        sc = T._scribes(w)
+        sc[a.id], sc[b.id] = 10.0, 5.0
+        T.combine(w, b, a, "merge")
+        self.assertEqual((float(sc[a.id]), float(sc[b.id])), (15.0, 0.0))
+        d = w.new_band(a.cell, parent=a.id)
+        self.assertEqual(float(T._scribes(w)[d.id]), 0.0)
+        w2 = persist.from_bytes(persist.to_bytes(w), w.planet)
+        self.assertEqual(persist.digest(w), persist.digest(w2))
+        self.assertEqual(float(T._scribes(w2)[a.id]), 15.0)
+        old = persist.digest(w)
+        T._scribes(w)[a.id] = 14.0
+        self.assertNotEqual(persist.digest(w), old)
 
     def test_knowing_others_write_raises_the_chance_and_is_recorded(self):
         w, a, b = self._two()
         w.tech[a.id, T.INDEX["tallies"]] = 1.0
         w.tech[a.id, T.WRITING] = 1.0
+        T._scribes(w)[:] = 0.0
+        T._scribes(w)[a.id] = 5.0
         live = w.living_bands()
         ids = np.array([x.id for x in live])
         cells = np.array([x.cell for x in live])
         ok = T._possible(w, ids, cells)
+        self.assertTrue(ok[list(ids).index(a.id), T.WRITING])
         seen = T._stimulus(w, live, ids, cells)
         ib, ia = list(ids).index(b.id), list(ids).index(a.id)
         if ok[ia, T.WRITING]:

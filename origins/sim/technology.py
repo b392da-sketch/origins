@@ -148,6 +148,24 @@ _check()
 def init(w):
     w.tech = np.zeros((64, K), dtype=np.float32)
     w.tech_record = np.zeros((64, K), dtype=np.float32)
+    w.tech_scribes = np.zeros(64)          # scribes per band: its specialists averaged over about a generation
+
+
+def _scribes(w):
+    """The per-band scribes array, sized to w.tech (older saves and worlds: started from today's specialists at the
+    seats of living polities)."""
+    s = getattr(w, "tech_scribes", None)
+    if s is None or len(s) != len(w.tech):
+        out = np.zeros(len(w.tech))
+        if s is not None:
+            n = min(len(s), len(out))
+            out[:n] = s[:n]
+        elif hasattr(w, "spec"):
+            for p in getattr(w, "polities", {}).values():
+                if p.ended < 0 and 0 <= p.seat < min(len(w.spec), len(out)):
+                    out[p.seat] = w.spec[p.seat]
+        w.tech_scribes = out
+    return w.tech_scribes
 
 
 def _grow(a, n):
@@ -180,6 +198,7 @@ def ensure(w, band_id: int, parent: int):
         w.tech_prev_wood[band_id] = w.tech_prev_wood[parent] if parent >= 0 else False
     w._tech_eff = None                                                    # effects judged afresh (review 010)
     w.tech_record[band_id] = w.tech_record[parent] if parent >= 0 else 0.0   # and keeps her records
+    _scribes(w)[band_id] = 0.0                                            # scribes stay with the band that fed them
 
 
 def held(w, band_id: int, key: str, level: float | None = None) -> bool:
@@ -235,6 +254,8 @@ def prerequisites_met(w, b, t: Technique, near: set | None = None) -> tuple[bool
         missing.append("needs hilly land" if t.terrain == "hills" else "needs a river or lake")
     if t.settled and not _settled(w, np.array([b.id]))[0]:
         missing.append("needs a settled people")
+    if INDEX[t.key] in SCRIBAL and getattr(P, "TECH_SCRIBES", True) and _scribes(w)[b.id] < P.TECH_SCRIBE_MIN:
+        missing.append("needs scribes: specialists fed from surplus, kept for a generation")
     return (not missing), missing
 
 
@@ -370,6 +391,10 @@ def _possible(w, ids, cells, lvl=None) -> np.ndarray:
             ok[:, k] &= land[:, TERRAIN.index(t.terrain)]
         if t.settled:
             ok[:, k] &= settled
+    if SCRIBAL and getattr(P, "TECH_SCRIBES", True):     # a people writes only where it keeps scribes (Ben, 20-21 Nov)
+        has = _scribes(w)[np.asarray(ids)] >= P.TECH_SCRIBE_MIN
+        for k in SCRIBAL:
+            ok[:, k] &= has
     return ok
 
 
@@ -616,6 +641,14 @@ def yearly(w):
         if t.key not in firsts:
             firsts[t.key] = len(w.events) - 1
             w.tech_firsts = firsts
+    if hasattr(w, "spec"):                               # scribes follow the specialists slowly (a generation)
+        sc = _scribes(w)
+        spec = np.asarray(w.spec[ids], dtype=float) if len(w.spec) > ids.max() else np.zeros(len(ids))
+        # scribes are the polity's specialists: those at a living polity's seat (Ben, 20 November 2026). A village's
+        # leader, ritual specialists and craft workers do not keep a script.
+        seats = {int(p.seat) for p in getattr(w, "polities", {}).values() if p.ended < 0}
+        spec = spec * np.isin(ids, np.fromiter(seats, dtype=np.int64, count=len(seats)))
+        sc[ids] += (spec - sc[ids]) / P.TECH_SCRIBE_YEARS
     keep_and_spread(w, live, ids, cells, sizes, connected, need)
     _mark(w, live, ids, cells)                          # after every acquisition this year (Codex review 018)
 
@@ -712,16 +745,25 @@ def skilled(w, live, ids) -> np.ndarray:
     return P.TECH_PRACTISE_SHARE * np.maximum(_adults(w, live, ids) - spec, 0.0) + spec
 
 
+def keep_needed() -> np.ndarray:
+    """Skilled practitioners within reach each technique needs to be kept: its keep, except that writing kept by
+    scribes needs TECH_SCRIBES_KEEP (about the thirty scribes of Pylos: Palaima 2004; Ben, 20 November 2026)."""
+    keep = np.array([t.keep for t in TECHNIQUES], dtype=float)
+    if SCRIBAL and getattr(P, "TECH_SCRIBES", True):
+        keep[SCRIBAL] = P.TECH_SCRIBES_KEEP
+    return keep
+
+
 def skilled_by_technique(w, live, ids, skilled_people=None) -> np.ndarray:
     """Skilled practitioners per band and technique (bands x K). Writing is practised by specialists only: a script
-    is kept by scribes whom a polity feeds, so it falls when the state can no longer keep them, as Linear B did with
+    is kept by scribes whom a polity feeds (its specialists averaged over about a generation, TECH_SCRIBE_YEARS, so
+    one poor harvest does not erase it; Ben, 20 November 2026), so it falls when the state can no longer keep them, as Linear B did with
     the Mycenaean palaces (Palaima 2004; Ben, 20 November 2026; build notes, writing and place names)."""
     if skilled_people is None:
         skilled_people = skilled(w, live, ids)
     out = np.repeat(np.asarray(skilled_people, dtype=float)[:, None], K, axis=1)
     if SCRIBAL and getattr(P, "TECH_SCRIBES", True):
-        spec = np.asarray(w.spec[ids], dtype=float) if hasattr(w, "spec") else np.zeros(len(ids))
-        out[:, SCRIBAL] = spec[:, None]
+        out[:, SCRIBAL] = _scribes(w)[np.asarray(ids)][:, None]
     return out
 
 
@@ -731,7 +773,7 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
     rng = w.rng["technology"]
     n_cells = w.planet.n
     lvl = w.tech[ids].astype(float)
-    keep = np.array([t.keep for t in TECHNIQUES], dtype=float)
+    keep = keep_needed()
     known = lvl > 0
     practised = known & _possible(w, ids, cells, lvl)
     # skilled practitioners, not everyone: a share of the adults, plus the specialists (Ben, 14 November 2026;
@@ -767,7 +809,7 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
         t = TECHNIQUES[k]
         if practised[i, k]:
             why = (f"{w.band_name(b)} lost {t.name}: only {practitioners[i, k]:,.0f} skilled people within reach practised "
-                   f"it, fewer than the {t.keep} it takes to keep it alive, so each generation learned it less well")
+                   f"it, fewer than the {keep[k]:.0f} it takes to keep it alive, so each generation learned it less well")
         else:
             _ok, missing = prerequisites_met(w, b, t)
             why = (f"{w.band_name(b)} forgot {t.name}: it was no longer practised ("
@@ -927,6 +969,10 @@ def combine(w, src, dst, route: str, carriers: float | None = None):
     w._tech_eff = None
     if getattr(w, "tech_record", None) is not None:
         w.tech_record[dst.id] = np.maximum(w.tech_record[dst.id], w.tech_record[src.id])
+    if route in ("combined", "merge"):                                   # whole peoples join: their scribes with them
+        sc = _scribes(w)
+        sc[dst.id] += sc[src.id]
+        sc[src.id] = 0.0
     if route in ("combined", "merge", "migration") and getattr(w, "tech_prev_prac", None) is not None:
         # people joining in numbers bring last year's record of practising on imports, so a later cut-off in the
         # band they join is recorded (Codex review 019)

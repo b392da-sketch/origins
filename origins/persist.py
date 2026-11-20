@@ -26,6 +26,11 @@ from .worldgen import generate
 BACKUPS = 3
 
 
+def _tech_scribes(w):
+    from .sim import technology as _t
+    return _t._scribes(w) if getattr(w, "tech", None) is not None else np.zeros(0)
+
+
 def _jsonable(x):
     if isinstance(x, dict):
         return {str(k): _jsonable(v) for k, v in x.items()}
@@ -81,7 +86,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
               "still_years": w.still_years, "forage_rr": w.forage_rr, "spec": w.spec,
               "polity_of": w.polity_of, "polity_via": w.polity_via, "conquered_at": w.conquered_at,
               "herder_since": w.herder_since, "farm_rr_real": w.farm_rr_real, "farm_rr_cell": w.farm_rr_cell,
-              "farm_rr_lost": w.farm_rr_lost if getattr(w, "farm_rr_lost", None) is not None else np.zeros(0), "tech": w.tech, "tech_record": w.tech_record,
+              "farm_rr_lost": w.farm_rr_lost if getattr(w, "farm_rr_lost", None) is not None else np.zeros(0), "tech": w.tech, "tech_record": w.tech_record, "tech_scribes": _tech_scribes(w),
               "goods": w.goods, "partner_of": w.partner_of, "partner_since": w.partner_since,
               "goods_reached": w.goods_reached, "partner_gave": w.partner_gave, "treasury": w.treasury,
               "tech_prev_prac": w.tech_prev_prac if getattr(w, "tech_prev_prac", None) is not None else np.zeros((0, 0), bool),
@@ -199,6 +204,10 @@ def from_bytes(data: bytes, planet=None) -> World:
     w.tech_record = np.zeros_like(w.tech)
     if rec is not None and rec.shape[1] == _tech.K:
         w.tech_record[:min(len(rec), len(w.tech))] = rec[:len(w.tech)]
+    sc = arrays.get("tech_scribes")                  # saves from before scribes (20 Nov 2026): today's specialists
+    w.tech_scribes = None
+    if sc is not None and np.asarray(sc).size:
+        w.tech_scribes = np.array(sc, dtype=float)
     if len(getattr(w, "herder_since", ())) < len(w.farm_share):    # saves from before pastoralism (M4a)
         h = np.full(len(w.farm_share), -1.0)
         h[:len(getattr(w, "herder_since", ()))] = getattr(w, "herder_since", np.zeros(0))
@@ -331,7 +340,7 @@ def digest(w: World) -> str:
     for arr in (w.stock, w.stock_broad, w.known, w.region_z, w.customs, w.neutral, w.hazard_food, w.immune, w.skill, w.farm_share,
                 w.crop_store, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since, w.farm_rr_real, w.farm_rr_cell,
                 getattr(w, "farm_rr_lost", None) if getattr(w, "farm_rr_lost", None) is not None else np.zeros(0), w.tech,
-                w.tech_record, w.goods, w.partner_of, w.partner_since, w.goods_reached, w.partner_gave, w.treasury,
+                w.tech_record, _tech_scribes(w), w.goods, w.partner_of, w.partner_since, w.goods_reached, w.partner_gave, w.treasury,
               *[getattr(w, n_, None) if getattr(w, n_, None) is not None else np.zeros((0, 0), bool)
                 for n_ in ("tech_prev_prac", "tech_prev_mats")],
               getattr(w, "tech_prev_wood", None) if getattr(w, "tech_prev_wood", None) is not None else np.zeros(0, bool),
