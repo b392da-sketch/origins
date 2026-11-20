@@ -837,7 +837,7 @@ class Review024(unittest.TestCase):
         land.move_crop_loss(w, a.id, d.id, 1.0)
         self.assertAlmostEqual(float(w.land_acc_k[d.id, 0]), 44.0)
         ev, top = int(w.land_acc_kev[d.id, 0]), float(w.land_acc_ktop[d.id, 0])
-        self.assertEqual((ev, top), (e2, 12.0))                       # the pair stays together
+        self.assertEqual((ev, top), (e2, 24.0))     # the pair stays together (24: both seasons cite e2; review 026)
 
     def test_salt_below_its_yield_threshold_links_nothing(self):
         from origins.sim import farming
@@ -918,6 +918,22 @@ class Review025(unittest.TestCase):
         land.note_account(w, np.array([b.id]), np.array([30.0]), np.array([0.0]))
         e = land.hunger_event(w, b.id, c)
         self.assertEqual(w.events[e]["data"]["unlinked"], 0.0)
+
+
+    def test_rejoined_parts_of_the_same_loss_keep_their_example(self):
+        w, _ = world()
+        a, d = w.living_bands()[0], w.living_bands()[1]
+        js = land.KINDS.index("soil")
+        e2, e778 = w.event("land_soil", cell=2), w.event("land_soil", cell=778)
+        w.land_flags[2, js], w.land_event[2, js] = True, e2
+        w.land_flags[778, js], w.land_event[778, js] = True, e778
+        land.note_crop_loss(w, np.array([a.id]), np.array([100.0]), np.array([2]), (np.array([100.0]), np.array([0.0])))
+        land.move_crop_loss(w, a.id, d.id, 0.5)
+        land.move_crop_loss(w, a.id, d.id, 1.0)
+        self.assertAlmostEqual(float(w.land_acc_ktop[d.id, 0]), 100.0)   # Codex's case: was 50
+        w.t += (P.HARVEST_QUARTER - w.quarter) % P.TICKS_PER_YEAR or P.TICKS_PER_YEAR
+        land.note_crop_loss(w, np.array([d.id]), np.array([75.0]), np.array([778]), (np.array([75.0]), np.array([0.0])))
+        self.assertEqual(int(w.land_crop_ev[d.id, 0]), e2)
 
 
 if __name__ == "__main__":

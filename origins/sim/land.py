@@ -478,9 +478,12 @@ def move_crop_loss(w, src: int, dst: int, frac: float):
         a, e = getattr(w, amt), getattr(w, ev)
         for j in range(2):
             x = a[src, j] * frac
-            if x > a[dst, j]:
+            if top and e[src, j] >= 0 and e[dst, j] == e[src, j]:
+                # the same example on both sides: their loss attributed to it adds up (Codex review 026)
+                getattr(w, top)[dst, j] += getattr(w, top)[src, j] * frac
+            elif x > a[dst, j]:
                 e[dst, j] = e[src, j]
-                if top:                       # the example's season loss is shared as the loss is (review 025)
+                if top:                       # the example's loss is shared as the loss is (review 025)
                     getattr(w, top)[dst, j] = getattr(w, top)[src, j] * frac
             if top:
                 getattr(w, top)[src, j] *= (1.0 - frac)
@@ -521,7 +524,11 @@ def note_crop_loss(w, ids, lost, cells=None, parts=None):
                 continue
             oi, op, oe = ids[on], part[on], ev[on]
             np.add.at(w.land_acc_k[:, j], oi, op)
-            top = op > w.land_acc_ktop[oi, j]
+            # the example's comparison value is the linked loss attributed to it so far: a season citing the
+            # same event adds to it; another event takes over only with a larger season (Codex review 026)
+            same = w.land_acc_kev[oi, j] == oe
+            w.land_acc_ktop[oi[same], j] += op[same]
+            top = ~same & (op > w.land_acc_ktop[oi, j])
             w.land_acc_kev[oi[top], j] = oe[top]
             w.land_acc_ktop[oi[top], j] = op[top]
     if w.quarter == P.HARVEST_QUARTER:
