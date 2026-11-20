@@ -1077,7 +1077,7 @@ Independent check, done before ChatGPT's (the four questions are in the Notion r
 - **Foragers:**
   - a person knows roughly 500 place names;
   - place-name density rises with population density (r = 0.95 on logs, 12 communities; Hunn 1994);
-  - Sahaptin names are mostly descriptive of biological and topographic features, and none are named after people (Hunn 1996);
+  - Sahaptin names are very often descriptive of biological and topographic features, and none are named after people (Hunn 1996);
   - binomial names (generic plus specific) are rare in Sahaptin but common elsewhere.
 - **A typology for coding names** (Tent & Blair 2011): descriptive, associative, occurrent (events), evaluative, shift (transferred), indigenous (borrowed), eponymous, linguistic innovation. In European naming of the Australian coast, eponymous names were the most common.
 - **For the build:**
@@ -1098,7 +1098,7 @@ Independent check, done before ChatGPT's (the four questions are in the Notion r
 - Hall, A. (2012). The instability of place-names in Anglo-Saxon England and early medieval Wales, and the loss of Roman toponymy. In R. Jones & S. Semple (eds), *Sense of Place in Anglo-Saxon England*, 101–129. Tyas.
 - Houston, S., Baines, J., & Cooper, J. (2003). Last writing: script obsolescence in Egypt, Mesopotamia, and Mesoamerica. *Comparative Studies in Society and History*, 45(3), 430–479. doi:10.1017/S0010417503000227. (Conclusion through a press report.)
 - Hunn, E. (1994). Place-names, population density, and the magic number 500. *Current Anthropology*, 35(1), 81–85.
-- Hunn, E. (1996). Columbia Plateau Indian place names: what can they teach us? *Journal of Linguistic Anthropology*, 6(1), 3–26. (Abstract read.)
+- Hunn, E. (1996). Columbia Plateau Indian place names: what can they teach us? *Journal of Linguistic Anthropology*, 6(1), from p. 3; doi:10.1525/jlin.1996.6.1.3. (Abstract read; end page not checked.)
 - Kitson, P. (2011). Notes on some interfaces between place-name material and linguistic theory. In D. Denison et al. (eds), *Analysing Older English*, 35–56. CUP. doi:10.1017/CBO9781139022170.006. (Summary read.)
 - Medrano, M., & Urton, G. (2018). Toward the decipherment of a set of mid-colonial khipus from the Santa Valley, coastal Peru. *Ethnohistory*, 65(1). (Through Harvard Gazette's report.)
 - Palaima, T. G. (2004). Mycenaean accounting methods and systems and their place within Mycenaean palatial civilization. In M. Hudson & C. Wunsch (eds), *Creating Economic Order*, 269–301. CDL Press.
