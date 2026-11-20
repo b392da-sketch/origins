@@ -105,10 +105,29 @@ def describe(w, ref: dict) -> dict:
             {"note": "both unpartnered adults living in the same or neighbouring land; not close kin"}], "ref": ref}
     if "band" in ref:
         b = w.bands[int(ref["band"])]
-        origin = next((e for e in w.events if e["kind"] == "fission" and e["data"].get("new_band") == b.id), None)
-        causes = [{"event": origin["id"]}] if origin else [{"event": 0}]
+        origin = _fission_of(w, b.id)
+        causes = [{"event": origin}] if origin is not None else [{"event": 0}]
         return {"title": f"Origin of {w.band_name(b)}", "t": b.founded, "causes": causes, "ref": ref}
     return {"title": "unknown reference", "causes": []}
+
+
+def _fission_of(w, band_id: int):
+    """The event in which a band split off (the first fission naming it), or None. An index over the events, extended
+    as events are added: until 21 November 2026 every band reference scanned all events, about 10 s per reference in
+    a world of 2 million events stored on disk, which made the gates' chain checks take hours."""
+    n, idx = getattr(w, "_fission_index", (0, {}))
+    m = len(w.events)
+    if m < n:                                            # a different (shorter) event store: start again
+        n, idx = 0, {}
+    if m > n:
+        new = iter(w.events) if n == 0 else (w.events[i] for i in range(n, m))   # read in order from the start
+        for k, e in enumerate(new):
+            if n + k >= m:
+                break
+            if e["kind"] == "fission":
+                idx.setdefault(e["data"].get("new_band"), e["id"])
+        w._fission_index = (m, idx)
+    return idx.get(band_id)
 
 
 def _event_title(w, e) -> str:
@@ -247,21 +266,28 @@ def chain(w, ref: dict, depth: int = 5) -> dict:
     return node
 
 
-def resolvable(w, ref: dict, depth: int | None = None, max_nodes: int = 200_000) -> bool:
+def resolvable(w, ref: dict, depth: int | None = None, max_nodes: int = 200_000, good: set | None = None) -> bool:
     """True if every reference in the whole chain points at something that exists.
 
     The whole chain is followed (each reference once), not to a fixed depth: until 14 November 2026 only six
     steps were followed (Codex review 004; lifted in M4a). A chain larger than max_nodes counts as unresolved, so a
     gate never passes on a chain it did not finish. depth, if given, still limits the search (for quick looks).
+
+    good: a set shared across calls (a gate's samples from one history). Every reference visited by a call that
+    returned True has a whole chain that resolves, so later calls need not follow it again. Chains through a band
+    reach far back into its people's history (9-44 s each in a planet-3 world of 2 million events, 21 November
+    2026), and samples share most of that. Only with depth None; nodes already known good do not count towards
+    max_nodes. The answer for each sample is unchanged.
     """
     p = w.people
     stack = [(ref, 0)]
     seen = set()
+    use = good is not None and depth is None
     try:
         while stack:
             r, d = stack.pop()
             key = tuple(sorted((k, str(v)) for k, v in r.items() if k in ("event", "death", "birth", "partnership", "person", "band", "note")))
-            if key in seen:
+            if key in seen or (use and key in good):
                 continue
             seen.add(key)
             if len(seen) > max_nodes:
@@ -278,6 +304,8 @@ def resolvable(w, ref: dict, depth: int | None = None, max_nodes: int = 200_000)
             node = describe(w, r)
             for c in node.get("causes", []):
                 stack.append((c, d + 1))
+        if use:
+            good |= seen
         return True
     except (KeyError, IndexError, ValueError):
         return False

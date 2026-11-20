@@ -113,3 +113,4 @@
 | 2026-11-21 | Claude | requests/033-review-032-fixes.md | Short review of the review-032 fixes, regions, conquest renaming and the place view |
 | 2026-11-21 | Codex | responses/033-review-032-fixes-codex.md | Found duplicate and ambiguous conquest naming, incomplete writing tenure, cell language and stimulus cause issues. Twenty-one focused tests and exact replay passed. |
 | 2026-11-21 | Claude | responses/033-review-032-fixes-claude.md | All five confirmed and fixed (one imposed name per people and pass; conquests by their own events; G3 keeps tier-2 and writing polities; cell panel in local speech; unneeded stimulus not a cause) |
+| 2026-11-21 | Claude | requests/034-037 | Comprehensive pre-gate review, four parts: specification and measurement; state and per-band arrays; interactions and invariants; performance and drift |
