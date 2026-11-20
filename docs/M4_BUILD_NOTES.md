@@ -1034,3 +1034,77 @@ Records and gate code only; the simulation is unchanged.
 - finding 4 blocks mixed-version checkpoints for G1 check 9.
 
 **Codex's reading of the trials:** they give examples of short wild-origin circulation. Neither a comparison of persistence in dense herding areas nor a qualifying first-contact comparison exists yet. Both need the gate's histories with herds.
+
+### Writing and place names: literature check (Claude, 20 November 2026)
+
+Independent check, done before ChatGPT's (the four questions are in the Notion research questions). Writing already exists as a technique in the network (tallies, then writing, with records that let a lost technique come back). This check is for refining it, and for building place names (specification section 7).
+
+**Writing: the scale that comes first.**
+- **Seshat** (285 polities): growth in scale comes first. Information processing (writing, texts, money) outpaces scale only once a polity is past a "scale threshold", and that in turn allows further growth: "to make major improvements in information processing, a polity must first surpass a scalar threshold" (Shin et al. 2020).
+  - The threshold is on a composite measure, with no single population figure. Upper Egypt about 3600 BC sits near it.
+  - Few New World polities in the sample cross it.
+  - This fits the network's rule that writing needs tribute administration.
+- **What early writing was for** (Postgate, Wang & Wilkinson 1995):
+  - The Uruk tablets are "principally utilitarian": commodities, animals and people, with about 15% lexical lists for training scribes.
+  - Early Egyptian labels had "primarily … an accounting" purpose.
+  - The ceremonial look of early Chinese and Mesoamerican writing is likely survival bias: durable stone and bone for display, perishable media for records.
+- **The token theory is contested.** Zimansky's (1993) review finds the categories of tokens loose and many unique. The supposed commodity links are "virtually disprove[d]" by the counts: sheep tokens are rare against "nail" tokens. He reads simple clay shapes as counters made independently.
+  - So the build should keep tallies as one route to writing under administrative need, not a fixed token-to-sign sequence.
+- **Large states without writing:** Inka khipu recorded census and social categories. Six colonial khipus have been matched to a 1670 census of 132 tributaries, encoding moieties, clans and status (Medrano & Urton, *Ethnohistory*, read through Harvard's report). Records without a script are possible, and the network's tallies can stand for them.
+
+**Writing: who writes, and how it is lost.**
+- **Few writers:**
+  - Egypt: estimates run from 1–5% of the population, about 1% in the third millennium BC, rising to perhaps 7% by the fourth century BC (Baines 2007, via Zinn 2013).
+  - Mycenaean Pylos: about 1,000 tablets by "just over thirty" scribes. Literacy was "monopolized" by the palaces, with no private records. Linear B lasted "no more than c. 300 years" (Palaima 2004).
+  - Mesopotamia: functional literacy reached beyond professional scribes in some periods, among Old Assyrian merchants and some officials. A working syllabary could use as few as 68–82 signs (Charpin, via Altman's 2011 review).
+- **Loss:** scripts die when their users restrict them to narrow functions and groups (Houston, Baines & Cooper 2003, via report). Linear B ended with the palaces that kept it.
+  - For the build: writing kept by a few specialists tied to administration is fragile. When the polity that feeds them falls, the script can be lost. The network's keeping rule already ties loss to the number of skilled practitioners.
+- **Spread by idea:** a script can spread by its idea alone, without its signs, as with Sequoyah's Cherokee syllabary (1809–1821; Jordan, after Kroeber's "stimulus diffusion"). For the build: neighbours of a writing people can invent their own script more readily (a contact boost to invention), not only copy one.
+
+**Place names: survival when languages change.**
+- **Major places keep their names, minor places do not** (Hall 2012):
+  - in Anglo-Saxon England, about 31% of names attested to 731 are lost, against about 8% of Domesday names;
+  - eleventh-century Welsh names were lost far more often than English ones (about 55% against 9%, on small samples);
+  - Roman-British names survive at only about 17–20% in England;
+  - "the names of major places were more stable than those of minor places".
+- **Rivers:** pre-English river names such as *Thames* and *Humber* passed from older languages into Brittonic and then into English (Kitson 2011). The general claim that large rivers are the most conservative names is a textbook commonplace (Andresen & Carter 2015, via Wikipedia). I have not yet found a quantified cross-cultural test.
+- **Conquest and remoteness** (Guangxi, 1,427 names; Wang et al. 2011):
+  - the native Zhuang names survive more in remote, mountainous and less irrigated places, and less in higher administrative units (7% of prefectures, 25% of townships);
+  - the Zhuang share of population explains about a third of the variance in Zhuang names by county.
+  - For the build: newcomers rename most where they rule and farm, and least in remote uplands; units named by the state are renamed first.
+
+**Place names: how peoples name.**
+- **Foragers:**
+  - a person knows roughly 500 place names;
+  - place-name density rises with population density (r = 0.95 on logs, 12 communities; Hunn 1994);
+  - Sahaptin names are mostly descriptive of biological and topographic features, and none are named after people (Hunn 1996);
+  - binomial names (generic plus specific) are rare in Sahaptin but common elsewhere.
+- **A typology for coding names** (Tent & Blair 2011): descriptive, associative, occurrent (events), evaluative, shift (transferred), indigenous (borrowed), eponymous, linguistic innovation. In European naming of the Australian coast, eponymous names were the most common.
+- **For the build:**
+  - each people names the features it uses most first (water, landform, resources), descriptively, in its own words from the M1 lexicon;
+  - names after people (founders, rulers) come with settlements and polities;
+  - the number of names grows with population density;
+  - newcomers keep or replace names by the kind of contact and by the feature (large rivers and major places kept most; minor places and administrative units replaced most), with the older names kept beneath as layers.
+
+**Not yet found:**
+- how long scribal training took (Old Babylonian schooling; Robson's study of House F at Nippur is cited, but I have not read it);
+- a quantified cross-cultural rate of adopting versus replacing names by kind of contact.
+
+#### Sources (added)
+
+- Andresen, J. T., & Carter, P. (2015). *Languages in the World*. Wiley. (Through Wikipedia's citation; not read.)
+- Altman, R. (2011). Review of D. Charpin, *Writing, Law, and Kingship in Old Babylonian Mesopotamia*. *Bryn Mawr Classical Review* 2011.06.55.
+- Baines, J. (1983). Literacy and ancient Egyptian society. *Man* (NS), 18(3), 572–599. (Abstract read.)
+- Hall, A. (2012). The instability of place-names in Anglo-Saxon England and early medieval Wales, and the loss of Roman toponymy. In R. Jones & S. Semple (eds), *Sense of Place in Anglo-Saxon England*, 101–129. Tyas.
+- Houston, S., Baines, J., & Cooper, J. (2003). Last writing: script obsolescence in Egypt, Mesopotamia, and Mesoamerica. *Comparative Studies in Society and History*, 45(3), 430–479. doi:10.1017/S0010417503000227. (Conclusion through a press report.)
+- Hunn, E. (1994). Place-names, population density, and the magic number 500. *Current Anthropology*, 35(1), 81–85.
+- Hunn, E. (1996). Columbia Plateau Indian place names: what can they teach us? *Journal of Linguistic Anthropology*, 6(1), 3–26. (Abstract read.)
+- Kitson, P. (2011). Notes on some interfaces between place-name material and linguistic theory. In D. Denison et al. (eds), *Analysing Older English*, 35–56. CUP. doi:10.1017/CBO9781139022170.006. (Summary read.)
+- Medrano, M., & Urton, G. (2018). Toward the decipherment of a set of mid-colonial khipus from the Santa Valley, coastal Peru. *Ethnohistory*, 65(1). (Through Harvard Gazette's report.)
+- Palaima, T. G. (2004). Mycenaean accounting methods and systems and their place within Mycenaean palatial civilization. In M. Hudson & C. Wunsch (eds), *Creating Economic Order*, 269–301. CDL Press.
+- Postgate, N., Wang, T., & Wilkinson, T. (1995). The evidence for early writing: utilitarian or ceremonial? *Antiquity*, 69, 459–480. doi:10.1017/S0003598X00081874.
+- Shin, J., Price, M. H., Wolpert, D. H., Shimao, H., Tracey, B., & Kohler, T. A. (2020). Scale and information-processing thresholds in Holocene social evolution. *Nature Communications*, 11, 2394. doi:10.1038/s41467-020-16035-9.
+- Tent, J., & Blair, D. (2011). Motivations for naming: the development of a toponymic typology for Australian placenames. *Names*, 59(2), 67–89. doi:10.1179/002777311X12976826704000.
+- Wang, F., Wang, G., Hartmann, J. F., & Luo, W. (2011). Sinification of Zhuang place names in Guangxi, China: a GIS-based spatial analysis approach. *Transactions of the Institute of British Geographers*. doi:10.1111/j.1475-5661.2011.00471.x.
+- Zimansky, P. (1993). Review of D. Schmandt-Besserat, *Before Writing*. *Journal of Field Archaeology*, 20(4), 513–517.
+- Zinn, K. (2013). Literacy, Pharaonic Egypt. In R. S. Bagnall et al. (eds), *The Encyclopedia of Ancient History*, 4100–4104. Wiley-Blackwell.
