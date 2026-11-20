@@ -214,6 +214,22 @@ class Review028(unittest.TestCase):
         groups.births(w)
         self.assertEqual(w.counts["births"], n0)
 
+    def test_kept_pregnancies_stay_whole(self):
+        from origins.sim import groups
+        w = world()
+        b = w.living_bands()[0]
+        groups.fold(w, b)
+        G = w.groups
+        g = b.group
+        G.preg[g, :] = 1.0
+        before = groups.women(G, np.array([g]))
+        G.F[g, 15:50] = np.floor(G.F[g, 15:50] * 0.6)                  # some women die
+        groups.keep_pregnancies(G, np.array([g]), before)
+        self.assertTrue(np.all(G.preg[g] == np.rint(G.preg[g])))
+        self.assertTrue(np.all(G.preg[g] >= 0))
+        groups.split(w, b, b.cell, w.rng["fission"])
+        self.assertTrue(np.all(G.preg[g] >= 0))
+
     def test_contact_counts_are_in_matched_units_and_cells_are_logged(self):
         w = world()
         b = w.living_bands()[0]
