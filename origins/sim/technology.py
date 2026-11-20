@@ -153,7 +153,7 @@ def init(w):
 
 def _scribes(w):
     """The per-band scribes array, sized to w.tech (older saves and worlds: started from today's specialists at the
-    seats of living polities)."""
+    seats of living complex chiefdoms and states)."""
     s = getattr(w, "tech_scribes", None)
     if s is None or len(s) != len(w.tech):
         out = np.zeros(len(w.tech))
@@ -162,7 +162,7 @@ def _scribes(w):
             out[:n] = s[:n]
         elif hasattr(w, "spec"):
             for p in getattr(w, "polities", {}).values():
-                if p.ended < 0 and 0 <= p.seat < min(len(w.spec), len(out)):
+                if p.ended < 0 and getattr(p, "tier", 0) >= P.TECH_SCRIBE_TIER and 0 <= p.seat < min(len(w.spec), len(out)):
                     out[p.seat] = w.spec[p.seat]
         w.tech_scribes = out
     return w.tech_scribes
@@ -646,7 +646,10 @@ def yearly(w):
         spec = np.asarray(w.spec[ids], dtype=float) if len(w.spec) > ids.max() else np.zeros(len(ids))
         # scribes are the polity's specialists: those at a living polity's seat (Ben, 20 November 2026). A village's
         # leader, ritual specialists and craft workers do not keep a script.
-        seats = {int(p.seat) for p in getattr(w, "polities", {}).values() if p.ended < 0}
+        # ... and only at seats of polities large enough to need them: complex chiefdoms and states (tier
+        # TECH_SCRIBE_TIER; writing follows scale: Shin et al. 2020; Ben, 21 November 2026)
+        seats = {int(p.seat) for p in getattr(w, "polities", {}).values()
+                 if p.ended < 0 and getattr(p, "tier", 0) >= P.TECH_SCRIBE_TIER}
         spec = spec * np.isin(ids, np.fromiter(seats, dtype=np.int64, count=len(seats)))
         sc[ids] += (spec - sc[ids]) / P.TECH_SCRIBE_YEARS
     keep_and_spread(w, live, ids, cells, sizes, connected, need)

@@ -215,8 +215,9 @@ class Writing(unittest.TestCase):
         from origins.sim.polity import Polity
         w, a, b = self._two()
         T._scribes(w)[:] = 0.0
-        w.spec[b.id] = 50.0                              # specialists of a band that is no polity's seat: no scribes
-        w.polities = {0: Polity(0, a.id, 0, "test")}
+        w.spec[b.id] = 50.0                              # specialists at a small polity's seat: no scribes
+        w.polities = {0: Polity(0, a.id, 0, "test", tier=P.TECH_SCRIBE_TIER),
+                      1: Polity(1, b.id, 0, "small", tier=P.TECH_SCRIBE_TIER - 1)}   # too small to keep scribes
         w.spec[a.id] = 50.0
         T.yearly(w)
         self.assertAlmostEqual(float(T._scribes(w)[a.id]), 50.0 / P.TECH_SCRIBE_YEARS, places=6)
