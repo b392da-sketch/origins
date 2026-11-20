@@ -70,6 +70,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
         "farming": farming.to_json(w), "surplus": surplus.to_json(w), "polity": polity.to_json(w), "trade": __import__("origins.sim.trade", fromlist=["x"]).to_json(w),
         "conflict": conflict.to_json(w), "timing": w.timing, "first_herders": getattr(w, "first_herders", None), "tech_firsts": getattr(w, "tech_firsts", {}), "goods_ledger": getattr(w, "goods_ledger", None), "log_strides": w.log_strides,
         "disease": __import__("origins.sim.disease", fromlist=["x"]).to_json(w),
+        "places": __import__("origins.sim.places", fromlist=["x"]).to_json(w),
     }
     arrays = {"stock": w.stock, "stock_broad": w.stock_broad, "known": w.known, "discovered_by": w.discovered_by,
               "discovered_at": w.discovered_at, "food_modifier": w.food_modifier,
@@ -230,6 +231,8 @@ def from_bytes(data: bytes, planet=None) -> World:
         _trade.grow(w, len(w.goods) - 1)             # older saves: what a band holds has reached it
     from .sim import disease as _disease                 # diseases from animals (M4a): older saves start with none
     _disease.from_json(w, meta.get("disease", {}))
+    from .sim import places as _places                   # place names (M4a): older saves start with none
+    _places.from_json(w, meta.get("places", {}))
     for k in _disease.ARRAYS:
         if k in arrays and np.asarray(arrays[k]).size:
             setattr(w, k, np.array(arrays[k], dtype=getattr(w, k).dtype))
@@ -347,6 +350,7 @@ def digest(w: World) -> str:
              "last_event": w.events[-1] if w.events else None,
              "language": language.to_json(w), "hazards": w.hazards, "farming": farming.to_json(w),
              "disease": __import__("origins.sim.disease", fromlist=["x"]).to_json(w),
+             "places": __import__("origins.sim.places", fromlist=["x"]).to_json(w),
              "polity": polity.to_json(w), "conflict": conflict.to_json(w),
              "partner_dropped": getattr(w, "partner_dropped", {}),
              "routes_seen": sorted(getattr(w, "routes_seen", set())),

@@ -1181,3 +1181,28 @@ ChatGPT lists Nissen 2016 and Regulski 2016 as read in full; I could not open ei
    - **records without a script:** tallies and record-keepers give part of writing's boost to administration.
 
 All values will be starting values.
+
+### Writing and place names, as built (20 November 2026)
+
+All numbers are tunable starting values in `params.py`, not facts.
+
+**Writing (`origins/sim/technology.py`).**
+- **The script falls with the state** (`TECH_SCRIBES`). Writing's practitioners are the band's specialists only (`skilled_by_technique`), not a quarter of its adults. Specialists are fed from surplus and staff the polity's seat, so when a polity can no longer feed them, the writers within reach fall below the 60 writing needs and the script decays and can be lost (Palaima 2004 on Linear B and the palaces). Keeping, refining, the best practitioner within reach, teaching and lessons along traders' roads all count scribes for writing. Other techniques are unchanged.
+- **Stimulus diffusion** (`TECH_STIMULUS`, writing x10). A people that could practise writing invents it ten times as readily when a people within two rings, or at the other end of a traders' road, writes well (`_stimulus`). The invention's cause names that people and says the idea, not the script, was borrowed. The new script is the inventor's own and starts crude, as any invention does.
+- **Records without a script** (`TECH_RECORDS_SHARE` 0.3, `TECH_RECORD_KEEPERS` 10). Tallies kept by record-keepers at the seat give part of writing's capacity effect: writing's effect x 0.3 x tallies' quality x (specialists at the seat / 10, at most 1), as the khipu and its keepers did (Medrano & Urton 2018). Writing and kept tallies are not added; the larger counts.
+
+**Place names (`origins/sim/places.py`, new; stream `places`, appended).**
+- **Features** come from the planet, with no random draws:
+  - rivers, split at each join (a stream continues up its larger branch, so tributaries are named apart); size from the flow at the stream's mouth (log scale);
+  - lakes (joined lake cells, used from the land around them);
+  - hills (local peaks of 800 m or more) and mountains (2,000 m or more), used from the peak and the cells around it;
+  - coasts (joined coastal cells within one climate region);
+  - settlements, made where a settled people or a polity's seat lives, sized by the most people seen there (log scale, full at 5,000); they outlast their people as named places.
+- **Naming.** Every 10 years, each language with speakers by a feature, and no name for it in its own lineage, names it with chance 1 − exp(−10 x 0.02 x speakers by it / 100). The larger community by a feature names first. So big features, near more peoples, get more names, and dense land names sooner (Hunn 1994).
+- **New names** are made from the people's own words: a descriptor from its lexicon (colours, size, age, animals, materials, by kind of feature) plus a generic word, or the generic word alone (river 25%), or, for settlements, a person's name plus "settlement" (30%). The generic words (river, lake, hill, settlement, sea) are PIE-inspired forms kept apart from the core vocabulary (`lang.proto.PLACE_PROTO`), so the vocabulary and its random draws are unchanged.
+- **Keep or replace.** When a people meets a feature that people already by it have a name for, it keeps the name of the largest such community with chance
+  (0.2 + 0.5 x size + 0.2 x remoteness) x (1 − 0.6 x the newcomers' share of the people by it), halved when those it hears it from were conquered by a polity of its own language within 100 years. Remoteness is 1 / (1 + people per cell of the feature / 200). Otherwise it gives its own name (Hall 2012; Wang et al. 2011).
+- **Layers.** Each place keeps every name as a layer: [tick, language, form then, how (new, kept, replaced), the language it was heard from, cause]. A layer's form now is its form then carried through every later sound change of its language's lineage (`places.current`, as `language.word_history`). Daughter languages inherit their parent's names. A kept name is reshaped by the newcomers' own sound changes from then on.
+- **Records.** Each name is an event `place_named` with its cause (resolvable). `w.places` is saved and in the digest; older saves start with none. `places.history(w, i)` lists a place's layers.
+
+**Not built:** names for polities and regions (polities keep their present names), renaming a place a people already names (for example after conquest), and the observatory's display of place names.

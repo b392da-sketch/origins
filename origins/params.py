@@ -241,6 +241,10 @@ TECH_FOREIGN = 0.2                 # chance a lesson takes between peoples with 
 TECH_CRAFT_REF = 0.05              # specialist share of a band at which teaching is most faithful (decision 2)
 TECH_CRAFT_GAIN = 1.0              # at that share: practitioners needed halved, refinement doubled
 TECH_WRITING_HOLD = 0.5            # share of copying losses that writing of quality 1 prevents
+TECH_SCRIBES = True                # writing is practised by specialists only (scribes; Ben, 20 Nov 2026); False: by a share of all adults, as before
+TECH_STIMULUS = {"writing": 10.0}  # invention chance x this when a people within reach (or along a traders' road) writes (stimulus diffusion; Ben, 20 Nov 2026)
+TECH_RECORDS_SHARE = 0.3           # share of writing's capacity effect that tallies give when the seat keeps record-keepers (khipu; Ben, 20 Nov 2026)
+TECH_RECORD_KEEPERS = 10.0         # ... in full with this many specialists at the seat (fewer: in proportion)
 TECH_RECOVER = 0.002               # yearly chance, x writing quality, of recovering a lost technique from records
 TECH_HILL_RELIEF = 300.0           # metres of relief to a neighbouring cell that make land hilly (terracing)
 # M4a stage 5 (Ben, 14 November 2026: starting values, open to revision): full effect of each technique at quality 1
@@ -411,3 +415,21 @@ DZ_CHILD_YEARS = 15.0
 DZ_FLIGHT_ATTACK, DZ_FLIGHT_OUT = 0.7, 1.5         # flight: fewer caught here, more carried away (guesses)
 DZ_ISOLATE_ATTACK, DZ_ISOLATE_OUT = 0.6, 0.5       # isolating the sick (Acholi gemo): fewer caught, less carried
 DZ_ISOLATE_CRISIS = 0.5                            # ... and survivors care for the sick: half the crisis deaths
+
+# --- M4a: place names (writing and place names; Ben, 20 November 2026). Starting values, not facts.
+PLACES = True                      # False: no place names (the knock-out)
+PLACE_CHECK_YEARS = 10             # how often peoples by a feature may name it
+PLACE_NAME_RATE = 0.02             # yearly chance a people names a feature it lives by, at PLACE_POP_REF speakers by it
+PLACE_POP_REF = 100.0              # ... (more speakers by it: sooner; chance 1 - exp(-years x rate x speakers / this))
+PLACE_HILL_M = 800.0               # a local peak at least this high is a named hill ...
+PLACE_MOUNTAIN_M = 2000.0          # ... and at least this high, a mountain
+PLACE_TOWN_REF = 5000.0            # people at which a settlement counts as fully large (log scale)
+PLACE_DENSITY_REF = 200.0          # people per cell of a feature at which its remoteness is one half
+PLACE_KEEP_BASE = 0.2              # chance newcomers keep a name they hear: this ...
+PLACE_KEEP_SIZE = 0.5              # ... + this x the feature's size (0..1) ...
+PLACE_KEEP_REMOTE = 0.2            # ... + this x its remoteness (0..1) ...
+PLACE_KEEP_NEWCOMERS = 0.6         # ... times (1 - this x the newcomers' share of the people by it) ...
+PLACE_KEEP_CONQUEST = 0.5          # ... times this when those they hear it from were conquered by their polity ...
+PLACE_CONQUEST_YEARS = 100         # ... within this many years
+PLACE_BARE = {"river": 0.25, "lake": 0.15, "hill": 0.1, "mountain": 0.1, "coast": 0.2, "settlement": 0.1}   # named just 'river' etc.
+PLACE_EPONYM = 0.3                 # chance a new settlement is named after a person

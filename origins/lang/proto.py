@@ -51,6 +51,13 @@ PROTO = {
 
 MEANINGS = list(PROTO)
 
+# Generic words for place names (M4a, writing and place names), kept apart from the core vocabulary so its meanings
+# and their random draws are unchanged. PIE-inspired and simplified, like the rest, from commonly cited forms (not
+# checked against a handbook): *deh2nu- 'river' (behind Don, Danube, Dnieper), *lokus 'lake, pond', *bhergh- 'high'
+# (hill, mountain; Germanic berg), *weyk- 'settlement, clan village' (Latin vicus, English -wich), *mori 'sea'.
+PLACE_PROTO = {"river": "d.e.h2.n.u", "lake": "l.o.k.u.s", "hill": "bh.e.r.gjh", "settlement": "w.e.y.kj",
+               "sea": "m.o.r.i"}
+
 # Name elements (M0's PIE-inspired names), now drawn from each language's own words.
 NAME_FIRST = ["good", "great", "god", "goods", "man", "ruler", "know", "dawn", "horse", "cow",
               "bear", "wolf", "water", "carry", "light"]
