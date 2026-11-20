@@ -391,8 +391,9 @@ DZ_ATTACK_RANGE = (0.5, 0.95)     # share of those who can catch it who do, in a
 DZ_CFR_RANGE = (0.005, 0.3)       # deaths per adult case (log-uniform): measles-like to smallpox-like
 DZ_CHILD_MULT_RANGE = (0.5, 2.0)  # children's deaths per case against adults'
 DZ_OLD_MULT = 2.0                 # people of 50 and over against adults
-DZ_K_RANGE = (300.0, 30000.0)     # people who can still catch it, on a cell and its neighbours, at which it keeps
-                                  # going with chance 1 - 1/e (log-uniform: chickenpox-like to measles-like)
+DZ_K_RANGE = (3000.0, 500000.0)    # people who can still catch it, on a cell and its neighbours, at which it keeps
+                                  # going with chance 1 - 1/e (log-uniform, up to measles' critical community size of
+                                  # about 250,000: Bartlett 1957; Black 1975; Ben, 20 November 2026: was 300-30,000)
 DZ_LASTING = 0.8                  # chance a new disease leaves lasting immunity
 DZ_WANE = 0.2                     # yearly loss of immunity otherwise
 DZ_HUNGER_RANGE = (0.0, 1.5)      # how much hunger raises its deaths (per disease; 0 = not at all)
