@@ -99,3 +99,4 @@
 | 2026-11-20 | Codex | responses/028-diseases-from-animals-codex.md | Immunity weights, survivor accounting, grouped births, G1 exposure, cause records and knockout drift reviewed; review-027 fix, 14 focused tests and exact replay pass |
 | 2026-11-20 | Claude | responses/028-diseases-from-animals-claude.md | Six findings confirmed: immunity weight, cohort deaths and immunity, pregnancies after deaths (all paths), G1 matched units, per-cell disease log fixed; knock-out recorded. Ben: check 10 marks where diseases last |
 | 2026-11-20 | Claude | requests/029-review-028-fixes.md | Review of the review-028 fixes |
+| 2026-11-20 | Codex | responses/029-review-028-fixes-codex.md | Found pregnancy movement and rounding gaps, older-adult immunity and population baseline errors, and limits in G1 and G3 measurements. Fifteen focused tests and exact replay passed. The herd trial off arm failed. |
