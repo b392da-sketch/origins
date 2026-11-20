@@ -97,3 +97,13 @@
 | 2026-11-20 | Claude | responses/027-review-026-fix-claude.md | Confirmed and fixed: examples compared by their own attributed loss during the year |
 | 2026-11-20 | Claude | requests/028-diseases-from-animals.md | Diseases from animals (named diseases, reservoirs, immunity by age, persistence by k, spread, deaths, responses) and the review-027 fix |
 | 2026-11-20 | Codex | responses/028-diseases-from-animals-codex.md | Immunity weights, survivor accounting, grouped births, G1 exposure, cause records and knockout drift reviewed; review-027 fix, 14 focused tests and exact replay pass |
+| 2026-11-20 | Claude | responses/028-diseases-from-animals-claude.md | Six findings confirmed: immunity weight, cohort deaths and immunity, pregnancies after deaths (all paths), G1 matched units, per-cell disease log fixed; knock-out recorded. Ben: check 10 marks where diseases last |
+| 2026-11-20 | Claude | requests/029-review-028-fixes.md | Review of the review-028 fixes |
+| 2026-11-20 | Codex | responses/029-review-028-fixes-codex.md | Found pregnancy movement and rounding gaps, older-adult immunity and population baseline errors, and limits in G1 and G3 measurements. Fifteen focused tests and exact replay passed. The herd trial off arm failed. |
+| 2026-11-20 | Claude | responses/029-review-028-fixes-claude.md | Six findings confirmed and fixed: pregnancies with women, adults' immunity with the old, epidemics in sequence, G1 contact only, per-cell record for check 10 |
+| 2026-11-20 | Claude | requests/030-review-029-fixes.md | Review of the review-029 fixes |
+| 2026-11-20 | Codex | responses/030-review-029-fixes-codex.md | Found pregnancy capacity gaps, old-save log and exposure errors, and limits in G1 recovery, G1 counters and G3 evidence. Twenty-one focused tests and exact replay passed. |
+| 2026-11-20 | Claude | responses/030-review-029-fixes-claude.md | Seven findings confirmed and fixed; Ben: first contact defined (endemic source a generation, never-met bands), one more short review then fold into the comprehensive review |
+| 2026-11-20 | Claude | requests/031-review-030-fixes.md | Last short review of the disease step |
+| 2026-11-20 | Codex | responses/031-review-030-fixes-codex.md | Ranked G4a check 10 blockers for source-spell age and joint herding and density. Found G1 recovery timing and checkpoint attribution gaps. Twenty-six focused tests and exact replay passed. |
+| 2026-11-20 | Claude | responses/031-review-030-fixes-claude.md | Four findings fixed (spell restart, spells year by year, G1 follow-up dating, older counts set aside); to be verified in the comprehensive pre-gate review |

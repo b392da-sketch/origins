@@ -211,6 +211,37 @@ def keep_pregnancies(G, rows, before):
     ratio = np.where(np.asarray(before) > 0, after / np.maximum(before, 1e-12), 0.0)
     # whole pregnancies only: splits and transfers draw them as counts (a fraction once went negative there)
     G.preg[rows] = np.rint(G.preg[rows] * np.clip(ratio, 0.0, 1.0)[:, None])
+    cap_pregnancies(G, rows)
+
+
+def cap_pregnancies(G, rows):
+    """No more pending pregnancies than women of childbearing age (Codex review 029, finding 3): the furthest-due
+    are dropped first."""
+    rows = np.atleast_1d(rows)
+    wn = np.floor(women(G, rows) + 1e-9)
+    tot = G.preg[rows].sum(axis=1)
+    for r, n, t in zip(rows[tot > wn].tolist(), wn[tot > wn].tolist(), tot[tot > wn].tolist()):
+        extra = t - n
+        for k in range(G.preg.shape[1] - 1, -1, -1):
+            take = min(extra, G.preg[r, k])
+            G.preg[r, k] -= take
+            extra -= take
+            if extra <= 0:
+                break
+
+
+def _split_pregnancies(G, g, hF, rng):
+    """Pregnancies go with the women who carry them (Codex reviews 029 and 030): the women who move are drawn from
+    the group's women of childbearing age, pregnant (by due slot) or not, so neither side ends with more
+    pregnancies than women."""
+    cap_pregnancies(G, np.array([g]))
+    w_all = int(np.rint(G.F[g, 15:50].sum()))
+    w_move = min(int(np.rint(hF[15:50].sum())), w_all)
+    preg = np.rint(G.preg[g]).astype(np.int64)
+    if w_all <= 0 or w_move <= 0 or preg.sum() == 0:
+        return np.zeros_like(preg)
+    colours = np.append(preg, max(w_all - int(preg.sum()), 0))
+    return rng.multivariate_hypergeometric(colours, w_move)[:-1]
 
 
 def _hazards(cond_child, cond_rest):
@@ -311,6 +342,7 @@ def births(w):
                 w.counts["deaths"] += 1
                 w.accum["deaths_by_cause"][C["childbirth"]] += 1
                 w.accum["deaths"][int(age_group(np.array([a + 0.5]))[0])] += 1
+        cap_pregnancies(G, rows[maternal > 0])           # a mother who died carries no later pregnancy (review 029)
     # conceptions
     F = G.F[rows]
     women = F[:, 15:50]
@@ -335,6 +367,17 @@ def births(w):
     rate = PARTNERED_SHARE * P.CONCEPTION * cond * nurse * (1 - fp)
     expected = women * fec[None] * rate[:, None]
     conc = rng.poisson(expected)
+    # no more conceptions than women not already pregnant (Codex review 030, finding 1): any excess is taken from
+    # the oldest women first
+    room = np.maximum(np.floor(wtot + 1e-9) - pregnant, 0)
+    for i in np.nonzero(conc.sum(1) > room)[0].tolist():
+        extra = int(conc[i].sum() - room[i])
+        for a in range(conc.shape[1] - 1, -1, -1):
+            t = min(extra, int(conc[i, a]))
+            conc[i, a] -= t
+            extra -= t
+            if extra <= 0:
+                break
     G.preg[rows, -1] += conc.sum(1)
     w.accum["births_by_age"] += np.bincount(np.clip((np.arange(15, 50) - 15) // 5, 0, 6),
                                             weights=conc.sum(0), minlength=7)
@@ -384,7 +427,7 @@ def split(w, b, target_cell, rng):
     g = b.group
     hF = rng.binomial(np.rint(G.F[g]).astype(np.int64), 0.5)
     hM = rng.binomial(np.rint(G.M[g]).astype(np.int64), 0.5)
-    hP = rng.binomial(np.rint(G.preg[g]).astype(np.int64), 0.5)
+    hP = _split_pregnancies(G, g, hF, rng)
     moved = int(hF.sum() + hM.sum())
     if moved == 0 or moved == G.total(g):
         return None
@@ -406,7 +449,7 @@ def transfer(w, b, dst, rng) -> int:
     g, d = b.group, dst.group
     hF = rng.binomial(np.rint(G.F[g]).astype(np.int64), 0.5)
     hM = rng.binomial(np.rint(G.M[g]).astype(np.int64), 0.5)
-    hP = rng.binomial(np.rint(G.preg[g]).astype(np.int64), 0.5)
+    hP = _split_pregnancies(G, g, hF, rng)
     moved = int(hF.sum() + hM.sum())
     if moved == 0 or moved == G.total(g):
         return 0

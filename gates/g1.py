@@ -120,23 +120,34 @@ def probe_year(w, pr):
                                            "before": _area_pop(w, e["cell"], sizes),
                                            "births_before": _area_births(w, e["cell"])})
         pr["last_event"] = len(w.events)
-    # named diseases (M4a): each cell's own deaths against its own people before the epidemic (Codex review 028)
+    # named diseases (M4a): each cell's year of epidemics, its deaths from all of them against its own people at the
+    # first one's start, followed on the cell alone (Codex reviews 028 and 029: no mixing of a cell's deaths with
+    # its neighbours' people)
+    from origins.sim import disease as _dz
     log = getattr(w, "dz_log", None) or []
+    cy = {}
     for r in log[pr.get("last_dz", 0):]:
-        if r[8] > 0 and r[5] > 0 and len(pr["hazard_watch"]) < 400:
-            sizes = w.band_sizes() if sizes is None else sizes
-            # the area (the cell and its neighbours, as for the other hazards) now, plus the cell's own deaths
-            pr["hazard_watch"].append({"id": -1, "kind": "outbreak", "cell": int(r[2]), "year": y, "deaths": int(r[8]),
-                                       "before": _area_pop(w, int(r[2]), sizes) + int(r[8]),
-                                       "births_before": _area_births(w, int(r[2]))})
+        if len(r) != len(_dz.LOG_FIELDS):
+            continue                         # an older save's row not upgraded (review 030)
+        k = (int(r[0]), int(r[2]))
+        if k not in cy:
+            cy[k] = [int(r[_dz.LOG_PEOPLE]), 0]
+        cy[k][1] += int(r[_dz.LOG_DEATHS])
+    for (_yr, c), (before, dead) in sorted(cy.items()):
+        if dead > 0 and before > 0 and len(pr["hazard_watch"]) < 400:
+            # dated at this probe, the first after the epidemic, as the other hazards are: the probe runs every
+            # year, so the one-year follow-up comes at the next probe (Codex review 031, finding 3)
+            pr["hazard_watch"].append({"id": -1, "kind": "outbreak", "cell": c, "year": y, "deaths": dead,
+                                       "before": float(before), "cell_only": True,
+                                       "births_before": _area_births(w, c, cell_only=True)})
     pr["last_dz"] = len(log)
     keep = []
     for h in pr["hazard_watch"]:
         age = y - h["year"]
         if age in (1, 20) and f"after{age}" not in h:
             sizes = w.band_sizes() if sizes is None else sizes
-            h[f"after{age}"] = _area_pop(w, h["cell"], sizes)
-            h[f"births{age}"] = _area_births(w, h["cell"]) - h["births_before"]
+            h[f"after{age}"] = _area_pop(w, h["cell"], sizes, h.get("cell_only", False))
+            h[f"births{age}"] = _area_births(w, h["cell"], h.get("cell_only", False)) - h["births_before"]
         if age >= 20:
             pr["hazard_after"].append(h)
         else:
@@ -150,15 +161,15 @@ def probe_year(w, pr):
         pr["samples"][str(y)] = sample_state(w)
 
 
-def _area_pop(w, cell, sizes):
+def _area_pop(w, cell, sizes, cell_only=False):
     nb = w.planet.grid.neighbours
-    area = {cell} | {int(x) for x in nb[cell] if x >= 0}
+    area = {cell} if cell_only else {cell} | {int(x) for x in nb[cell] if x >= 0}
     return float(sum(sizes[b.id] for b in w.living_bands() if b.cell in area))
 
 
-def _area_births(w, cell):
+def _area_births(w, cell, cell_only=False):
     nb = w.planet.grid.neighbours
-    area = [cell] + [int(x) for x in nb[cell] if x >= 0]
+    area = [cell] if cell_only else [cell] + [int(x) for x in nb[cell] if x >= 0]
     return float(w.cell_births[area].sum())
 
 
@@ -390,12 +401,12 @@ def worker(jobs, years, budget, ckpt: Path):
             probe_year(w, pr)
             if rs == 1 and replay is None and len(w.yearly) == 2500:
                 twin = persist.from_bytes(persist.to_bytes(w), w.planet)
-                engine.step(w, 40)
+                for _ in range(10):                  # probed every year, as in the main loop (review 030)
+                    engine.step(w, 4)
+                    probe_year(w, pr)
                 engine.step(twin, 40)
                 replay = persist.digest(w) == persist.digest(twin)
                 del twin
-                for _ in range(10):
-                    probe_year(w, pr)
             if time.time() > t_end:
                 save_planet(cp, w.planet)
                 tmp = cp.with_suffix(".tmp")

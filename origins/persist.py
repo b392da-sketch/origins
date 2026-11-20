@@ -233,6 +233,14 @@ def from_bytes(data: bytes, planet=None) -> World:
     for k in _disease.ARRAYS:
         if k in arrays and np.asarray(arrays[k]).size:
             setattr(w, k, np.array(arrays[k], dtype=getattr(w, k).dtype))
+    if w.diseases and any(k.startswith("ob_") for k in w.counts):
+        # a save made with named diseases before review 031 wrote their G1 counts under M1's keys: they cannot be
+        # told apart, so they are set aside, not reported as M1's (Codex review 031, finding 4)
+        for k in [k for k in w.counts if k.startswith("ob_")]:
+            w.counts["unattributed_" + k] = w.counts.pop(k)
+    if "dz_seen" in arrays and "dz_last" not in arrays and np.asarray(arrays["dz_seen"]).size:
+        seen = np.asarray(arrays["dz_seen"], dtype=bool)          # review-028 saves: met, date unknown (review 030)
+        w.dz_last = np.where(seen, -2, -1).astype(np.int32)
     from .sim import customs as _customs
     _customs.widen(w)                                    # "response to epidemics" (M4a) for older saves
     from .sim import land as _land                       # the land answers back (M4a): older saves start untouched

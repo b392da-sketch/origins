@@ -899,7 +899,7 @@ Ben's decisions (20 November 2026): the full model now; flight and isolation now
 
 - **No herd diseases on planet 3 here:** no animal is domesticated by year 10,000 (cattle only cultivated), so none can arise. A GitHub trial runs the four herding histories of G3 with diseases on and off.
 - **Before herds, epidemics are rare and short-lived,** as Black (1975) found among isolated peoples. Everyday illness stays in the background deaths ("accident or illness", 37% of all deaths in this history). M1's carried-forward item (outbreaks about 9% of deaths) is answered by this design rather than matched.
-- **Hunger deaths rise** (about 4.7% to 10.7%) when epidemics no longer thin crowded farming regions. Whether that is too much is a question for the gate.
+- **Hunger's share of deaths rises** (about 4.7% to 10.7%). *The reading that this is because epidemics no longer thin crowded regions is withdrawn (Codex review 028): the change in causes also changes both denominators, and the arms follow different population paths.*
 - **Diseases kill adults too:** about 28–33% of disease deaths were children under 15. Lasting immunity in adults builds up only where a disease keeps returning.
 
 ### After Codex review 023 (20 November 2026)
@@ -952,3 +952,85 @@ Both change records only. Codex found the land and hunger accounts otherwise sou
 - **The rounding tolerance** (1e-9 of a band's losses) can also hide a genuine remainder that small. That is negligible as food; it affects only the note and the tally.
 
 Records only.
+
+### After Codex review 028 (20 November 2026)
+
+All six findings confirmed (`reviews/responses/028-diseases-from-animals-claude.md`; tests `tests/test_disease.py::Review028`):
+- **Immunity of joining people** is weighted by their share of the band after the move. It was counted twice before.
+- **Deaths and immunity by cohort** (`disease.cohort`): the ill, the dead (never more than the ill), and immunity among survivors.
+- **Pregnancies after deaths:** pending pregnancies are kept in proportion to surviving women of 15–49, rounded to whole counts, on every path that removes people from groups: ordinary deaths, hazards, war and diseases. This changes births slightly in every history.
+- **G1's contact test** is counted in matched units, disease by disease.
+- **A per-cell record of every epidemic** (`w.dz_log`; in the G3 record). It holds how the disease came and from which cell, the people, the share who could catch it, whether the bands there had never met it (`dz_seen`), and the cell's deaths. G1's hazard watch follows named diseases cell by cell from it.
+- **The knock-out** (`DISEASE` False) is a switch within the current code, not a replay of pre-disease histories: the epidemic-response custom is still there and changes other draws.
+
+**A further error of mine, caught in trial:** the first version kept fractional pregnancies, which a later group split drove negative (`n < 0` in births). Both local trials and the first GitHub rerun crashed on it. Pregnancies are now whole counts, with a test.
+
+**Ben's decision (20 November 2026): G4a check 10 marks where diseases last.** Diseases that keep circulating for years are found mostly where herds and dense populations meet. Wild and small-group starts happen but fade. Deaths after first contact are heavier among peoples who had never met the disease. The specification is updated.
+
+**Trial** (planet 3, year-9,700 save, 300 years; tunable starting values; no invariant failures; one history; the histories diverge from the trials above):
+
+| Run | People at the end | Deaths from disease | From hunger |
+|---|---|---|---|
+| Diseases off (M1 outbreaks) | 326,491 | 18.7% | 4.5% |
+| Diseases on | 358,896 | 317 deaths | 10.7% |
+
+With diseases on, one wild disease appeared (k about 258,000) and circulated for 3 years on one cell. The GitHub herd pair runs on one commit (`66dea8c`) in three herding histories: runs 44688553058 (on) and 44688555405 (off).
+
+### After Codex review 029 (20 November 2026)
+
+All six findings confirmed and fixed (`reviews/responses/029-review-028-fixes-claude.md`; tests `tests/test_disease.py::Review029`):
+- **Pregnancies move with the women** who split off or transfer, and are capped at the number of women of 15–49, also after maternal deaths.
+- **Adults' immunity among survivors counts the deaths of people of 50 and over,** at a fixed share of adults (`DZ_OLD_SHARE` 0.15, a starting value).
+- **Each epidemic in a year starts from the people left by the earlier ones.** G1's hazard watch follows named epidemics on the cell alone.
+- **G1 check 9 counts arrivals by contact only.** Returns from the animals count among the other units; new diseases are counted apart (`dz_new_*`).
+- **For check 10:**
+  - each band keeps the last year each disease circulated among it (`dz_last`);
+  - each row of the per-cell record holds the people and deaths of bands that had and had never met the disease, the years since they last had it, the herders on the cell, and the people on the cell and around it;
+  - the G3 record samples whole diseases above 100,000 rows.
+
+**Trial** (planet 3, year-9,700 save, 300 years; tunable starting values; no invariant failures; one history):
+
+| Run | People at the end | Deaths from disease | From hunger |
+|---|---|---|---|
+| Diseases off (M1 outbreaks) | 329,166 | 19.6% | 4.4% |
+| Diseases on | 357,507 | 328 deaths | 10.6% |
+
+With diseases on, one wild disease circulated for 4 years on up to 9 cells. The full suite passes (222 tests).
+
+### After Codex review 030 (20 November 2026)
+
+All seven findings confirmed and fixed (`reviews/responses/030-review-029-fixes-claude.md`; tests `tests/test_disease.py::Review030`):
+- **Pregnancies:** moving women are drawn among the women of childbearing age, pregnant or not; conceptions are capped at the women not already pregnant.
+- **Older saves:** their epidemic rows are upgraded on loading (`upgrade_log`), and their exposure records keep "met at an unknown time".
+- **G1:** it probes every year in its replay check. Named diseases count under their own keys, are reported apart from M1's outbreaks, and pass only with opportunities on both sides.
+- **The G3 record** keeps every arrival row plus every unbroken spell of a disease on a cell, so nothing is sampled away.
+
+**Ben's decisions (20 November 2026):**
+- **First contact** is a disease arriving by contact from a place where it has circulated unbroken for at least a generation (`DZ_GENERATION` 25 years), into bands that had never met it. `dz_since` records when circulation began on each cell, and each per-cell row splits people and deaths into never met, met within a generation, and met longer ago.
+- **The review loop:** one more short review of these fixes; anything further goes into the comprehensive pre-gate review.
+
+**Trial** (planet 3, year-9,700 save, 300 years; tunable starting values; no invariant failures; one history):
+
+| Run | People at the end | Deaths from disease | From hunger |
+|---|---|---|---|
+| Diseases off (M1 outbreaks) | 326,646 | 18.9% | 4.6% |
+| Diseases on | 359,766 | 2,971 deaths (0.1%) | 11.0% |
+
+With diseases on, five wild diseases appeared and circulated for 1–18 years on 1–6 cells each, then died out. The full suite passes (227 tests).
+
+### After Codex review 031 (20 November 2026)
+
+Four findings, fixed without a separate review (Ben's decision: anything after review 031 goes into the comprehensive pre-gate review, which is to verify them):
+- **Spells:** a disease's spell on a cell restarts when it comes back after dying out there.
+- **G3 spells** keep herders and nearby people year by year.
+- **G1:** it dates named epidemics at the first probe after them, so the one-year follow-up is a year later.
+- **Older saves:** named-disease counts under M1's keys are set aside as unattributed.
+
+Records and gate code only; the simulation is unchanged.
+
+**Open for the comprehensive review** (Codex's ranking):
+- findings 1 and 2 block sign-off on check 10;
+- finding 3 blocks G1's named-outbreak recovery results;
+- finding 4 blocks mixed-version checkpoints for G1 check 9.
+
+**Codex's reading of the trials:** they give examples of short wild-origin circulation. Neither a comparison of persistence in dense herding areas nor a qualifying first-contact comparison exists yet. Both need the gate's histories with herds.
