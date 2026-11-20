@@ -858,3 +858,11 @@ All five findings confirmed and fixed (`reviews/responses/024-review-023-fixes-c
 - 80,344 band-seasons were short of food. 67,259 of them (84%) had a linked land loss: wild food only 43,044, crops only 1, both 24,214.
 - Linked losses came to 45% of all food lacked.
 - 1,594 of 7,732 `land_hunger` events also record unlinked losses.
+
+### After Codex review 025 (20 November 2026)
+
+Both findings confirmed and fixed (`reviews/responses/025-review-024-fixes-claude.md`; tests `tests/test_land.py::Review025`):
+- an example event's season loss is now shared on a partial move, so a later larger loss can replace it;
+- a rounding remainder between the crop loss and its parts no longer counts as unlinked.
+
+Both change records only. Codex found the land and hunger accounts otherwise sound: parts sum to the loss, the exposure count matches the events under every knock-out of the yield shares, and replay is exact.

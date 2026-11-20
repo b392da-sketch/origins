@@ -888,5 +888,37 @@ class Review024(unittest.TestCase):
             P.GAME_SHARE, P.GAME_FAST_SHARE = old
 
 
+
+class Review025(unittest.TestCase):
+    """Codex review 025."""
+
+    def test_a_partial_move_shares_the_examples_season_loss(self):
+        w, _ = world()
+        a, d = w.living_bands()[0], w.living_bands()[1]
+        js = land.KINDS.index("soil")
+        e2, e778 = w.event("land_soil", cell=2), w.event("land_soil", cell=778)
+        w.land_flags[2, js], w.land_event[2, js] = True, e2
+        w.land_flags[778, js], w.land_event[778, js] = True, e778
+        land.note_crop_loss(w, np.array([a.id]), np.array([100.0]), np.array([2]), (np.array([100.0]), np.array([0.0])))
+        land.move_crop_loss(w, a.id, d.id, 0.1)
+        self.assertAlmostEqual(float(w.land_acc_ktop[d.id, 0]), 10.0)
+        self.assertAlmostEqual(float(w.land_acc_ktop[a.id, 0]), 90.0)
+        w.t += (P.HARVEST_QUARTER - w.quarter) % P.TICKS_PER_YEAR or P.TICKS_PER_YEAR
+        land.note_crop_loss(w, np.array([d.id]), np.array([20.0]), np.array([778]), (np.array([20.0]), np.array([0.0])))
+        self.assertEqual(int(w.land_crop_ev[d.id, 0]), e778)          # the larger share now
+
+    def test_rounding_between_the_total_and_its_parts_is_not_unlinked(self):
+        w, c = world()
+        b = w.living_bands()[0]
+        land._band_rows(w, b.id + 1)
+        es = w.event("land_soil", cell=c)
+        w.land_lost_crop[b.id] = 68.05714285714286 / 4
+        w.land_crop_k[b.id] = [68.05714285714285 / 4, 0.0]
+        w.land_crop_ev[b.id] = [es, -1]
+        land.note_account(w, np.array([b.id]), np.array([30.0]), np.array([0.0]))
+        e = land.hunger_event(w, b.id, c)
+        self.assertEqual(w.events[e]["data"]["unlinked"], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()
