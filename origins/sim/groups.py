@@ -211,6 +211,32 @@ def keep_pregnancies(G, rows, before):
     ratio = np.where(np.asarray(before) > 0, after / np.maximum(before, 1e-12), 0.0)
     # whole pregnancies only: splits and transfers draw them as counts (a fraction once went negative there)
     G.preg[rows] = np.rint(G.preg[rows] * np.clip(ratio, 0.0, 1.0)[:, None])
+    cap_pregnancies(G, rows)
+
+
+def cap_pregnancies(G, rows):
+    """No more pending pregnancies than women of childbearing age (Codex review 029, finding 3): the furthest-due
+    are dropped first."""
+    rows = np.atleast_1d(rows)
+    wn = np.floor(women(G, rows) + 1e-9)
+    tot = G.preg[rows].sum(axis=1)
+    for r, n, t in zip(rows[tot > wn].tolist(), wn[tot > wn].tolist(), tot[tot > wn].tolist()):
+        extra = t - n
+        for k in range(G.preg.shape[1] - 1, -1, -1):
+            take = min(extra, G.preg[r, k])
+            G.preg[r, k] -= take
+            extra -= take
+            if extra <= 0:
+                break
+
+
+def _split_pregnancies(G, g, hF, rng):
+    """Pregnancies go with the women who carry them (Codex review 029, finding 1): each pending pregnancy moves
+    with the share of the group's women of childbearing age who move."""
+    w_all = float(G.F[g, 15:50].sum())
+    w_move = float(hF[15:50].sum())
+    p = (w_move / w_all) if w_all > 0 else 0.0
+    return rng.binomial(np.rint(G.preg[g]).astype(np.int64), min(max(p, 0.0), 1.0))
 
 
 def _hazards(cond_child, cond_rest):
@@ -311,6 +337,7 @@ def births(w):
                 w.counts["deaths"] += 1
                 w.accum["deaths_by_cause"][C["childbirth"]] += 1
                 w.accum["deaths"][int(age_group(np.array([a + 0.5]))[0])] += 1
+        cap_pregnancies(G, rows[maternal > 0])           # a mother who died carries no later pregnancy (review 029)
     # conceptions
     F = G.F[rows]
     women = F[:, 15:50]
@@ -384,7 +411,7 @@ def split(w, b, target_cell, rng):
     g = b.group
     hF = rng.binomial(np.rint(G.F[g]).astype(np.int64), 0.5)
     hM = rng.binomial(np.rint(G.M[g]).astype(np.int64), 0.5)
-    hP = rng.binomial(np.rint(G.preg[g]).astype(np.int64), 0.5)
+    hP = _split_pregnancies(G, g, hF, rng)
     moved = int(hF.sum() + hM.sum())
     if moved == 0 or moved == G.total(g):
         return None
@@ -406,7 +433,7 @@ def transfer(w, b, dst, rng) -> int:
     g, d = b.group, dst.group
     hF = rng.binomial(np.rint(G.F[g]).astype(np.int64), 0.5)
     hM = rng.binomial(np.rint(G.M[g]).astype(np.int64), 0.5)
-    hP = rng.binomial(np.rint(G.preg[g]).astype(np.int64), 0.5)
+    hP = _split_pregnancies(G, g, hF, rng)
     moved = int(hF.sum() + hM.sum())
     if moved == 0 or moved == G.total(g):
         return 0

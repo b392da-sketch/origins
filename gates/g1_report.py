@@ -242,7 +242,8 @@ def report(out: Path, years: int | None = None) -> str:
     ok9 = cy > 0 and rc >= 10 * max(ro, 1e-12)
     checks.append(("9. Outbreaks spread by contact", ok9,
                    f"yearly chance a peopled area falls ill: {rc:.1%} when in contact with an outbreak ({ci:,} of {cy:,} "
-                   f"area-years) vs {ro:.3%} otherwise ({ns:,} new outbreaks in {oy:,} area-years): "
+                   f"area-years; with named diseases, reached by contact, per cell and disease) vs {ro:.3%} otherwise "
+                   f"({ns:,} starts in {oy:,} area-years; with named diseases, from their animals): "
                    f"{rc / max(ro, 1e-12):,.0f} times higher (pass mark 10×)"))
 
     # 10 groups vs individuals at the food limit
