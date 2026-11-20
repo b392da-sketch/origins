@@ -194,11 +194,11 @@ class Decisions14Nov(unittest.TestCase):
 
     def test_few_captives_carry_a_cruder_skill(self):
         w, a, b = _two_bands()
-        k = T.INDEX["writing"]                          # needs 60 practitioners
-        w.tech[a.id, k] = 0.9
-        T.combine(w, a, b, "capture", 30)
+        k = T.INDEX["bronze"]                           # needs 80 practitioners (writing, the earlier example, now
+        w.tech[a.id, k] = 0.9                           # goes only with scribes: Ben, 21 November 2026)
+        T.combine(w, a, b, "capture", 40)
         self.assertAlmostEqual(float(w.tech[b.id, k]), 0.45, places=5)
-        T.combine(w, a, b, "capture", 3)                # too few to carry anything usable: nothing changes
+        T.combine(w, a, b, "capture", 4)                # too few to carry anything usable: nothing changes
         self.assertAlmostEqual(float(w.tech[b.id, k]), 0.45, places=5)
 
     def test_records_survive_combining_and_daughters(self):
@@ -385,6 +385,7 @@ class Effects(unittest.TestCase):
         w, a = self._band()
         w.tech[a.id, T.INDEX["tallies"]] = 1.0
         w.tech[a.id, T.INDEX["writing"]] = 1.0
+        T._scribes(w)[a.id] = 30.0                      # writing is practised only where scribes are kept (21 Nov 2026)
         w._tech_eff = None
         self.assertAlmostEqual(T.capacity_multiplier(w, a.id),
                                1 + P.TECH_EFFECT["tallies"] + P.TECH_EFFECT["writing"], places=5)

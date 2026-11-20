@@ -56,6 +56,10 @@ print("writing lost", sum(1 for i in range(n0, len(w.events)) if w.events[i]["ki
       "adopted", sum(1 for i in range(n0, len(w.events)) if w.events[i]["kind"] == "technique_adopted" and w.events[i]["data"].get("technique") == "writing"))
 ids = np.array([b.id for b in live])
 wr = (w.tech[ids, T.WRITING] > 0).sum(); ta = (w.tech[ids, T.INDEX["tallies"]] > 0).sum()
+cells_ = np.array([b.cell for b in live])
+prac = int(((w.tech[ids, T.WRITING] > 0) & T._possible(w, ids, cells_)[:, T.WRITING]).sum())
+print("bands practising writing", prac, "scribes>=1", int((T._scribes(w)[ids] >= 1).sum()),
+      "tier 2+ polities", sum(1 for p in w.polities.values() if p.ended < 0 and p.tier >= 2))
 print("bands writing", int(wr), "with tallies", int(ta), "of", len(ids))
 caps = [(p.id, T.capacity_multiplier(w, p.seat)) for p in w.polities.values() if p.ended < 0]
 print("polities", len(caps), "capacity multipliers", sorted(round(c, 2) for _, c in caps)[-10:])

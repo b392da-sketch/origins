@@ -191,6 +191,8 @@ def ensure(w, band_id: int, parent: int):
         w.tech = _grow(w.tech, band_id)
         w.tech_record = _grow(w.tech_record, band_id)
     w.tech[band_id] = w.tech[parent] if parent >= 0 else 0.0            # a daughter knows what her mother knew
+    if SCRIBAL and getattr(P, "TECH_SCRIBES", True):
+        w.tech[band_id, SCRIBAL] = 0.0                                   # ... except writing: the scribes stay
     if getattr(w, "tech_prev_prac", None) is not None:                  # ... and what was practised on imports
         _prev_arrays(w)
         w.tech_prev_prac[band_id] = w.tech_prev_prac[parent] if parent >= 0 else False
@@ -966,6 +968,8 @@ def combine(w, src, dst, route: str, carriers: float | None = None):
     if carriers is not None:
         a = a * np.clip(carriers / keep, 0.0, 1.0)
     a = np.where(a >= P.TECH_LOST, a, 0.0)                              # a fragment too small to take hold
+    if SCRIBAL and getattr(P, "TECH_SCRIBES", True) and route not in ("combined", "merge"):
+        a[SCRIBAL] = 0.0              # writing goes only with whole peoples and their scribes, not with migrants
     d = w.tech[dst.id].astype(float)
     gained = (a > 0) & (d <= 0)
     w.tech[dst.id] = np.maximum(a, d).astype(np.float32)

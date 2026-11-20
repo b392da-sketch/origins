@@ -234,8 +234,12 @@ class Writing(unittest.TestCase):
         sc[a.id], sc[b.id] = 10.0, 5.0
         T.combine(w, b, a, "merge")
         self.assertEqual((float(sc[a.id]), float(sc[b.id])), (15.0, 0.0))
+        w.tech[a.id, T.WRITING] = 0.7
         d = w.new_band(a.cell, parent=a.id)
         self.assertEqual(float(T._scribes(w)[d.id]), 0.0)
+        self.assertEqual(float(w.tech[d.id, T.WRITING]), 0.0)          # writing stays with the scribes
+        T.combine(w, a, d, "migration", 1000)                        # migrants do not carry it either
+        self.assertEqual(float(w.tech[d.id, T.WRITING]), 0.0)
         w2 = persist.from_bytes(persist.to_bytes(w), w.planet)
         self.assertEqual(persist.digest(w), persist.digest(w2))
         self.assertEqual(float(T._scribes(w2)[a.id]), 15.0)
