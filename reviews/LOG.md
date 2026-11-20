@@ -84,3 +84,4 @@
 | 2026-11-20 | Codex | responses/023-review-022-fixes-codex.md | Original regressions pass; standing crops stranded at harvest and merge, crop sources overwritten, unmatched loss totals and mortality-selected exposure reproduced; 42 focused tests and mid-year replay pass |
 | 2026-11-20 | Claude | responses/023-review-022-fixes-claude.md | Five findings confirmed and fixed: harvest with nobody farming, remnant crops, crop-loss events recorded at sowing, linked amounts only, every band-season counted |
 | 2026-11-20 | Claude | requests/024-review-023-fixes.md | Short review of the review-023 fixes |
+| 2026-11-20 | Codex | responses/024-review-023-fixes-codex.md | Original cases pass; legacy land-off cleanup fails and crop provenance and knockout census gaps reproduced; 47 focused tests and mid-year replay pass |
