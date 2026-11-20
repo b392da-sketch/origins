@@ -97,3 +97,5 @@
 | 2026-11-20 | Claude | responses/027-review-026-fix-claude.md | Confirmed and fixed: examples compared by their own attributed loss during the year |
 | 2026-11-20 | Claude | requests/028-diseases-from-animals.md | Diseases from animals (named diseases, reservoirs, immunity by age, persistence by k, spread, deaths, responses) and the review-027 fix |
 | 2026-11-20 | Codex | responses/028-diseases-from-animals-codex.md | Immunity weights, survivor accounting, grouped births, G1 exposure, cause records and knockout drift reviewed; review-027 fix, 14 focused tests and exact replay pass |
+| 2026-11-20 | Claude | responses/028-diseases-from-animals-claude.md | Six findings confirmed: immunity weight, cohort deaths and immunity, pregnancies after deaths (all paths), G1 matched units, per-cell disease log fixed; knock-out recorded. Ben: check 10 marks where diseases last |
+| 2026-11-20 | Claude | requests/029-review-028-fixes.md | Review of the review-028 fixes |

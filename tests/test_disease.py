@@ -175,5 +175,80 @@ class Disease(unittest.TestCase):
             P.DISEASE = old
 
 
+
+class Review028(unittest.TestCase):
+    """Codex review 028."""
+
+    def test_joining_people_are_counted_once_in_the_weight(self):
+        w = world()
+        a, b = w.living_bands()[0], w.living_bands()[1]
+        d = add(w, a.cell, k=1e9, attack=0.9, cfr=0.0)
+        w.dz_imm[a.id, d] = 0.0
+        w.dz_imm[b.id, d] = 1.0
+        mb = w.members(b.id)
+        na, nb_ = len(w.members(a.id)), len(mb)
+        w.people.band[mb] = a.id                                        # the people move first, as in bands.py
+        w.people_changed()
+        disease.combine(w, b, a, nb_)
+        self.assertAlmostEqual(float(w.dz_imm[a.id, d, disease.ADULT]), nb_ / (na + nb_), places=5)
+
+    def test_deaths_never_exceed_cases_and_immunity_is_among_survivors(self):
+        ill, dead, imm = disease.cohort(np.array([0.5]), np.array([0.2]), np.array([0.2]))
+        self.assertAlmostEqual(float(ill[0]), 0.4)
+        self.assertAlmostEqual(float(dead[0]), 0.08)
+        self.assertAlmostEqual(float(imm[0]), 0.52 / 0.92, places=6)    # Codex's 0.5652, not 0.60
+        ill, dead, _ = disease.cohort(np.array([0.5]), np.array([0.0]), np.array([2.0]))
+        self.assertAlmostEqual(float(dead[0]), 0.5)                     # not 1.0
+
+    def test_a_group_with_no_women_left_delivers_no_one(self):
+        from origins.sim import groups
+        w = world()
+        b = w.living_bands()[0]
+        groups.fold(w, b)
+        G = w.groups
+        G.preg[b.group, 0] = 1.0
+        disease._kill(w, w.rng["disease"], [b], np.array([b.id]), np.array([1.0]), np.array([1.0]),
+                      np.array([1.0]), -1)
+        self.assertEqual(float(G.total(b.group)), 0.0)
+        n0 = w.counts["births"]
+        groups.births(w)
+        self.assertEqual(w.counts["births"], n0)
+
+    def test_kept_pregnancies_stay_whole(self):
+        from origins.sim import groups
+        w = world()
+        b = w.living_bands()[0]
+        groups.fold(w, b)
+        G = w.groups
+        g = b.group
+        G.preg[g, :] = 1.0
+        before = groups.women(G, np.array([g]))
+        G.F[g, 15:50] = np.floor(G.F[g, 15:50] * 0.6)                  # some women die
+        groups.keep_pregnancies(G, np.array([g]), before)
+        self.assertTrue(np.all(G.preg[g] == np.rint(G.preg[g])))
+        self.assertTrue(np.all(G.preg[g] >= 0))
+        groups.split(w, b, b.cell, w.rng["fission"])
+        self.assertTrue(np.all(G.preg[g] >= 0))
+
+    def test_contact_counts_are_in_matched_units_and_cells_are_logged(self):
+        w = world()
+        b = w.living_bands()[0]
+        d = add(w, b.cell, k=1e-9, attack=0.9, cfr=0.0)              # keeps going: a source next year
+        old = P.DZ_SPREAD
+        P.DZ_SPREAD = 1e9
+        try:
+            c0 = dict(w.counts)
+            first_year(w)
+        finally:
+            P.DZ_SPREAD = old
+        cy = w.counts["ob_contact_cell_years"] - c0.get("ob_contact_cell_years", 0)
+        ci = w.counts["ob_contact_infections"] - c0.get("ob_contact_infections", 0)
+        self.assertGreater(ci, 0)
+        self.assertLessEqual(ci, cy)                                     # arrivals among the cells counted
+        rows = [r for r in w.dz_log if r[1] == d]
+        self.assertTrue(any(r[3] == 2 and r[4] >= 0 for r in rows))     # a contact row names its source cell
+        self.assertTrue(any(r[2] == b.cell and r[7] for r in rows))     # the first cell had never met it
+
+
 if __name__ == "__main__":
     unittest.main()
