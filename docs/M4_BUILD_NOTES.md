@@ -1108,3 +1108,54 @@ Independent check, done before ChatGPT's (the four questions are in the Notion r
 - Wang, F., Wang, G., Hartmann, J. F., & Luo, W. (2011). Sinification of Zhuang place names in Guangxi, China: a GIS-based spatial analysis approach. *Transactions of the Institute of British Geographers*. doi:10.1111/j.1475-5661.2011.00471.x.
 - Zimansky, P. (1993). Review of D. Schmandt-Besserat, *Before Writing*. *Journal of Field Archaeology*, 20(4), 513–517.
 - Zinn, K. (2013). Literacy, Pharaonic Egypt. In R. S. Bagnall et al. (eds), *The Encyclopedia of Ancient History*, 4100–4104. Wiley-Blackwell.
+
+### Writing and place names: comparing the two literature checks (20 November 2026)
+
+ChatGPT's independent check: 22 sources in Notion, all Suggested; its written summary is not yet in. Claude verified the ones the design would rest on:
+- **Tent 2017:** read in full. Indigenous-derived names are 28.2% of Australia's gazetteer, 42.3% of New Zealand's and 96.9% of Fiji's (Table 1, p. 206, not p. 207 as given).
+- **Kelley, Cartolano & Ferrara 2025:** read in full.
+- **Zair 2023:** chapter 1 read.
+- **Blair & Tent 2021:** abstract read.
+- **Tent & Blair 2011:** found by both checks.
+
+Several others could not be read here: the DOI links were blocked, or the page showed only a stub. These include Nissen 2016 on Uruk's size, Regulski 2016 on Egyptian literacy, Waal 2024 on the Aegean gap, Strandberg 2016 on river names, Urton 2017 on khipu, the Olmec Cascajal Block papers, and Veldhuis on Mesopotamian schools. They stay Suggested and are not used.
+
+**Both checks found:**
+- early writing grew from administration;
+- the token theory is contested: Zimansky 1993 (Claude), and Kelley et al. 2025 (ChatGPT), who find seal motifs as precursors of some signs and say "token-to-sign comparisons, numerical notations aside, are rarely demonstrable";
+- literacy in early writing societies was a few per cent;
+- khipu as records without a script;
+- Tent & Blair's typology of names;
+- river names as the most persistent layer, though neither check found a quantified cross-cultural test.
+
+**Only ChatGPT found:**
+- **Names under colonisation** (Tent 2017): where settlers came in numbers, few native names remain; where they did not, nearly all do. This is the contact-type effect the build needs, though the figures are modern gazetteer shares, not survival rates.
+- **Roman literacy:** Harris's estimates of at most 15% in Italy and 5–10% in the western provinces, called "guesstimates" (Zair 2023).
+- **Unverified:** Uruk at about 250 ha (perhaps 25,000–50,000 people) when proto-cuneiform appeared (Nissen 2016); the Olmec Cascajal Block, about 900 BC; Meroitic script adapted from Egyptian.
+
+**Only Claude found:**
+- the Seshat scale threshold (Shin et al. 2020);
+- the utilitarian origins and survival bias of early writing (Postgate et al. 1995);
+- about 30 scribes at Pylos, and a palace monopoly on writing (Palaima 2004);
+- scripts dying when restricted (Houston et al. 2003);
+- major places keeping their names more than minor ones (Hall 2012);
+- Zhuang names surviving in remote uplands (Wang et al. 2011);
+- the 500-name repertoire and the link between name density and population density (Hunn 1994), and Sahaptin's descriptive names with none after persons (Hunn 1996).
+
+**Disagreements:** none.
+
+**Corrections:**
+- Tent 2017's table page (206, not 207);
+- Veldhuis's article is dated 2010 on the publisher's page, not 2015;
+- ChatGPT itself flagged conflicting page ranges for Woods 2010.
+
+**Still open:**
+- how long scribal training took (neither check settled it);
+- a measured rate of keeping versus replacing names by kind of contact. The nearest evidence is Hall's major-versus-minor places, Wang's remoteness, and Tent's settler-versus-non-settler gazetteers.
+
+#### Sources (added, verified)
+
+- Kelley, K., Cartolano, M., & Ferrara, S. (2025). Seals and signs: tracing the origins of writing in ancient South-west Asia. *Antiquity*, 99(403), 64–82. doi:10.15184/aqy.2024.165.
+- Tent, J. (2017). Indigenous toponyms in the Antipodes: a gazetteer-based study. *Names*, 65(4), 204–214. doi:10.1080/00277738.2017.1369743.
+- Zair, N. (2023). Introduction. In *Orthographic Traditions and the Sub-elite in the Roman Empire*, 1–44. Cambridge University Press. doi:10.1017/9781009327633.002.
+- Blair, D., & Tent, J. (2021). A revised typology of place-naming. *Names*, 69(4), 30–47. doi:10.5195/names.2021.2260. (Abstract read.)
