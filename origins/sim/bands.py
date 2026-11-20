@@ -210,6 +210,9 @@ def fission_and_merge(w):
         sizes[b.id] = 0
         o.store += b.store
         b.store = 0.0
+        w.crop_store[o.id] += w.crop_store[b.id]       # and the crops they sowed (Codex review 023, finding 2)
+        w.crop_store[b.id] = 0.0
+        land.move_crop_loss(w, b.id, o.id, 1.0)
         w.event("merge", cell=o.cell, band=b.id,
                 causes=[{"note": f"{w.band_name(b)} shrank to {s} people (below {P.MERGE_SIZE}) "
                                  f"and joined {w.band_name(o)}"}], into=o.id, size=int(s))
@@ -317,6 +320,9 @@ def end_band(w, b, why, log=True):
     w.bands_changed()
     b.ended = w.t
     trade.band_ended(w, b.id)
+    if getattr(w, "crop_store", None) is not None and b.id < len(w.crop_store):
+        w.crop_store[b.id] = 0.0                       # fields nobody is left to harvest (not yet counted as food)
+    land.drop_crop_loss(w, b.id)
     if b.store:
         w.ledger["spoiled"] += b.store
         b.store = 0.0

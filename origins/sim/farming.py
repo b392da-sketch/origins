@@ -453,6 +453,10 @@ def season_food_live(w, ids, cells, effort):
     if not share.any():
         from . import land
         land.note_crop_loss(w, ids, np.zeros(L))       # the harvest still turns the year (Codex review 022, finding 3)
+        if w.quarter == P.HARVEST_QUARTER:             # ... and crops already grown are still brought in (review 023)
+            food = w.crop_store[ids].copy()
+            w.crop_store[ids] = 0.0
+            w.ledger["farmed"] = w.ledger.get("farmed", 0.0) + float(food.sum())
         return forage_eff, food
     _, suit = land_tables(w)
     farm_eff = effort * share
