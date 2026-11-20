@@ -359,12 +359,21 @@ def cell_places(w, c: int) -> list:
     idx = places._index(w)
     keys = [(feats[f][0], feats[f][1]) for f in near.get(int(c), ())] + [("settlement", int(c))]
     speech = _local_speech(w)
+    here = speech.get(int(c), {})
     out = []
     for k in keys:
         i = idx.get(k)
         if i is None or not w.places[i]["layers"]:
             continue
-        name, _lid, _lived = _local_name(w, w.places[i], speech)
+        p = w.places[i]
+        name = None
+        for lid in sorted(here, key=lambda x: (-here[x], x)):   # in the speech of the people of this cell
+            layer = places.name_in(w, p, lid)                     # (Codex review 033, finding 4)
+            if layer is not None:
+                name = places.show(places.current(w, layer, lid))
+                break
+        if name is None:
+            name, _lid, _lived = _local_name(w, p, speech)
         out.append({"id": i, "kind": k[0], "name": name})
     return out
 
