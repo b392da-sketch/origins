@@ -596,7 +596,8 @@ def yearly(w):
     x (TECH_EASY_KEEP / keep) ** TECH_DIFFICULTY: harder techniques (more practitioners needed) are rarer inventions.
     A new invention is crude (TECH_INVENT_LEVEL) and improves only with practice (keep_and_spread).
 
-    Connected people are everyone within two rings of the band's cell (contact; Henrich 2004; Kline & Boyd 2010).
+    Connected people are everyone within two rings of the band's cell (contact; Henrich 2004; Kline & Boyd 2010), plus,
+    for a seat on a traders' road, the people around the seat at its far end (connected_people).
     TECH_POP_EXPONENT 0 is the knock-out with no population effect (M4 specification section 3.2, check 6)."""
     if not getattr(P, "TECHNOLOGY", False):
         return
@@ -608,7 +609,7 @@ def yearly(w):
     sizes = np.asarray(w.live_sizes(), dtype=float)
     cells = np.array([b.cell for b in live])
     cell_pop = np.bincount(cells, weights=sizes, minlength=w.planet.n)
-    connected = _reach(w, cells, cell_pop[:, None])[:, 0]
+    connected = connected_people(w, ids, cells, cell_pop)
     _cut_off(w, live, ids, cells)
     possible = _possible(w, ids, cells) & (w.tech[ids] <= 0)
     needs = _needs(w, live, ids, cells, sizes, cell_pop)
@@ -780,6 +781,33 @@ def skilled(w, live, ids) -> np.ndarray:
     specialist, each person counted once (Ben, 14 November 2026)."""
     spec = np.asarray(w.spec[ids], dtype=float) if hasattr(w, "spec") else np.zeros(len(ids))
     return P.TECH_PRACTISE_SHARE * np.maximum(_adults(w, live, ids) - spec, 0.0) + spec
+
+
+def connected_people(w, ids, cells, cell_pop) -> np.ndarray:
+    """People within reach for invention: everyone within two rings of the band's cell, plus, for each traders' road
+    travelled last year (w.trade_links), TECH_TRADE_REACH of the people within two rings of the seat at its far end,
+    unless that seat is itself within the two rings. Trade raises the connected population (M4 specification
+    sections 3.2 and 4.2; Henrich 2004; Powell, Shennan & Thomas 2009; built after Codex review 034, Ben, 21 November
+    2026). Partners already lie within two rings, so add nothing here. The gate's census uses this same function."""
+    ids = np.asarray(ids)
+    base = _reach(w, cells, cell_pop[:, None])[:, 0]
+    out = base.copy()
+    links = getattr(w, "trade_links", None) or []
+    share = float(getattr(P, "TECH_TRADE_REACH", 0.0))
+    if not links or share <= 0 or not getattr(P, "TRADE", False):
+        return out
+    pos = {int(b): i for i, b in enumerate(ids.tolist())}
+    from .language import ring2
+    r2 = ring2(w)
+    for a, b in links:
+        for x, y in ((int(a), int(b)), (int(b), int(a))):
+            i, j = pos.get(x), pos.get(y)
+            if i is None or j is None:
+                continue
+            if cells[j] in set(int(c) for c in r2[cells[i]] if c >= 0) or cells[j] == cells[i]:
+                continue                                  # already within reach
+            out[i] += share * base[j]
+    return out
 
 
 def keep_needed() -> np.ndarray:

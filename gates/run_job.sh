@@ -14,7 +14,7 @@ CKPT=${CKPT:-/tmp/ckpt}
 BUDGET=${BUDGET:-16200}          # 4.5 hours, leaving time to save a large world before the 5h50m limit
 rm -rf gates/results_$GATE          # keep only this job's own results (the repository holds earlier ones)
 mkdir -p "$CKPT"
-TAG=""; [ "$KIND" = run_nostore ] && TAG="_nostore"; [ "$KIND" = run_noinst ] && TAG="_noinst"
+TAG=""; case "$KIND" in run_*) TAG="_${KIND#run_}" ;; esac     # run_nostore -> _nostore; G4a arms: run_nopop -> _nopop
 if [ -n "$(ls -A "$CKPT" 2>/dev/null)" ]; then
   # a later stage: continue only the histories that still have a checkpoint (the others finished earlier)
   KEEP=""
@@ -26,8 +26,13 @@ if [ -n "$(ls -A "$CKPT" 2>/dev/null)" ]; then
   [ -n "$JOBS" ] || { echo "nothing to continue"; mkdir -p out; exit 0; }
 fi
 case "$KIND" in
-  run|run_nostore|run_noinst)
-    FLAG=""; [ "$KIND" = run_nostore ] && FLAG="--no-storage"; [ "$KIND" = run_noinst ] && FLAG="--no-institutions"
+  run|run_*)
+    case "$KIND" in
+      run) FLAG="" ;;
+      run_nostore) FLAG="--no-storage" ;;
+      run_noinst) FLAG="--no-institutions" ;;
+      *) FLAG="--arm ${KIND#run_}" ;;                  # G4a's named arms (gates/g4.py ARMS; Codex review 034)
+    esac
     PIDS=""
     for J in ${JOBS//,/ }; do
       python -m gates.$GATE run --jobs $J --years $YEARS --budget $BUDGET --workers 1 --ckpt "$CKPT" $FLAG > "log_$J.txt" 2>&1 &

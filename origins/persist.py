@@ -76,6 +76,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
         "conflict": conflict.to_json(w), "timing": w.timing, "first_herders": getattr(w, "first_herders", None), "tech_firsts": getattr(w, "tech_firsts", {}), "tech_writing_log": getattr(w, "tech_writing_log", []), "goods_ledger": getattr(w, "goods_ledger", None), "log_strides": w.log_strides,
         "disease": __import__("origins.sim.disease", fromlist=["x"]).to_json(w),
         "places": __import__("origins.sim.places", fromlist=["x"]).to_json(w),
+        "dz_counts_split": True,      # named diseases count G1 exposure under their own keys (review 031; review 034)
     }
     arrays = {"stock": w.stock, "stock_broad": w.stock_broad, "known": w.known, "discovered_by": w.discovered_by,
               "discovered_at": w.discovered_at, "food_modifier": w.food_modifier,
@@ -246,11 +247,13 @@ def from_bytes(data: bytes, planet=None) -> World:
     for k in _disease.ARRAYS:
         if k in arrays and np.asarray(arrays[k]).size:
             setattr(w, k, np.array(arrays[k], dtype=getattr(w, k).dtype))
-    if w.diseases and any(k.startswith("ob_") for k in w.counts):
+    if w.diseases and not meta.get("dz_counts_split") and any(k.startswith("ob_") for k in w.counts):
         # a save made with named diseases before review 031 wrote their G1 counts under M1's keys: they cannot be
-        # told apart, so they are set aside, not reported as M1's (Codex review 031, finding 4)
+        # told apart, so they are set aside, not reported as M1's (Codex review 031, finding 4). Only such saves:
+        # a current save marks itself, so M1's own counts in it are kept (Codex review 034, finding 10), and any
+        # earlier set-aside counts are added to, never overwritten.
         for k in [k for k in w.counts if k.startswith("ob_")]:
-            w.counts["unattributed_" + k] = w.counts.pop(k)
+            w.counts["unattributed_" + k] = w.counts.get("unattributed_" + k, 0) + w.counts.pop(k)
     if "dz_seen" in arrays and "dz_last" not in arrays and np.asarray(arrays["dz_seen"]).size:
         seen = np.asarray(arrays["dz_seen"], dtype=bool)          # review-028 saves: met, date unknown (review 030)
         w.dz_last = np.where(seen, -2, -1).astype(np.int32)
