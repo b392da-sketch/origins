@@ -250,7 +250,13 @@ def yearly(w):
     src_years = {}
     for (m, d), c in came_from.items():                  # how long it had circulated where it came from
         src_years[(m, d)] = int(w.year - since[c, d]) if since[c, d] >= 0 else 0
-    w.dz_since = np.where(active, np.where(w.dz_active & (since >= 0), since, int(w.year)), -1).astype(np.int32)
+    # a spell goes on only where the disease was kept from last year; a return from its animals or a new arrival on a
+    # cell where it had just died out starts a new spell (Codex review 031, finding 1)
+    kept = np.zeros_like(active)
+    for (m, d), how in source.items():
+        if how == "kept":
+            kept[m, d] = True
+    w.dz_since = np.where(active, np.where(kept & (since >= 0), since, int(w.year)), -1).astype(np.int32)
     w.dz_active[:] = active
     if nd:
         near = pop + np.where(valid, pop[nbi], 0.0).sum(axis=1)

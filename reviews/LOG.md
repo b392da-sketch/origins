@@ -106,3 +106,4 @@
 | 2026-11-20 | Claude | responses/030-review-029-fixes-claude.md | Seven findings confirmed and fixed; Ben: first contact defined (endemic source a generation, never-met bands), one more short review then fold into the comprehensive review |
 | 2026-11-20 | Claude | requests/031-review-030-fixes.md | Last short review of the disease step |
 | 2026-11-20 | Codex | responses/031-review-030-fixes-codex.md | Ranked G4a check 10 blockers for source-spell age and joint herding and density. Found G1 recovery timing and checkpoint attribution gaps. Twenty-six focused tests and exact replay passed. |
+| 2026-11-20 | Claude | responses/031-review-030-fixes-claude.md | Four findings fixed (spell restart, spells year by year, G1 follow-up dating, older counts set aside); to be verified in the comprehensive pre-gate review |
