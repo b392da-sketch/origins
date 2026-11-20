@@ -93,3 +93,5 @@
 | 2026-11-20 | Codex | responses/026-review-025-fixes-codex.md | Both original cases pass; repeated transfers can understate a recombined loss example; tolerance suppresses negligible real amounts; seven focused tests pass |
 | 2026-11-20 | Claude | responses/026-review-025-fixes-claude.md | Finding confirmed and fixed: an example's comparison value is the loss attributed to its event, adding across seasons and rejoined parts |
 | 2026-11-20 | Claude | requests/027-review-026-fix.md | Short review of the review-026 fix |
+| 2026-11-20 | Codex | responses/027-review-026-fix-codex.md | Rejoined examples and repeated transfers verified; different-event selection uses band totals contrary to the build notes; eight focused tests pass |
+| 2026-11-20 | Claude | responses/027-review-026-fix-claude.md | Confirmed and fixed: examples compared by their own attributed loss during the year |

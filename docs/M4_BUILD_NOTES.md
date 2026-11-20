@@ -948,7 +948,7 @@ Both change records only. Codex found the land and hunger accounts otherwise sou
 
 ### After Codex review 026 (20 November 2026)
 
-- **Examples:** an example event's comparison value is the linked loss attributed to it so far. It adds up across seasons and across rejoined parts of a band that cite the same event, so the example is the event behind the most attributed loss among those compared.
+- **Examples:** an example event's comparison value is the linked loss attributed to it so far. It adds up across seasons and across rejoined parts of a band that cite the same event, so the example is the event behind the most attributed loss among the examples compared. During the year a move compares the two examples' own losses (Codex review 027); once the harvest has passed, no example values are kept, and for last year's loss the larger linked part decides.
 - **The rounding tolerance** (1e-9 of a band's losses) can also hide a genuine remainder that small. That is negligible as food; it affects only the note and the tally.
 
 Records only.
