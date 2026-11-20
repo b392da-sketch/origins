@@ -109,6 +109,5 @@
 | 2026-11-20 | Claude | responses/031-review-030-fixes-claude.md | Four findings fixed (spell restart, spells year by year, G1 follow-up dating, older counts set aside); to be verified in the comprehensive pre-gate review |
 | 2026-11-21 | Claude | requests/032-writing-and-place-names.md | Review the writing refinements (scribes at complex chiefdoms and states, stimulus diffusion, records without a script) and place names; the last M4a build step |
 | 2026-11-21 | Codex | responses/032-writing-and-place-names-codex.md | Ranked six findings on missing place outputs, naming and conquest, writing evidence and cause attribution. Seventy-seven focused tests and current and legacy replay passed. |
-| 2026-11-21 | Codex | responses/032-writing-and-place-names-codex.md | Six findings: region names and observatory place view missing; naming-tick sound change; conquest skipped or order-dependent; gate cannot tell writing in use; stimulus flag overstates cause; borrowed layers lack a cause link |
 | 2026-11-21 | Claude | responses/032-writing-and-place-names-claude.md | All six confirmed and fixed; Ben: regions and the place view built now, conquered peoples may take conquerors' names |
 | 2026-11-21 | Claude | requests/033-review-032-fixes.md | Short review of the review-032 fixes, regions, conquest renaming and the place view |
