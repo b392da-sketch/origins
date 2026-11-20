@@ -1255,3 +1255,34 @@ All five findings confirmed and fixed (`reviews/responses/033-review-032-fixes-c
 - **A writing neighbour whose stimulus was not needed** is recorded as exposure only, not as a cause.
 
 Review 033 was the last separate review of this step; anything further goes into the comprehensive pre-gate review.
+
+### After Codex reviews 034 and 035 (21 November 2026): the comprehensive pre-gate review, parts 1 and 2
+
+**Ben's decisions (21 November 2026):**
+- **Gate plan:** approved, with "falls clearly" below half, "most" two thirds, and 6,000 years after the first village.
+- **After review 034:**
+  - build trade's addition to invention's reach;
+  - run three small arms (no curation, no prestige goods, a fixed four partners: 10 histories each) and measure dependence inside the main histories;
+  - re-measure M1's carried-forward items beside check 1;
+  - check 10's numbers: 10-year spells; 100 herders and 5,000 people around;
+  - a check counts only if half the histories can measure it.
+
+**Built:**
+- **Trade raises invention's reach** (`technology.connected_people`, `TECH_TRADE_REACH` 0.5, a starting value): a traders' road travelled last year adds half the people within two rings of the far seat, unless they are already within reach. This changes invention in every history with traders.
+- **The gate code** (`gates/g4.py`, `gates/g4_report.py`, `gates/plan.py`, `gates/run_job.sh`), as set out in the answer to review 034:
+  - arms in the planner and runner;
+  - two observers that record values the simulation computes, without changing them;
+  - a census panel;
+  - provenance and transmission steps from the events;
+  - the readings of checks 1–13;
+  - a roster.
+- **State fixes from review 035**, set out in its answer:
+  - ended group rows end;
+  - the digest covers more;
+  - empty trade attempts are not contact;
+  - captives and spouses bring their immunity;
+  - import dependence is per band (`tech_prev_dep`);
+  - whole joins keep receipts and herding history;
+  - unfolding keeps pregnancies.
+
+All values are starting values.

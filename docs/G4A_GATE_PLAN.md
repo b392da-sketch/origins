@@ -7,7 +7,12 @@ Claude, 21 November 2026. **Status: approved by Ben on 21 November 2026**, with 
 | Arm | Planets | Seeds | Histories | Runs to |
 |---|---|---|---|---|
 | Main | 1–5 | 1–10 | 50 | 6,000 years after the first farming village (as G3), or 30,000 years |
-| Knock-out: no population effect (`TECH_POP_EXPONENT` 0; check 6) | 1–5 | 1–4 | 20 | the same |
+| `nopop`: no population effect on invention (`TECH_POP_EXPONENT` 0; check 6) | 1–5 | 1–4 | 20 | the same |
+| `nocuration`: no curation (`CURATION` False) | 1–5 | 1–2 | 10 | the same |
+| `noprestige`: no prestige goods (`PRESTIGE_HOLD` 0) | 1–5 | 1–2 | 10 | the same |
+| `fourpartners`: a fixed four partners per band (`PARTNERS_CAP` 4) | 1–5 | 1–2 | 10 | the same |
+
+The three small arms are the comparisons agreed for the gate in November (Ben, 21 November 2026, after Codex review 034). Dependence on imported metal is measured inside the main histories that work metal. A request: `{"gate": "g4", "planets": "1-5", "seeds": "1-10", "arms": {"nopop": "1-4", "nocuration": "1-2", "noprestige": "1-2", "fourpartners": "1-2"}, "per_job": 1}`.
 
 G3 ran 70 histories in the same shape (50 with institutions, 20 knock-outs).
 
@@ -34,21 +39,21 @@ The G4a record is the G3 record, so G3's checks can be re-run on it (check 1). I
 
 ## How each check is measured (`gates/g4_report.py`)
 
-| # | Check | Measured as | Pass mark (specification) |
+| # | Check | Measured as (after Codex review 034) | Pass mark |
 |---|---|---|---|
-| 1 | M0–M3 still hold | G3's report run on the G4a records (G3's checks; M0–M2 through G3's re-check) | all G3 checks that applied in G3 |
-| 2 | Innovation tracks connected population | per history: Spearman correlation, over band-centuries, of inventions in the century with skilled practitioners within reach at its start; also shown for foragers and farmers apart | median across histories above 0.3 |
-| 3 | Risk matters too, or doesn't | the same correlation with need, beside check 2 | none (reported) |
-| 4 | Diffusion follows contact | (a) per band, the share of techniques it knows that came from others; median over bands, then over histories. (b) per technique, Spearman correlation of a band's first-adoption year with its cell steps from the first invention | (a) median above 0.6; (b) positive in most histories |
-| 5 | Isolation causes loss | losses occur; loss rate per band-century by quintile of people within reach falls as reach rises (Spearman over quintiles negative); techniques known fall with reach | all three hold in most histories |
-| 6 | Knock-out: no population effect | check 2's median correlation in the knock-out arm, against the main arm | clearly lower: below half the main arm's (Ben, 21 November 2026) |
-| 7 | Trade follows supply and distance | fine stone, salt and shell held per person fall with cell steps from the source (Spearman negative); partner help per year rises with the share of bands short of food (Spearman positive) | both in most histories |
-| 8 | Goods are conserved | accounting failures (goods, food, people) | none in any history |
-| 9 | The land answers back | among cells irrigated in dry land, salt rises with years of use; fertility falls with years of continuous cropping; slow game is lower where hunting pressure is high; `land_hunger` and `land_move` events occur | all in most histories that farm; stated as exposure, not cause (Ben, 20 November 2026) |
-| 10 | Diseases from animals | from the disease record: share of disease-spell years with herders and dense populations around, against wild-origin and small-group starts; first-contact deaths per person among bands that never met the disease, against those that met it within a generation and longer ago | as reworded by Ben, 20 November 2026 |
-| 11 | Traceable | sampled chains resolve | all |
-| 12 | Same rules, different histories | which techniques appear, where and when, across histories | none (reported) |
-| 13 | Speed | computing seconds per history | none (reported) |
+| 1 | M0–M3 still hold | G3's report run on the G4a records; a G3 check without a verdict counts as unmeasured, not passed; G3 check 5 is not re-measured (no no-institution arm); check 9's herd half carried forward; M1's items beside it | all applicable G3 checks pass |
+| 2 | Innovation tracks connected population | per history: Spearman, over whole band-centuries (the band lived to the next census, the century ended before the history), of inventions with the connected people invention itself uses (`technology.connected_people`); foragers and farmers apart | median above 0.3 |
+| 3 | Risk matters too, or doesn't | the same, with the mean need of the techniques the band could invent then | none (reported) |
+| 4 | Diffusion follows contact | (a) per band, the share of techniques it knows whose last recorded acquisition, in its line, was from others (lost and relearned counts as learned); (b) per technique, Spearman of years after its first invention with transmission steps from an invention, following each adoption's named source through any route | (a) median above 0.6; (b) positive in most |
+| 5 | Isolation causes loss | Henrich-kind losses per whole band-century fall across fifths of connected people; and a band's techniques fall when its connected people fall between censuses of the same band (a panel) | both, with losses occurring, in most |
+| 6 | Knock-out | check 2's median in the `nopop` arm, against the main arm's; the paired change on the same planet and seed is shown beside it | below half the main arm's, and the main arm's positive |
+| 7 | Trade follows supply and distance | fine stone, salt and shell per person all fall with cell steps from their sources; among bands with partners, food given per band-season rises with the share short before help, year by year, zero years kept | both, in most |
+| 8 | Goods are conserved | accounting failures over the whole roster | none |
+| 9 | The land answers back | crop factor (fertility × salt, as harvests use it) falls with years cropped; slow game is lower where mean hunting pressure is high; salt rises with years irrigated on dry land where any is irrigated; land-linked hunger and moves or abandoned fields occur. Cells ever cropped or hunted are kept, not only those lived in at the end | all, in most; exposure, not cause |
+| 10 | Diseases from animals | Ben's numbers (above): persistent spells, herds and dense populations, fading of wild and small starts (finished spells only), first-contact deaths per person pooled and within arrivals reaching both naive and exposed bands | all three halves |
+| 11 | Traceable | every required kind of event present in some history, and every sampled chain resolving | both |
+| 12 | Same rules, different histories | per technique: histories, earliest, median and latest year, planets | none (reported) |
+| 13 | Speed | simulation hours, and minutes to build the record | none (reported) |
 
 **Historical comparisons**, reported beside the checks, not as pass marks:
 - the order of first appearance of pottery, copper working, bronze, iron and writing, against the archaeological sequence;
@@ -56,6 +61,15 @@ The G4a record is the G3 record, so G3's checks can be re-run on it (check 1). I
 - the place-name record: share of names kept by newcomers by feature size, and layers per place.
 
 ## Ben's decisions (21 November 2026)
+
+After Codex review 034:
+- **Trade raises invention's reach** (specification 4.2): built; a traders' road adds half the people around the far seat.
+- **The agreed comparisons** run as the three small arms above; dependence inside the main histories.
+- **M1's carried-forward items** are re-measured beside check 1: island divergence (language pairs across the sea and on the same land) and the share of deaths from epidemics against M1's 9%. Barren land (G1 check 2) is not re-measured.
+- **Check 10's numbers:** a disease persists if a spell on a cell lasts 10 years or more; herds and dense populations meet in a spell-year with 100 or more herders on the cell and 5,000 or more people around. Check 10 passes if most persistent spell-years meet both, finished wild-origin or small-group spells mostly end within 10 years, and deaths per person after first contact are heaviest among bands that had never met the disease.
+- **Coverage:** a check counts as measured only if at least half the histories can measure it; otherwise it shows "—", never a pass.
+
+Before review 034:
 
 1. **Check 6's mark:** the knock-out arm's median correlation below half the main arm's.
 2. **"Most histories"** (checks 4b, 5, 7 and 9): at least two thirds of the histories where the check can be measured.
