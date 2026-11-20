@@ -26,6 +26,11 @@ from .worldgen import generate
 BACKUPS = 3
 
 
+def _tech_scribes(w):
+    from .sim import technology as _t
+    return _t._scribes(w) if getattr(w, "tech", None) is not None else np.zeros(0)
+
+
 def _jsonable(x):
     if isinstance(x, dict):
         return {str(k): _jsonable(v) for k, v in x.items()}
@@ -70,6 +75,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
         "farming": farming.to_json(w), "surplus": surplus.to_json(w), "polity": polity.to_json(w), "trade": __import__("origins.sim.trade", fromlist=["x"]).to_json(w),
         "conflict": conflict.to_json(w), "timing": w.timing, "first_herders": getattr(w, "first_herders", None), "tech_firsts": getattr(w, "tech_firsts", {}), "goods_ledger": getattr(w, "goods_ledger", None), "log_strides": w.log_strides,
         "disease": __import__("origins.sim.disease", fromlist=["x"]).to_json(w),
+        "places": __import__("origins.sim.places", fromlist=["x"]).to_json(w),
     }
     arrays = {"stock": w.stock, "stock_broad": w.stock_broad, "known": w.known, "discovered_by": w.discovered_by,
               "discovered_at": w.discovered_at, "food_modifier": w.food_modifier,
@@ -80,7 +86,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
               "still_years": w.still_years, "forage_rr": w.forage_rr, "spec": w.spec,
               "polity_of": w.polity_of, "polity_via": w.polity_via, "conquered_at": w.conquered_at,
               "herder_since": w.herder_since, "farm_rr_real": w.farm_rr_real, "farm_rr_cell": w.farm_rr_cell,
-              "farm_rr_lost": w.farm_rr_lost if getattr(w, "farm_rr_lost", None) is not None else np.zeros(0), "tech": w.tech, "tech_record": w.tech_record,
+              "farm_rr_lost": w.farm_rr_lost if getattr(w, "farm_rr_lost", None) is not None else np.zeros(0), "tech": w.tech, "tech_record": w.tech_record, "tech_scribes": _tech_scribes(w),
               "goods": w.goods, "partner_of": w.partner_of, "partner_since": w.partner_since,
               "goods_reached": w.goods_reached, "partner_gave": w.partner_gave, "treasury": w.treasury,
               "tech_prev_prac": w.tech_prev_prac if getattr(w, "tech_prev_prac", None) is not None else np.zeros((0, 0), bool),
@@ -198,6 +204,10 @@ def from_bytes(data: bytes, planet=None) -> World:
     w.tech_record = np.zeros_like(w.tech)
     if rec is not None and rec.shape[1] == _tech.K:
         w.tech_record[:min(len(rec), len(w.tech))] = rec[:len(w.tech)]
+    sc = arrays.get("tech_scribes")                  # saves from before scribes (20 Nov 2026): today's specialists
+    w.tech_scribes = None
+    if sc is not None and np.asarray(sc).size:
+        w.tech_scribes = np.array(sc, dtype=float)
     if len(getattr(w, "herder_since", ())) < len(w.farm_share):    # saves from before pastoralism (M4a)
         h = np.full(len(w.farm_share), -1.0)
         h[:len(getattr(w, "herder_since", ()))] = getattr(w, "herder_since", np.zeros(0))
@@ -230,6 +240,8 @@ def from_bytes(data: bytes, planet=None) -> World:
         _trade.grow(w, len(w.goods) - 1)             # older saves: what a band holds has reached it
     from .sim import disease as _disease                 # diseases from animals (M4a): older saves start with none
     _disease.from_json(w, meta.get("disease", {}))
+    from .sim import places as _places                   # place names (M4a): older saves start with none
+    _places.from_json(w, meta.get("places", {}))
     for k in _disease.ARRAYS:
         if k in arrays and np.asarray(arrays[k]).size:
             setattr(w, k, np.array(arrays[k], dtype=getattr(w, k).dtype))
@@ -328,7 +340,7 @@ def digest(w: World) -> str:
     for arr in (w.stock, w.stock_broad, w.known, w.region_z, w.customs, w.neutral, w.hazard_food, w.immune, w.skill, w.farm_share,
                 w.crop_store, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since, w.farm_rr_real, w.farm_rr_cell,
                 getattr(w, "farm_rr_lost", None) if getattr(w, "farm_rr_lost", None) is not None else np.zeros(0), w.tech,
-                w.tech_record, w.goods, w.partner_of, w.partner_since, w.goods_reached, w.partner_gave, w.treasury,
+                w.tech_record, _tech_scribes(w), w.goods, w.partner_of, w.partner_since, w.goods_reached, w.partner_gave, w.treasury,
               *[getattr(w, n_, None) if getattr(w, n_, None) is not None else np.zeros((0, 0), bool)
                 for n_ in ("tech_prev_prac", "tech_prev_mats")],
               getattr(w, "tech_prev_wood", None) if getattr(w, "tech_prev_wood", None) is not None else np.zeros(0, bool),
@@ -347,6 +359,7 @@ def digest(w: World) -> str:
              "last_event": w.events[-1] if w.events else None,
              "language": language.to_json(w), "hazards": w.hazards, "farming": farming.to_json(w),
              "disease": __import__("origins.sim.disease", fromlist=["x"]).to_json(w),
+             "places": __import__("origins.sim.places", fromlist=["x"]).to_json(w),
              "polity": polity.to_json(w), "conflict": conflict.to_json(w),
              "partner_dropped": getattr(w, "partner_dropped", {}),
              "routes_seen": sorted(getattr(w, "routes_seen", set())),
