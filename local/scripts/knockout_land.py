@@ -23,6 +23,7 @@ YEARS = int(sys.argv[2])
 n0 = len(w.events)
 p0 = w.people.n
 g0 = w.counts.get("group_hunger_deaths", 0)
+w._c0 = dict(w.counts)
 t0 = time.time()
 for y in range(YEARS):
     engine.step(w, 4)
@@ -54,14 +55,21 @@ dead = np.nonzero((p.death[:p.n] >= 0) & (np.arange(p.n) >= 0))[0]
 recent = dead[(p.death[dead] >= w.t - YEARS * P.TICKS_PER_YEAR)]
 from origins.sim.demography import C
 hung = recent[p.cause[recent] == C["hunger"]]
-print("hunger deaths (individuals)", len(hung), "in bands the land took food from", int((p.death_land[hung] >= 0).sum()),
+print("hunger deaths (individuals)", len(hung), "(cause hunger) linked to a land_hunger event", int((p.death_land[hung] >= 0).sum()),
       "; grouped hunger deaths in the trial", w.counts.get("group_hunger_deaths", 0) - g0)
+c0 = getattr(w, "_c0", {})
+cnt = {k: w.counts.get(k, 0) - c0.get(k, 0) for k in ("land_exp_short", "land_exp_linked", "land_exp_wild_only",
+                                                       "land_exp_crop_only", "land_exp_both", "land_exp_short_sum",
+                                                       "land_exp_linked_sum")}
+if cnt["land_exp_short"]:   # every band-season of exposure (Codex review 023, finding 5); exposure, not cause
+    print("band-seasons short of food", cnt["land_exp_short"], "with a linked land loss", cnt["land_exp_linked"],
+          f"({cnt['land_exp_linked'] / cnt['land_exp_short']:.1%}); wild only", cnt["land_exp_wild_only"],
+          "crops only", cnt["land_exp_crop_only"], "both", cnt["land_exp_both"],
+          f"; linked loss (capped at the lack) {cnt['land_exp_linked_sum'] / max(cnt['land_exp_short_sum'], 1e-9):.1%}"
+          " of all food lacked (crop loss as the harvest's loss spread over the year)")
 lh = [w.events[i]["data"] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "land_hunger"]
-if lh:   # exposure, not cause (Ben, 20 November 2026, after Codex review 022)
-    took = np.array([min(d["lost_wild"] + d["lost_crop"], d["short"]) / max(d["short"], 1e-9) for d in lh])
-    print("land_hunger events", len(lh), "share of the lack the land took: median", round(float(np.median(took)), 3),
-          "mean", round(float(took.mean()), 3), "; wild only", sum(d["lost_crop"] == 0 for d in lh),
-          "crops only", sum(d["lost_wild"] == 0 for d in lh))
+if lh:   # the events made where deaths were recorded: a selected sample
+    print("land_hunger events (at recorded deaths)", len(lh), "; with unlinked losses", sum(d.get("unlinked", 0) > 0 for d in lh))
 moves = [i for i in range(n0, len(w.events)) if w.events[i]["kind"] == "land_move"]
 rng = np.random.default_rng(0)
 sample = rng.choice(moves, size=min(20, len(moves)), replace=False) if moves else []
