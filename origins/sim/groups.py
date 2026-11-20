@@ -209,7 +209,8 @@ def keep_pregnancies(G, rows, before):
     rows = np.atleast_1d(rows)
     after = women(G, rows)
     ratio = np.where(np.asarray(before) > 0, after / np.maximum(before, 1e-12), 0.0)
-    G.preg[rows] *= np.clip(ratio, 0.0, 1.0)[:, None]
+    # whole pregnancies only: splits and transfers draw them as counts (a fraction once went negative there)
+    G.preg[rows] = np.rint(G.preg[rows] * np.clip(ratio, 0.0, 1.0)[:, None])
 
 
 def _hazards(cond_child, cond_rest):
