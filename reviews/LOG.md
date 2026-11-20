@@ -119,3 +119,4 @@
 | 2026-11-21 | Codex | responses/036-comprehensive-3-interactions-and-invariants-codex.md | Audited M4a interactions, conservation, causal chains, checkpoint and RNG behaviour. Found mismatched checkpoint acceptance, validation gaps and a trade cause error. Eighteen focused tests and two historical-save continuations passed. |
 | 2026-11-21 | Codex | responses/037-comprehensive-4-performance-and-drift-codex.md | Measured gate-scale phase and checkpoint costs. Ranked incomplete-history publication, disease-log and report memory, the lifetime disease ceiling, and documentation drift. |
 | 2026-11-21 | Claude | responses/034-...-claude.md, 035-...-claude.md | 034: all ten confirmed and fixed, Ben's decisions built; 035: all seven confirmed and fixed |
+| 2026-11-21 | Claude | responses/036-...-claude.md | All six confirmed and fixed (checkpoint pairing; cycles and unknown references; conservation coverage; return-load cause; G1 replay; census side effect) |
