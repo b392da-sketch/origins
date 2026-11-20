@@ -92,7 +92,8 @@ def report(out: Path) -> str:
     from gates.g3_report import report as g3report
     g3txt = g3report(tmp)
     shutil.rmtree(tmp)
-    rows = [l for l in g3txt.splitlines() if l.startswith("| ") and not l.startswith("| Check") and "---" not in l]
+    main = g3txt.split("\n## G2 checks")[0]          # G3's own table (its check 1 already carries G2's verdicts)
+    rows = [l for l in main.splitlines() if l.startswith("| ") and not l.startswith("| Check") and "---" not in l]
     g3fail = [l.split("|")[1].strip() for l in rows if "| FAIL |" in l and not l.startswith("| 5.")]
     checks.append(("1. M0-M3 still hold", not g3fail,
                    "G3's checks (and through them G2's) on these histories: "

@@ -60,3 +60,9 @@ The G4a record is the G3 record, so G3's checks can be re-run on it (check 1). I
 1. **Check 6's mark** ("falls clearly") needs a number. Proposed: the knock-out arm's median below half the main arm's.
 2. **"Most histories"** in checks 4b, 5, 7 and 9. Proposed: at least two thirds of the histories where the check can be measured.
 3. **History length:** 6,000 years after the first village, as in G3, so the two gates can be compared.
+
+## Pipeline check (21 November 2026)
+
+`gates/g4.py` and `gates/g4_report.py` were run end to end on the planet-3 save at year 9,700, for 110 years: 664 s of simulation, 185 s to build the record, then the report. It is a check that the code runs and every check can be computed, not a result: one history, too short for most checks.
+- **The record-building first took over an hour.** Every band in a cause chain was looked up by scanning all 2 million events, read from disk. Fixed in `explain.py`: an index of band origins, and gate samples share references already found good. Same answers; 60 sampled chains in 10 s, against 9–44 s each before.
+- **Every check computes.** Checks 2 and 3 need several centuries of census rows, and check 10 needs diseases that persist; in this short run they show "nan", as expected.
