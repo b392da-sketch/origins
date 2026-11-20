@@ -1245,3 +1245,13 @@ All six findings confirmed (`reviews/responses/032-writing-and-place-names-claud
   - a "Place names" map layer: each name in the speech of most people living by it, larger and more prominent places first, names that would overlap left out (zoom in for more);
   - a place's page: its names now, by each people living by it, and every layer, oldest first, with its form then and now and a link to its cause chain;
   - a cell's panel lists the places used from it.
+
+### After Codex review 033 (21 November 2026)
+
+All five findings confirmed and fixed (`reviews/responses/033-review-032-fixes-claude.md`; tests `tests/test_places.py::Review033`, all failing on `1edee6e`). Ben was away; none needed a design decision.
+- **Conquest renaming** is driven by the conquest events since the last pass. Each event now names its conquered bands (`moved`). There is one draw per conquered language and feature in a pass, so one conquest imposes a name once, and each imposed name cites its own conquest.
+- **The G3 record** keeps the whole history of every polity that was ever a complex chiefdom or state, or had a band in the writing log, beside the sample (`gates.g3.kept_polities`).
+- **The observatory's cell panel** names places in the speech of the clicked cell's people.
+- **A writing neighbour whose stimulus was not needed** is recorded as exposure only, not as a cause.
+
+Review 033 was the last separate review of this step; anything further goes into the comprehensive pre-gate review.
