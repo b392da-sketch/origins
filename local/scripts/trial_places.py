@@ -16,7 +16,9 @@ YEARS = int(sys.argv[2])
 SEED_WRITING = int(os.environ.get("SEED_WRITING", "0"))
 if SEED_WRITING:                       # give the seats of the largest polities working writing, to watch it keep or fall
     sz = w.band_sizes()
-    seats = sorted((p.seat for p in w.polities.values() if p.ended < 0), key=lambda s_: -sz[s_])[:SEED_WRITING]
+    tier = int(os.environ.get("SEED_TIER", "0"))      # only seats of polities at this tier or above
+    seats = sorted((p.seat for p in w.polities.values() if p.ended < 0 and p.tier >= tier),
+                   key=lambda s_: -sz[s_])[:SEED_WRITING]
     for s_ in seats:
         w.tech[s_, T.INDEX["tallies"]] = max(w.tech[s_, T.INDEX["tallies"]], 0.8)
         w.tech[s_, T.WRITING] = 0.6
