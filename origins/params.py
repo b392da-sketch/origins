@@ -376,3 +376,34 @@ FUEL_MIN = 0.1            # below it (best-wooded cell within two rings), no woo
 FUEL_RESUME = 0.2         # a band that did not practise wood work last year needs this much to take it up again (Ben,
                           # 20 Nov 2026, after Codex review 021: time to restore a reliable supply)
 REAL_YIELDS = True        # farmers' choices see real yields (Ben, 19 Nov 2026); False is the knock-out
+
+
+# --- M4a: diseases from animals (M4 specification section 6; Ben, 20 Nov 2026: full model, per-disease hunger,
+# flight and isolation now). All starting values; the literature gives no defensible rates (build notes).
+DISEASE = True                    # False keeps M1's anonymous outbreaks (the knock-out)
+DZ_EMERGE_HERD = 2e-7             # yearly chance per person herding a species long domesticated
+DZ_DOM_YEARS = 2000.0             # years since domestication at which herd pressure is full (Morand et al. 2014)
+DZ_EMERGE_WILD = 2e-8             # yearly chance per person of a disease new to these people from wild animals
+                                  # (was 2e-9, a count of diseases new to the world: Ben, 20 November 2026)
+DZ_RESPILL_WILD = 2e-6            # yearly chance per person living in its region that a wild disease passes again
+DZ_RESPILL_HERD = 2e-5            # yearly chance per person herding its species that a herd disease passes again
+DZ_ATTACK_RANGE = (0.5, 0.95)     # share of those who can catch it who do, in an epidemic
+DZ_CFR_RANGE = (0.005, 0.3)       # deaths per adult case (log-uniform): measles-like to smallpox-like
+DZ_CHILD_MULT_RANGE = (0.5, 2.0)  # children's deaths per case against adults'
+DZ_OLD_MULT = 2.0                 # people of 50 and over against adults
+DZ_K_RANGE = (3000.0, 500000.0)    # people who can still catch it, on a cell and its neighbours, at which it keeps
+                                  # going with chance 1 - 1/e (log-uniform, up to measles' critical community size of
+                                  # about 250,000: Bartlett 1957; Black 1975; Ben, 20 November 2026: was 300-30,000)
+DZ_LASTING = 0.8                  # chance a new disease leaves lasting immunity
+DZ_WANE = 0.2                     # yearly loss of immunity otherwise
+DZ_HUNGER_RANGE = (0.0, 1.5)      # how much hunger raises its deaths (per disease; 0 = not at all)
+DZ_HUNGER = 2.0                   # deaths per case x (1 + hunger trait x shortfall x this)
+DZ_CRISIS_SHARE = 0.5             # adults ill at once above which care and food production fail
+DZ_CRISIS_EXTRA = 1.0             # extra deaths per case then (Rotuma 1911, Fiji 1875: care collapse)
+DZ_SPREAD = 0.3                   # yearly chance x attack x share who can catch it, per cell in contact
+DZ_FAMINE_SPREAD = 2.0            # spread x (1 + this x hunger at the source): hunger sets people moving
+DZ_CHILD_SHARE = 0.4              # share of a band under 15 (for immunity by age)
+DZ_CHILD_YEARS = 15.0
+DZ_FLIGHT_ATTACK, DZ_FLIGHT_OUT = 0.7, 1.5         # flight: fewer caught here, more carried away (guesses)
+DZ_ISOLATE_ATTACK, DZ_ISOLATE_OUT = 0.6, 0.5       # isolating the sick (Acholi gemo): fewer caught, less carried
+DZ_ISOLATE_CRISIS = 0.5                            # ... and survivors care for the sick: half the crisis deaths

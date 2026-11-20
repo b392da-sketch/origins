@@ -118,6 +118,19 @@ def finish(w, ws, rs, seconds, pr, institutions):
             tsample = [tsample[i] for i in sorted(rng.choice(len(tsample), 400, replace=False))]
         tok = [explain.resolvable(w, r) for r in tsample]
         rec["tech_explain_checked"], rec["tech_explain_resolvable"] = len(tok), int(sum(tok))
+    # M4a diseases: the named diseases, and each year's epidemic of each (year, disease, cells, deaths, new/passed
+    # again/by contact/kept), with whether its cause chain resolves (sampled)
+    if getattr(w, "diseases", None) is not None:
+        rec["diseases"] = [{k: v for k, v in dz.items() if k != "event"} for dz in w.diseases]
+        obs = [e for e in w.events if e["kind"] == "outbreak" and "disease" in e["data"]]
+        rec["disease_outbreaks"] = [[e["t"] // 4, e["data"]["disease"], e["data"]["cells"], e["data"]["deaths"]]
+                                    for e in obs]
+        rec["disease_spillovers"] = int(w.counts.get("dz_spillovers", 0))
+        smp = [{"event": e["id"]} for e in obs]
+        if len(smp) > 200:
+            smp = [smp[i] for i in sorted(rng.choice(len(smp), 200, replace=False))]
+        rec["disease_explain_checked"] = len(smp)
+        rec["disease_explain_resolvable"] = int(sum(explain.resolvable(w, r) for r in smp))
     # conflict
     from origins.state import CAUSES
     fv = pr.get("fv_deaths")

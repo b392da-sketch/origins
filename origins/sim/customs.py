@@ -28,6 +28,8 @@ CUSTOMS = {
     "succession": ["to a son", "to a sister's son", "chosen by the council", "to a daughter"],
     # M3: who speaks for a household (and so may lead, when a council chooses among household heads)
     "household voice": ["the man", "the woman", "the elder of the two"],
+    # M4a: what people do when an epidemic comes (Ben, 20 November 2026; Hewlett & Amola 2003; Kelton 2004)
+    "response to epidemics": ["carry on", "flight", "isolate the sick"],
 }
 NAMES = list(CUSTOMS)
 RESIDENCE = NAMES.index("marriage residence")
@@ -45,7 +47,16 @@ def init(w):
     w.custom_log = {}
 
 
+def widen(w):
+    """Older saves have fewer customs: new ones start at their first variant."""
+    if w.customs.shape[1] < len(NAMES):
+        c = np.zeros((len(w.customs), len(NAMES)), dtype=np.int8)
+        c[:, :w.customs.shape[1]] = w.customs
+        w.customs = c
+
+
 def ensure(w, band_id: int, parent: int):
+    widen(w)
     if band_id >= len(w.customs):
         cap = len(w.customs)
         while cap <= band_id:
@@ -76,6 +87,7 @@ def yearly(w):
     bands = w.living_bands()
     if not bands:
         return
+    widen(w)
     r2 = ring2(w)
     by_cell: dict[int, list] = {}
     for b in bands:

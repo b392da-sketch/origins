@@ -69,6 +69,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
         "language": language.to_json(w), "hazards": w.hazards,
         "farming": farming.to_json(w), "surplus": surplus.to_json(w), "polity": polity.to_json(w), "trade": __import__("origins.sim.trade", fromlist=["x"]).to_json(w),
         "conflict": conflict.to_json(w), "timing": w.timing, "first_herders": getattr(w, "first_herders", None), "tech_firsts": getattr(w, "tech_firsts", {}), "goods_ledger": getattr(w, "goods_ledger", None), "log_strides": w.log_strides,
+        "disease": __import__("origins.sim.disease", fromlist=["x"]).to_json(w),
     }
     arrays = {"stock": w.stock, "stock_broad": w.stock_broad, "known": w.known, "discovered_by": w.discovered_by,
               "discovered_at": w.discovered_at, "food_modifier": w.food_modifier,
@@ -88,6 +89,8 @@ def to_file(w: World, f, fast: bool = False) -> None:
               "trade_in": w.trade_in if getattr(w, "trade_in", None) is not None else np.zeros(0)}
     from .sim import land as _land
     arrays.update({"land_" + k: getattr(w, k) for k in _land.ARRAYS if getattr(w, k, None) is not None})
+    from .sim import disease as _disease
+    arrays.update({k: getattr(w, k) for k in _disease.ARRAYS if getattr(w, k, None) is not None})
     arrays.update({"p_" + k: v for k, v in w.people.arrays().items()})
     arrays.update({"g_" + k: v for k, v in w.groups.arrays().items()})
     arrays.update({"b_" + k: v for k, v in w.bands.arrays().items()})
@@ -225,6 +228,13 @@ def from_bytes(data: bytes, planet=None) -> World:
     else:
         w.goods_reached = None
         _trade.grow(w, len(w.goods) - 1)             # older saves: what a band holds has reached it
+    from .sim import disease as _disease                 # diseases from animals (M4a): older saves start with none
+    _disease.from_json(w, meta.get("disease", {}))
+    for k in _disease.ARRAYS:
+        if k in arrays and np.asarray(arrays[k]).size:
+            setattr(w, k, np.array(arrays[k], dtype=getattr(w, k).dtype))
+    from .sim import customs as _customs
+    _customs.widen(w)                                    # "response to epidemics" (M4a) for older saves
     from .sim import land as _land                       # the land answers back (M4a): older saves start untouched
     _land.init(w)
     for k in _land.ARRAYS:
@@ -316,6 +326,8 @@ def digest(w: World) -> str:
               getattr(w, "tech_prev_wood", None) if getattr(w, "tech_prev_wood", None) is not None else np.zeros(0, bool),
               getattr(w, "trade_in", None) if getattr(w, "trade_in", None) is not None else np.zeros(0),
               *[getattr(w, k) for k in __import__("origins.sim.land", fromlist=["ARRAYS"]).ARRAYS
+                if getattr(w, k, None) is not None],
+              *[getattr(w, k) for k in __import__("origins.sim.disease", fromlist=["ARRAYS"]).ARRAYS
                 if getattr(w, k, None) is not None]):
         h.update(np.ascontiguousarray(arr).tobytes())
     for k, v in sorted(w.bands.arrays().items()):
@@ -326,6 +338,7 @@ def digest(w: World) -> str:
              "rng": {k: g.bit_generator.state for k, g in w.rng.items()}, "n_events": len(w.events),
              "last_event": w.events[-1] if w.events else None,
              "language": language.to_json(w), "hazards": w.hazards, "farming": farming.to_json(w),
+             "disease": __import__("origins.sim.disease", fromlist=["x"]).to_json(w),
              "polity": polity.to_json(w), "conflict": conflict.to_json(w),
              "partner_dropped": getattr(w, "partner_dropped", {}),
              "routes_seen": sorted(getattr(w, "routes_seen", set())),

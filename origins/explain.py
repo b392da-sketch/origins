@@ -119,6 +119,12 @@ def _event_title(w, e) -> str:
         return f"The world begins: {bn} ({d.get('size')} people)"
     if k == "bad_year":
         return f"Bad year in climate region {d.get('region')} (wild food at {d.get('factor', 0):.0%} of normal)"
+    if k == "new_disease":
+        host = d.get("host", "")
+        src = "wild animals" if host == "wild" else f"herded {host.replace('wild_', '')}"
+        return f"A new disease, {d.get('disease')}, passed to people from {src}"
+    if k == "outbreak" and d.get("disease"):
+        return f"{d.get('disease', '').capitalize()} circulating ({d.get('deaths', 0)} deaths)"
     if k == "land_move":
         return f"{bn} left worn land in search of food"
     if k in ("land_game", "land_forest", "land_soil", "land_salt"):

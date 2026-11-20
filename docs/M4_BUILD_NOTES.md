@@ -803,6 +803,39 @@ Ben's decisions (20 November 2026):
 
 **Independent literature checks (Ben, 20 November 2026):** for each new idea, Claude does its own check and puts the same question to ChatGPT without Claude's findings, through the Notion research questions; Claude verifies every source before use. ChatGPT's first two rounds (disease origins, first-contact mortality, soil decline, critical community size, causes of death, endemic shift, fallow recovery) are in the Notion sources database with each source's verification status; one figure was corrected (Poulton et al. 2024: 0.90 t/ha, not 1.01).
 
+### Diseases from domestic animals: literature check (Claude, 20 November 2026)
+
+Done alongside ChatGPT's independent check (Ben, 20 November 2026), which is pending for the last question; its earlier rounds on disease origins, first-contact mortality, critical community size, causes of death and the endemic shift are in the Notion sources database with verification status. Sources marked "verified" were read by Claude; the rest are listed as such.
+
+- **Where human pathogens come from.** Of 1,407 human pathogen species, 816 (58%) are zoonotic and 177 are emerging or reemerging; ungulates support the most emerging zoonoses, but emergence is not tied strongly to any one host type (Woolhouse & Gowtage-Sequeria 2005, verified). Domestic mammals share more pathogens with people the longer they have been domesticated, across three datasets (dog 71 and sheep 84 shared parasites against 34 for cattle and pig in one of them), with no strong link to how closely they live with people (Morand, McIntyre & Baylis 2014, verified). Many classic attributions are wrong or unproven: human tuberculosis did not come from cattle (Brites & Gagneux 2015, verified); measles split from a cattle virus about 528 BCE but the jump to people is unproven (Düx et al. 2020, verified); Brucella melitensis was in Neolithic sheep about 8,000 years ago (L'Hôte et al. 2024, verified).
+- **Persistence.** Measles needs about 250,000–300,000 people to persist in US cities (Bartlett 1960, verified) and broke off on every island under 500,000 (Black 1966, verified); varicella persists below 1,000 people because it hides and reactivates (Black 1966). Islands lose diseases 1.5 to 10 times more readily than connected countries: linked populations re-seed each other (Metcalf et al. 2013, verified). Mumps needs perhaps 365,000–781,000 (Pomeroy et al. 2023, verified).
+- **Outbreaks against endemic disease.** Where smallpox was endemic (York) it caused about 10% of burials every year; in small settlements, when it came, 30–40% of a year's burials (Cambridge Group, verified). A London parish in 1665: 939 deaths, 670 from plague, four times its usual mortality (verified).
+- **The shift to a childhood disease** follows survivor immunity: after the Faroes' 1846 measles epidemic (about 6,000 of 7,782 ill, at least 102 deaths), only those born since were susceptible, and those over 65, survivors of 1781, escaped (Panum, verified through a summary).
+- **First contact.** No universal death rate: 12.8% on Rotuma in 1911 (Shanks et al. 2011, verified); a median of 18% of the population per epidemic across 117 Amazonian epidemics, falling with time since contact (Walker, Sattenspiel & Hill 2015, verified); Hudson Bay smallpox likely under 20%, not the 50% often claimed (Carlos & Lewis 2012, verified). The genetic "no immunity" account is weakly supported; high mortality is better explained by whole communities lacking acquired immunity at once, and by war, displacement and hunger (Jones 2003, verified; Jones et al. 2021 for California, verified through a press release).
+- **Hunger and infection.** In the Irish famine, literal starvation was 3–9% of excess deaths; fevers 28–31%, dysentery and diarrhoea 21–28%, cholera 6–8%. About half of famine mortality came from the famine's effects on behaviour and society: migration, crowding in workhouses and relief works (lice: typhus, relapsing fever), lost hygiene. The synergy is uneven: some diseases depend heavily on food, others barely (Mokyr & Ó Gráda 2002, verified). The classic statement of synergy is Scrimshaw, Taylor & Gordon (1968), not read.
+- **Behaviour.** The Acholi epidemic protocol (gemo): the sick housed 100 m apart, no visitors, a survivor as carer, no movement between villages, no sex, burial at the village edge without touching (Hewlett & Amola 2003, verified). People also blame: in 124 towns with Jewish communities, 47% persecuted them during the Black Death, most often where mortality was moderate (about 20%) and least where it was very high, which the authors explain as scapegoating against the value of the minority's services (Jedwab, Johnson & Koyama 2017, verified, working paper).
+
+**What follows for the build (to compare with ChatGPT's check, then to Ben):**
+1. Named diseases, each with a host animal or a wild source, a fatality by age, a severity and lasting immunity (or not).
+2. Emergence where people live with herds, at a chance rising with the number of people and animals in contact and with how long they have lived together (Morand et al. 2014); a smaller wild-source chance.
+3. Persistence emerging, not set: immunity per band by age (children, adults), births adding susceptibles, fade-out where too few are left, and re-introduction along the contacts the world already has (moves, marriage, partners, traders, war). No fixed critical community size and no fixed share of deaths.
+4. Deaths: by age; more where hunger is high, for diseases that depend on food; and crisis deaths when many adults are ill at once (care and food production collapse). No genetic weakness at first contact.
+5. Behaviour as customs: flight and dispersal; isolation protocols such as gemo; blame of outsiders or minorities, leading to violence (with M4b). Possibly a partial step now.
+
+### Diseases: comparing the two literature checks (20 November 2026)
+
+ChatGPT's independent check (written by ChatGPT into Notion; 19 sources, all Suggested) against Claude's (above). Claude checked two of ChatGPT's sources against their texts: the Kissidougou funeral cluster (Victory et al. 2015: 85 cases, 63 deaths, 18 from handling the body, 67 from contact with mourners) and the Bengal Famine Inquiry (1945: 1,873,749 registered deaths in 1943, 688,846 over the 1938–42 average, the true excess judged nearer one million; malaria and fever diagnoses unreliable).
+
+- **Both found, independently:** no fixed rate of new diseases from animals can be defended; the "no immunity" genetic account of first contact is weak, and whole communities falling ill at once, war, displacement and hunger explain more (both cite Jones 2003); hunger and infection reinforce each other unevenly, by disease (Mokyr & Ó Gráda 2002; Ó Gráda 2007; Scrimshaw); traditional responses to epidemics can help or harm, and should not be assumed to do either (Acholi gemo, both).
+- **Only ChatGPT found:**
+  - the Americas had their own diseases before contact: tuberculosis in Peru about 1,000 years ago, related to seal lineages (Bos et al. 2014), and treponemes in Brazil about 2,000 years ago (Majander et al. 2024, with an editorial note of concern; Barquera et al. 2025). So the asymmetry at contact is not absolute;
+  - spillover as stages: pressure from the animal source (its infection, contact with people, chance per contact), then a separate, chancy step to sustained spread among people (Lloyd-Smith et al. 2009);
+  - funerals as a disease-specific hazard (the Kissidougou cluster), communities blocking outsiders and distrust of responders (Fairhead 2016), Cherokee isolation and dispersal (Kelton 2004);
+  - iron supplements can raise death and admission where malaria is common (Sazawal et al. 2006): feeding does not protect against every infection.
+- **Only Claude found:** shared diseases rise with time since domestication (Morand et al. 2014); 58% of human pathogens are zoonotic and emerging ones are not tied to one host type (Woolhouse & Gowtage-Sequeria 2005); half of Irish famine deaths came from the famine's social effects (Mokyr & Ó Gráda 2002); scapegoating, most likely at moderate mortality (Jedwab, Johnson & Koyama).
+- **Disagreements:** none of substance. The two emergence ideas combine: spillover pressure grows with the number of animals and people in contact and with how long they have lived together; sustained spread among people is a separate, chancy step that depends on how many people can catch it.
+- **Corrections:** none needed in either check so far; ChatGPT flagged its own uncertainties (Majander's editorial note, the Cochrane version).
+
 ### After Codex review 022 (20 November 2026)
 
 All seven findings confirmed and fixed (`reviews/responses/022-review-021-fixes-claude.md`; tests `tests/test_land.py::Review022`, which fail on the code before the fix):
@@ -822,6 +855,52 @@ All seven findings confirmed and fixed (`reviews/responses/022-review-021-fixes-
 - 756 of 3,815 individual hunger deaths were in bands the land took food from.
 - 67% of lived-in cells have no wood within reach; many are in treeless biomes.
 - One history.
+
+### Diseases from animals, as built (20 November 2026)
+
+Ben's decisions (20 November 2026): the full model now; flight and isolation now, blame with M4b; hunger's effect per disease. `origins/sim/disease.py`, yearly at the season of M1's outbreaks, from a new random stream "disease" (appended). `DISEASE` False brings back M1's outbreaks, the knock-out. All values are starting values.
+
+- **Named diseases:** each has its own traits, drawn when it appears:
+  - attack (`DZ_ATTACK_RANGE`);
+  - deaths per adult case, log-uniform from 0.5% to 30% (`DZ_CFR_RANGE`);
+  - children's deaths against adults' (`DZ_CHILD_MULT_RANGE`), and people of 50 and over twice adults';
+  - lasting immunity or not (`DZ_LASTING` 0.8; waning 20% a year otherwise);
+  - how much hunger raises its deaths (`DZ_HUNGER_RANGE`);
+  - k, how many people who can still catch it it needs nearby to keep going.
+
+  Each has a `new_disease` event; each year's epidemic of each disease is an `outbreak` event citing it.
+- **Emergence:**
+  - **from herds:** each year on each cell, chance `DZ_EMERGE_HERD` 2e-7 × people herding a domesticated species × min(1, years since the species was first domesticated / `DZ_DOM_YEARS` 2,000) (Morand et al. 2014);
+  - **from wild animals:** `DZ_EMERGE_WILD` 2e-8 × people.
+- **Reservoirs** (Ben, 20 November 2026, after the first trial): a disease that dies out among people lives on in its animals and can pass again:
+  - herd diseases where people herd their species (`DZ_RESPILL_HERD` 2e-5 per herder a year);
+  - wild ones anywhere in the climate region where they first appeared (`DZ_RESPILL_WILD` 2e-6 per person a year);
+  - most such starts are short-lived (Black 1975; Lloyd-Smith et al. 2009).
+- **Immunity per band, children and adults:** survivors are immune; each year a fifteenth of children become adults and newborns arrive with none, so a disease that stays shifts to children. Joining bands combine immunity by numbers.
+- **Persistence:** a disease circulating on a cell keeps going next year with chance 1 − exp(−people who can still catch it on the cell and its neighbours / k). k is log-uniform from 3,000 to 500,000 (Ben, 20 November 2026, raised from 300–30,000 after the reservoir trial; Bartlett 1957 measured about 250,000 for measles; Black 1975).
+- **Spread:** to cells within two rings, partners' cells and traders' seats, with chance `DZ_SPREAD` 0.3 × attack × the share who can catch it there × (1 + `DZ_FAMINE_SPREAD` 2 × hunger at the source) × the response's carry factor.
+- **Deaths:** by age, × (1 + the disease's hunger trait × shortfall × `DZ_HUNGER` 2), doubled when half or more of a band's adults are ill at once (`DZ_CRISIS_SHARE`; Jones 2003). No genetic weakness at first contact.
+- **Responses:** the custom "response to epidemics" (carry on / flight / isolate the sick). The sizes are guesses: neither literature check found measured effects.
+  - **flight:** attack × 0.7, carried × 1.5;
+  - **isolating the sick:** attack × 0.6, carried × 0.5, crisis deaths halved (Hewlett & Amola 2003).
+- **Records:**
+  - saves keep diseases, immunity and circulation, all in the digest;
+  - the G3 record lists the diseases and each outbreak (year, disease, cells, deaths), the spillovers, and a cause-chain check;
+  - G1's exposure counts carry on.
+
+**Trials** (planet 3, `snap_p3s1_8500_plus1200.zip` at year 9,700, 300 years, `local/scripts/trial_disease.py`; no invariant failures in any; one history):
+
+| Run | People at the end | Deaths from disease | From hunger | Diseases (outbreak events) |
+|---|---|---|---|---|
+| M1 outbreaks (`DISEASE` False) | 318,095 | 18.8% | 4.7% | (380) |
+| Named, first rates (wild 2e-9, no reservoirs, k 300–30,000) | 363,491 | 24 deaths | 10.6% | 1 (1) |
+| + reservoirs, wild 2e-8 | 341,441 | 4.1% | 10.1% | 2 (140), both still circulating after 70 years |
+| + k 3,000–500,000 (as built) | 360,397 | 0.9% | 10.7% | 2 (79), circulating 34 and 45 years, then gone |
+
+- **No herd diseases on planet 3 here:** no animal is domesticated by year 10,000 (cattle only cultivated), so none can arise. A GitHub trial runs the four herding histories of G3 with diseases on and off.
+- **Before herds, epidemics are rare and short-lived,** as Black (1975) found among isolated peoples. Everyday illness stays in the background deaths ("accident or illness", 37% of all deaths in this history). M1's carried-forward item (outbreaks about 9% of deaths) is answered by this design rather than matched.
+- **Hunger deaths rise** (about 4.7% to 10.7%) when epidemics no longer thin crowded farming regions. Whether that is too much is a question for the gate.
+- **Diseases kill adults too:** about 28–33% of disease deaths were children under 15. Lasting immunity in adults builds up only where a disease keeps returning.
 
 ### After Codex review 023 (20 November 2026)
 
