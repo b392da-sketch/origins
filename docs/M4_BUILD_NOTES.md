@@ -1167,3 +1167,17 @@ Several others could not be read here: the DOI links were blocked, or the page s
 - **Names come from people's dealings with places.** There is no secure universal order in which features are named. One place can gather several names, translations and adaptations. Name forms should follow each language: generic plus specific, compounds, possessives, single words, and borrowed names whose parts are no longer understood.
 
 ChatGPT lists Nissen 2016 and Regulski 2016 as read in full; I could not open either here, so their figures stay unverified (Uruk's size and population, and about 1% literacy in Old Kingdom Egypt).
+
+### Writing and place names: Ben's decisions (20 November 2026)
+
+1. **Names for used features.** Each people names the rivers, lakes, coasts, hills and mountains it lives among and uses, plus its own settlements, and later its polities and regions. Bigger rivers and landmarks are named by more peoples and kept longest. The number of names grows with population density (Hunn 1994).
+2. **Keep or replace by rule.**
+   - The chance that newcomers keep a name rises with the feature's size and fame and with remoteness, and falls with how many newcomers settle and with conquest (Hall 2012; Wang et al. 2011; Tent 2017).
+   - A kept name is borrowed and reshaped by the newcomers' sound changes (M1).
+   - Old names stay beneath as layers, with their cause recorded.
+3. **Writing, all three refinements:**
+   - **stimulus diffusion:** neighbours of a writing people invent a script more readily;
+   - **the script falls with the state:** scribes are specialists fed by the polity, so its collapse can take writing with it;
+   - **records without a script:** tallies and record-keepers give part of writing's boost to administration.
+
+All values will be starting values.
