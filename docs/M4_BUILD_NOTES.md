@@ -1222,3 +1222,26 @@ All numbers are tunable starting values in `params.py`, not facts.
 - **Records.** Each name is an event `place_named` with its cause (resolvable). `w.places` is saved and in the digest; older saves start with none. `places.history(w, i)` lists a place's layers.
 
 **Not built:** names for polities and regions (polities keep their present names), renaming a place a people already names (for example after conquest), and the observatory's display of place names.
+
+### After Codex review 032 (21 November 2026)
+
+All six findings confirmed (`reviews/responses/032-writing-and-place-names-claude.md`; tests `tests/test_places.py::Review032`, all seven failing on `d7ddb9c`).
+
+**Ben's decisions (21 November 2026):**
+- **Finding 1, scope:** build both now. Region names and the observatory's place view are built.
+- **Finding 3, conquest:** conquered peoples may take their conquerors' names.
+
+**As built** (all values are starting values in `params.py`):
+- **Regions** are named features: each climate region's land (`planet.region`), anchored at the land cell nearest its centre, named by the peoples living in it. A new region name is "land of the people", from the namers' own word for themselves and their word for "earth" (`PLACE_REGION_PEOPLE` 0.5), or a described land ("cold land", "red land").
+- **Conquered peoples take conquerors' names.** At each places pass, for each band conquered since the last pass by a polity whose seat speaks another language, each feature it lives by that both peoples name differently takes the conquerors' name with chance `PLACE_ADOPT` 0.5 × (1 − `PLACE_ADOPT_SIZE` 0.8 × size). So settlements and small features change most, as state-named units did in Guangxi (Wang et al. 2011). The layer is `imposed` and cites the band, the conquerors' seat, the `conquest` event and the conquerors' own naming.
+- **Fixes:**
+  - a sound change on the naming tick is now in the name (finding 2);
+  - newcomers' keep chance sees a conquest of any band of the holders by it, not only the first (finding 3);
+  - each layer keeps its `place_named` event, and a kept or replaced name cites the naming it heard (finding 6);
+  - an invention by a people with a writer in reach records `stimulus_needed`, and names the stimulus as cause only where the draw would have failed without it (finding 5);
+  - every 10 years the record keeps each band holding writing or scribes, with its polity, tier, seat, scribes, writing's level and whether it practises it now (`w.tech_writing_log`, saved, in the digest and in the G3 record with `writing_inventions`; finding 4). The G3 record also lists places and their layers.
+- **Speed:** a place's latest layer per language is cached, so looking up names no longer grows with the square of the layers (900 lookups on a 900-layer place: 0.001 s).
+- **Observatory:**
+  - a "Place names" map layer: each name in the speech of most people living by it, larger and more prominent places first, names that would overlap left out (zoom in for more);
+  - a place's page: its names now, by each people living by it, and every layer, oldest first, with its form then and now and a link to its cause chain;
+  - a cell's panel lists the places used from it.
