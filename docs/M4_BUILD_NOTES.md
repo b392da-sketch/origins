@@ -855,3 +855,49 @@ All seven findings confirmed and fixed (`reviews/responses/022-review-021-fixes-
 - 756 of 3,815 individual hunger deaths were in bands the land took food from.
 - 67% of lived-in cells have no wood within reach; many are in treeless biomes.
 - One history.
+
+### Diseases from animals, as built (20 November 2026)
+
+Ben's decisions (20 November 2026): the full model now; flight and isolation now, blame with M4b; hunger's effect per disease. `origins/sim/disease.py`, yearly at the season of M1's outbreaks, from a new random stream "disease" (appended). `DISEASE` False brings back M1's outbreaks, the knock-out. All values are starting values.
+
+- **Named diseases:** each has its own traits, drawn when it appears:
+  - attack (`DZ_ATTACK_RANGE`);
+  - deaths per adult case, log-uniform from 0.5% to 30% (`DZ_CFR_RANGE`);
+  - children's deaths against adults' (`DZ_CHILD_MULT_RANGE`), and people of 50 and over twice adults';
+  - lasting immunity or not (`DZ_LASTING` 0.8; waning 20% a year otherwise);
+  - how much hunger raises its deaths (`DZ_HUNGER_RANGE`);
+  - k, how many people who can still catch it it needs nearby to keep going.
+
+  Each has a `new_disease` event; each year's epidemic of each disease is an `outbreak` event citing it.
+- **Emergence:**
+  - **from herds:** each year on each cell, chance `DZ_EMERGE_HERD` 2e-7 × people herding a domesticated species × min(1, years since the species was first domesticated / `DZ_DOM_YEARS` 2,000) (Morand et al. 2014);
+  - **from wild animals:** `DZ_EMERGE_WILD` 2e-8 × people.
+- **Reservoirs** (Ben, 20 November 2026, after the first trial): a disease that dies out among people lives on in its animals and can pass again:
+  - herd diseases where people herd their species (`DZ_RESPILL_HERD` 2e-5 per herder a year);
+  - wild ones anywhere in the climate region where they first appeared (`DZ_RESPILL_WILD` 2e-6 per person a year);
+  - most such starts are short-lived (Black 1975; Lloyd-Smith et al. 2009).
+- **Immunity per band, children and adults:** survivors are immune; each year a fifteenth of children become adults and newborns arrive with none, so a disease that stays shifts to children. Joining bands combine immunity by numbers.
+- **Persistence:** a disease circulating on a cell keeps going next year with chance 1 − exp(−people who can still catch it on the cell and its neighbours / k). k is log-uniform from 3,000 to 500,000 (Ben, 20 November 2026, raised from 300–30,000 after the reservoir trial; Bartlett 1957 measured about 250,000 for measles; Black 1975).
+- **Spread:** to cells within two rings, partners' cells and traders' seats, with chance `DZ_SPREAD` 0.3 × attack × the share who can catch it there × (1 + `DZ_FAMINE_SPREAD` 2 × hunger at the source) × the response's carry factor.
+- **Deaths:** by age, × (1 + the disease's hunger trait × shortfall × `DZ_HUNGER` 2), doubled when half or more of a band's adults are ill at once (`DZ_CRISIS_SHARE`; Jones 2003). No genetic weakness at first contact.
+- **Responses:** the custom "response to epidemics" (carry on / flight / isolate the sick). The sizes are guesses: neither literature check found measured effects.
+  - **flight:** attack × 0.7, carried × 1.5;
+  - **isolating the sick:** attack × 0.6, carried × 0.5, crisis deaths halved (Hewlett & Amola 2003).
+- **Records:**
+  - saves keep diseases, immunity and circulation, all in the digest;
+  - the G3 record lists the diseases and each outbreak (year, disease, cells, deaths), the spillovers, and a cause-chain check;
+  - G1's exposure counts carry on.
+
+**Trials** (planet 3, `snap_p3s1_8500_plus1200.zip` at year 9,700, 300 years, `local/scripts/trial_disease.py`; no invariant failures in any; one history):
+
+| Run | People at the end | Deaths from disease | From hunger | Diseases (outbreak events) |
+|---|---|---|---|---|
+| M1 outbreaks (`DISEASE` False) | 318,095 | 18.8% | 4.7% | (380) |
+| Named, first rates (wild 2e-9, no reservoirs, k 300–30,000) | 363,491 | 24 deaths | 10.6% | 1 (1) |
+| + reservoirs, wild 2e-8 | 341,441 | 4.1% | 10.1% | 2 (140), both still circulating after 70 years |
+| + k 3,000–500,000 (as built) | 360,397 | 0.9% | 10.7% | 2 (79), circulating 34 and 45 years, then gone |
+
+- **No herd diseases on planet 3 here:** no animal is domesticated by year 10,000 (cattle only cultivated), so none can arise. A GitHub trial runs the four herding histories of G3 with diseases on and off.
+- **Before herds, epidemics are rare and short-lived,** as Black (1975) found among isolated peoples. Everyday illness stays in the background deaths ("accident or illness", 37% of all deaths in this history). M1's carried-forward item (outbreaks about 9% of deaths) is answered by this design rather than matched.
+- **Hunger deaths rise** (about 4.7% to 10.7%) when epidemics no longer thin crowded farming regions. Whether that is too much is a question for the gate.
+- **Diseases kill adults too:** about 28–33% of disease deaths were children under 15. Lasting immunity in adults builds up only where a disease keeps returning.
