@@ -923,3 +923,25 @@ So in this history lost game and forest touch most shortfalls, and worn soil alm
 Deaths:
 - 797 of 3,829 individual deaths from hunger (21%) are linked to a `land_hunger` event;
 - 1,057 of the 7,732 events also record losses tied to no event.
+
+### After Codex review 024 (20 November 2026)
+
+All five findings confirmed and fixed (`reviews/responses/024-review-023-fixes-claude.md`; tests `tests/test_land.py::Review024`, which fail on the code before the fix). The "largest season stands for the year" shortcut is gone:
+- **Exact linked amounts:** the soil part and the salt part of each season's crop loss are booked as linked (`land_acc_k`, then `land_crop_k`) only where that condition has a recorded event and actually reduced the yield;
+- **Events as examples:** an event is kept only as the example a record cites, and moves with its own loss;
+- **One factor test:** the exposure count uses the same factor tests as the events;
+- **Older saves:** crop amounts from older saves are carried as unlinked, and they load safely with the land off.
+
+**Trial** (planet 3, year-9,700 save, 300 years, land on; tunable starting values; one history):
+- The fixes change records only: 326,460 people at the end, as before, with no invariant failures.
+- 80,344 band-seasons were short of food. 67,259 of them (84%) had a linked land loss: wild food only 43,044, crops only 1, both 24,214.
+- Linked losses came to 45% of all food lacked.
+- 1,594 of 7,732 `land_hunger` events also record unlinked losses.
+
+### After Codex review 025 (20 November 2026)
+
+Both findings confirmed and fixed (`reviews/responses/025-review-024-fixes-claude.md`; tests `tests/test_land.py::Review025`):
+- an example event's season loss is now shared on a partial move, so a later larger loss can replace it;
+- a rounding remainder between the crop loss and its parts no longer counts as unlinked.
+
+Both change records only. Codex found the land and hunger accounts otherwise sound: parts sum to the loss, the exposure count matches the events under every knock-out of the yield shares, and replay is exact.
