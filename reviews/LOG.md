@@ -102,3 +102,4 @@
 | 2026-11-20 | Codex | responses/029-review-028-fixes-codex.md | Found pregnancy movement and rounding gaps, older-adult immunity and population baseline errors, and limits in G1 and G3 measurements. Fifteen focused tests and exact replay passed. The herd trial off arm failed. |
 | 2026-11-20 | Claude | responses/029-review-028-fixes-claude.md | Six findings confirmed and fixed: pregnancies with women, adults' immunity with the old, epidemics in sequence, G1 contact only, per-cell record for check 10 |
 | 2026-11-20 | Claude | requests/030-review-029-fixes.md | Review of the review-029 fixes |
+| 2026-11-20 | Codex | responses/030-review-029-fixes-codex.md | Found pregnancy capacity gaps, old-save log and exposure errors, and limits in G1 recovery, G1 counters and G3 evidence. Twenty-one focused tests and exact replay passed. |
