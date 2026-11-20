@@ -901,3 +901,25 @@ Ben's decisions (20 November 2026): the full model now; flight and isolation now
 - **Before herds, epidemics are rare and short-lived,** as Black (1975) found among isolated peoples. Everyday illness stays in the background deaths ("accident or illness", 37% of all deaths in this history). M1's carried-forward item (outbreaks about 9% of deaths) is answered by this design rather than matched.
 - **Hunger deaths rise** (about 4.7% to 10.7%) when epidemics no longer thin crowded farming regions. Whether that is too much is a question for the gate.
 - **Diseases kill adults too:** about 28–33% of disease deaths were children under 15. Lasting immunity in adults builds up only where a disease keeps returning.
+
+### After Codex review 023 (20 November 2026)
+
+All five findings confirmed and fixed (`reviews/responses/023-review-022-fixes-claude.md`; tests `tests/test_land.py::Review023`, which fail on the code before the fix):
+- **Harvest when nobody farms:** standing crops are still brought in.
+- **A small band joining another** brings its standing crop and its crop loss. A band that ends with nobody to take its fields loses both.
+- **Crop losses keep the soil and salt events of the fields they came from**, recorded when the crops were grown (`land_crop_ev`, `land_acc_ev`; `land_crop_cell` is gone). A later sowing elsewhere, a move or the fields' recovery no longer changes them.
+- **A `land_hunger` event counts as the land's only the pools with a linked event.** Other losses are stated apart (`unlinked`). The note says the crop figure is the harvest's loss spread over the year, and gives no capped percentage.
+- **Every band-season of exposure is counted** (`w.counts`, `land_exp_*`). The `land_hunger` events are a sample made where deaths are recorded.
+
+**Trial** (planet 3, year-9,700 save, 300 years; tunable starting values; no invariant failures; one history): land off 503,114; land on 326,460, so the land costs about 35% of the people here.
+
+Every band-season, land on:
+- 80,344 band-seasons were short of food;
+- 67,259 of them (84%) had a land loss linked to a recorded event: wild food only 43,116, crops only 1, both 24,142;
+- the linked losses, capped at what each band lacked, came to 45% of all food lacked.
+
+So in this history lost game and forest touch most shortfalls, and worn soil almost never does so alone. This is exposure, not cause.
+
+Deaths:
+- 797 of 3,829 individual deaths from hunger (21%) are linked to a `land_hunger` event;
+- 1,057 of the 7,732 events also record losses tied to no event.

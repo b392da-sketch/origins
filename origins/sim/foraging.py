@@ -211,7 +211,7 @@ def forage_and_eat(w):
             np.where(cell_effort[cells] > 0, d_m[cells] * effort / np.maximum(cell_effort[cells], 1e-12), 0.0)
             + np.where(cell_reach[cells] > 0, d_b[cells] * effort * access / np.maximum(cell_reach[cells], 1e-12), 0.0),
             0.0)
-        land.note_account(w, ids, np.maximum(total_need - eaten, 0.0), lost_wild)
+        land.note_account(w, ids, np.maximum(total_need - eaten, 0.0), lost_wild, cells)
     mg = np.minimum(margin, 3.0).tolist()
     kp = kept.tolist()
     rb = ratio_b.tolist()
