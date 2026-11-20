@@ -936,5 +936,22 @@ class Review025(unittest.TestCase):
         self.assertEqual(int(w.land_crop_ev[d.id, 0]), e2)
 
 
+    def test_between_different_events_the_larger_example_wins(self):
+        w, _ = world()
+        a, d = w.living_bands()[0], w.living_bands()[1]
+        js = land.KINDS.index("soil")
+        cells = [2, 778, 300, 5020]
+        evs = []
+        for c in cells:
+            evs.append(w.event("land_soil", cell=c))
+            w.land_flags[c, js], w.land_event[c, js] = True, evs[-1]
+        land.note_crop_loss(w, np.array([d.id]), np.array([60.0]), np.array([2]), (np.array([60.0]), np.array([0.0])))
+        for c, x in zip(cells[1:], (40.0, 35.0, 30.0)):                  # Codex's case: 105 over three events
+            land.note_crop_loss(w, np.array([a.id]), np.array([x]), np.array([c]), (np.array([x]), np.array([0.0])))
+        land.move_crop_loss(w, a.id, d.id, 1.0)
+        self.assertEqual(int(w.land_acc_kev[d.id, 0]), evs[0])         # 60 at cell 2 beats the source's 40
+        self.assertAlmostEqual(float(w.land_acc_k[d.id, 0]), 165.0)
+
+
 if __name__ == "__main__":
     unittest.main()
