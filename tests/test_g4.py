@@ -149,3 +149,110 @@ class Review034(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Review035(unittest.TestCase):
+    """Codex review 035 (state and per-band arrays): findings reproduced, then fixed."""
+
+    def _world(self, years=20):
+        from origins import engine
+        from origins.state import World
+        from origins.worldgen import generate
+        w = World.new(1, 1, generate(1))
+        engine.step(w, 4 * years)
+        return w
+
+    def test_finding1_an_ended_group_does_not_erase_a_living_groups_needs(self):
+        from origins.sim import bands, groups
+        w = self._world()
+        live = [b for b in w.living_bands() if b.mode != "group"]
+        if len(live) < 2:
+            self.skipTest("need two bands")
+        last = max(live, key=lambda b: b.id)
+        other = next(b for b in live if b.id != last.id)
+        groups.fold(w, last)
+        groups.fold(w, other)                            # the second band's group row comes after the last's
+        ids, pos = w.live_index()
+        before = groups.needs_and_work(w, pos, len(ids))
+        G = w.groups
+        G.F[other.group] = 0
+        G.M[other.group] = 0
+        bands.end_band(w, other, "test", log=False)
+        ids, pos = w.live_index()
+        after = groups.needs_and_work(w, pos, len(ids))
+        i = list(ids).index(last.id)
+        self.assertGreater(after[1][i], 0)
+        self.assertFalse(G.active[other.group] if other.group >= 0 else False)
+
+    def test_finding2_the_digest_sees_still_years_firsts_and_recent_events(self):
+        from origins import persist
+        w = self._world(5)
+        b = w.living_bands()[0]
+        d0 = persist.digest(w)
+        w.still_years[b.id] += 25
+        self.assertNotEqual(persist.digest(w), d0)
+        d1 = persist.digest(w)
+        w.tech_firsts = dict(getattr(w, "tech_firsts", {}), pottery=1)
+        self.assertNotEqual(persist.digest(w), d1)
+        # two worlds alike but for whom an earlier conquest moved, each followed by another event
+        w1 = persist.from_bytes(persist.to_bytes(w), w.planet)
+        w2 = persist.from_bytes(persist.to_bytes(w), w.planet)
+        for x, moved in ((w1, [b.id]), (w2, [b.id, 5])):
+            x.event("conquest", cell=b.cell, band=b.id, polity=1, moved=moved)
+            x.event("note", cell=b.cell, band=b.id)
+        self.assertNotEqual(persist.digest(w1), persist.digest(w2))
+
+    def test_finding3_an_empty_trade_attempt_is_no_contact(self):
+        import inspect
+        from origins.sim import traders
+        src = inspect.getsource(traders.yearly)
+        self.assertIn("if _carry(", src)
+        self.assertIn("return False", inspect.getsource(traders._carry))
+
+    def test_finding4_captives_and_spouses_bring_their_immunity(self):
+        import inspect
+        from origins.sim import conflict, demography
+        self.assertIn("disease.combine(w, t, b, caps)", inspect.getsource(conflict))
+        self.assertIn("disease.combine(w, w.bands[src], w.bands[dst], movers)", inspect.getsource(demography))
+
+    def test_finding5_a_merger_cannot_make_up_a_dependence(self):
+        from origins.sim import technology as T
+        from origins import params as P
+        w = self._world(5)
+        live = w.living_bands()
+        a, b = live[0], live[1]
+        T._prev_arrays(w)
+        k = T.INDEX["copper_working"]
+        w.tech_prev_prac[a.id, k] = True                 # a practised copper working on local copper
+        w.tech_prev_dep[a.id, k] = False
+        w.tech_prev_mats[b.id, T.MATERIALS.index("copper")] = True   # b had traded copper, never practised
+        T.combine(w, b, a, "merge", 30)
+        self.assertFalse(w.tech_prev_dep[a.id, k])
+
+    def test_finding6_consolidation_keeps_receipts_and_herding_history(self):
+        from origins.sim import bands
+        w = self._world(5)
+        a, b = w.living_bands()[0], w.living_bands()[1]
+        from origins.sim import trade
+        trade._trade_in_size(w)
+        w.trade_in[b.id] = 3.0
+        w.herder_since[b.id] = 40
+        w.herder_since[a.id] = -1
+        bands.carry(w, b, a, "combined", 10)
+        self.assertEqual(float(w.trade_in[a.id]), 3.0)
+        self.assertEqual(int(w.herder_since[a.id]), 40)
+
+    def test_finding7_unfolding_keeps_a_single_womans_pregnancy(self):
+        from origins.sim import groups
+        w = self._world(1)
+        b = next(x for x in w.living_bands() if x.mode != "group")
+        groups.fold(w, b)
+        G = w.groups
+        G.F[b.group] = 0
+        G.M[b.group] = 0
+        G.F[b.group, 25] = 1
+        G.preg[b.group] = 0
+        G.preg[b.group, 0] = 1
+        ids = groups.unfold(w, b)
+        self.assertEqual(len(ids), 1)
+        self.assertGreaterEqual(int(w.people.preg_due[ids[0]]), 0)

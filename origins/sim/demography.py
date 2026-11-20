@@ -199,8 +199,10 @@ def partnerships(w):
             from . import trade
             trade.move_share(w, src, dst, movers / max(n_src, 1))
             # the one who moves brings what they know, at the level one person can carry (Codex review 009, finding 3)
-            from . import technology
+            # (one carrier: young children who come too carry no skills)
+            from . import technology, disease
             technology.combine(w, w.bands[src], w.bands[dst], "marriage", 1)
+            disease.combine(w, w.bands[src], w.bands[dst], movers)   # their immunity and exposure (review 035)
 
 
 def births(w):

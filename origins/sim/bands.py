@@ -240,6 +240,16 @@ def carry(w, src, dst, route, carriers):
     from . import technology, disease
     technology.combine(w, src, dst, route, carriers)
     disease.combine(w, src, dst, carriers if carriers is not None else float(w.band_sizes()[src.id]))
+    if route in ("combined", "merge"):
+        # a whole people joining is a change of record, not of history: last year's receipts from trade and any
+        # past herding go with it (Codex review 035, finding 6)
+        ti = getattr(w, "trade_in", None)
+        if ti is not None and max(src.id, dst.id) < len(ti):
+            ti[dst.id] += ti[src.id]
+            ti[src.id] = 0.0
+        hs = getattr(w, "herder_since", None)
+        if hs is not None and max(src.id, dst.id) < len(hs) and hs[src.id] >= 0:
+            hs[dst.id] = hs[src.id] if hs[dst.id] < 0 else min(hs[dst.id], hs[src.id])
     if hasattr(w, "skill"):
         w.skill[dst.id] = np.maximum(w.skill[dst.id], w.skill[src.id])
         cache = getattr(w, "_herder_cache", None)       # dst's way of life may have changed (Codex review 009, finding 2)
@@ -317,6 +327,13 @@ def fold_distant(w):
 
 def end_band(w, b, why, log=True):
     b.alive = False
+    if b.mode == "group" and b.group >= 0 and b.group < w.groups.n and w.groups.active[b.group]:
+        G = w.groups                                     # an ended band's group row ends with it (Codex review 035)
+        if G.total(b.group) <= 0:
+            G.F[b.group] = 0
+            G.M[b.group] = 0
+            G.preg[b.group] = 0
+            G.active[b.group] = False
     del b.trail[:-3]                  # ended bands keep only their last steps (memory)
     w.bands_changed()
     b.ended = w.t

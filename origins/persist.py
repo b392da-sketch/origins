@@ -91,6 +91,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
               "goods": w.goods, "partner_of": w.partner_of, "partner_since": w.partner_since,
               "goods_reached": w.goods_reached, "partner_gave": w.partner_gave, "treasury": w.treasury,
               "tech_prev_prac": w.tech_prev_prac if getattr(w, "tech_prev_prac", None) is not None else np.zeros((0, 0), bool),
+              "tech_prev_dep": w.tech_prev_dep if getattr(w, "tech_prev_dep", None) is not None else np.zeros((0, 0), bool),
               "tech_prev_mats": w.tech_prev_mats if getattr(w, "tech_prev_mats", None) is not None else np.zeros((0, 0), bool),
               "tech_prev_wood": w.tech_prev_wood if getattr(w, "tech_prev_wood", None) is not None else np.zeros(0, bool),
               "trade_in": w.trade_in if getattr(w, "trade_in", None) is not None else np.zeros(0)}
@@ -269,6 +270,10 @@ def from_bytes(data: bytes, planet=None) -> World:
     for n_ in ("tech_prev_prac", "tech_prev_mats", "tech_prev_wood"):   # last year's practice, goods-held materials
         if n_ in arrays and np.asarray(arrays[n_]).size:                # (review 018) and wood work (review 022)
             setattr(w, n_, np.array(arrays[n_], dtype=bool))
+    if "tech_prev_dep" in arrays and np.asarray(arrays["tech_prev_dep"]).size:   # practised on imports (review 035)
+        w.tech_prev_dep = np.array(arrays["tech_prev_dep"], dtype=bool)
+    elif getattr(w, "tech_prev_prac", None) is not None:
+        w.tech_prev_dep = w.tech_prev_prac.copy()       # older saves: as before, any practice counts
     if getattr(w, "tech_prev_prac", None) is not None and getattr(w, "tech_prev_wood", None) is None:
         from .sim import technology as _tech                            # older saves: any wood technique practised
         w.tech_prev_wood = w.tech_prev_prac[:, _tech.WOOD_TECHS].any(axis=1)
@@ -332,6 +337,20 @@ def load(path, planet=None) -> World:
         return from_bytes(f.read(), planet)
 
 
+def _recent_events(w) -> str:
+    h = hashlib.sha256()
+    from . import params as P
+    since = w.t - P.PLACE_CHECK_YEARS * P.TICKS_PER_YEAR
+    i = len(w.events) - 1
+    while i >= 0:
+        e = w.events[i]
+        if e["t"] < since:
+            break
+        h.update(json.dumps(_jsonable(e), sort_keys=True).encode())
+        i -= 1
+    return h.hexdigest()
+
+
 def digest(w: World) -> str:
     """Fingerprint of the complete simulation state, for exact-replay checks."""
     h = hashlib.sha256()
@@ -342,11 +361,11 @@ def digest(w: World) -> str:
         h.update(k.encode())
         h.update(np.ascontiguousarray(v).tobytes())
     for arr in (w.stock, w.stock_broad, w.known, w.region_z, w.customs, w.neutral, w.hazard_food, w.immune, w.skill, w.farm_share,
-                w.crop_store, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since, w.farm_rr_real, w.farm_rr_cell,
+                w.crop_store, w.still_years, w.forage_rr, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since, w.farm_rr_real, w.farm_rr_cell,
                 getattr(w, "farm_rr_lost", None) if getattr(w, "farm_rr_lost", None) is not None else np.zeros(0), w.tech,
                 w.tech_record, _tech_scribes(w), w.goods, w.partner_of, w.partner_since, w.goods_reached, w.partner_gave, w.treasury,
               *[getattr(w, n_, None) if getattr(w, n_, None) is not None else np.zeros((0, 0), bool)
-                for n_ in ("tech_prev_prac", "tech_prev_mats")],
+                for n_ in ("tech_prev_prac", "tech_prev_mats", "tech_prev_dep")],
               getattr(w, "tech_prev_wood", None) if getattr(w, "tech_prev_wood", None) is not None else np.zeros(0, bool),
               getattr(w, "trade_in", None) if getattr(w, "trade_in", None) is not None else np.zeros(0),
               *[getattr(w, k) for k in __import__("origins.sim.land", fromlist=["ARRAYS"]).ARRAYS
@@ -365,6 +384,10 @@ def digest(w: World) -> str:
              "disease": __import__("origins.sim.disease", fromlist=["x"]).to_json(w),
              "places": __import__("origins.sim.places", fromlist=["x"]).to_json(w),
              "tech_writing_log": getattr(w, "tech_writing_log", []),
+             "tech_firsts": getattr(w, "tech_firsts", {}),
+             # the events of the last PLACE_CHECK_YEARS, which the places pass reads (conquests and whom they moved),
+             # not only the count and the last event (Codex review 035, finding 2)
+             "recent_events": _recent_events(w),
              "polity": polity.to_json(w), "conflict": conflict.to_json(w),
              "partner_dropped": getattr(w, "partner_dropped", {}),
              "routes_seen": sorted(getattr(w, "routes_seen", set())),

@@ -343,8 +343,8 @@ def yearly(w, live):
         load = traders * P.TRADER_LOAD * (1 + E.get("pack_animals", 0) * tq[0] + E.get("carts", 0) * tq[1])
         for grav, _, B, cost, cells, bcost, bcells in opts:
             cap = load * grav / gsum if gsum > 0 else 0.0
-            w.trade_links.append([int(A.seat), int(B.seat)])
-            _carry(w, A, B, cost, cells, bcost, bcells, cap, tq, holder, cols, sizes_all, log_row)
+            if _carry(w, A, B, cost, cells, bcost, bcells, cap, tq, holder, cols, sizes_all, log_row):
+                w.trade_links.append([int(A.seat), int(B.seat)])   # a road counts as contact only if goods moved
 
 
 def _leg(pl, cells, cost, tq, holder, ends):
@@ -391,7 +391,7 @@ def _carry(w, A, B, cost, cells, bcost, bcells, cap, tq, holder, cols, sizes_all
     f = np.where(f > 0, np.minimum(f, 0.5 * ga), np.maximum(f, -0.5 * gb))
     tot = float(np.abs(f).sum())
     if tot <= 0 or cap <= 0:
-        return
+        return False                                    # nothing carried: no contact (Codex review 035, finding 3)
     if tot > cap:
         f *= cap / tot
     ends = {A.id, B.id}
@@ -460,6 +460,7 @@ def _carry(w, A, B, cost, cells, bcost, bcells, cap, tq, holder, cols, sizes_all
                                      f"rather than pay its toll"}])
     log_row(w, "route_log", [w.year, A.id, B.id, round(moved, 4), round(lost, 4), round(tolls, 4), round(picks, 4),
                              round(kept, 4), len(paid), len(evaded)], P.TRADE_LOG_CAP)
+    return moved > 0
 
 
 def to_json(w) -> dict:

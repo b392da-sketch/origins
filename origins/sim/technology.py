@@ -198,6 +198,7 @@ def ensure(w, band_id: int, parent: int):
         w.tech_prev_prac[band_id] = w.tech_prev_prac[parent] if parent >= 0 else False
         w.tech_prev_mats[band_id] = w.tech_prev_mats[parent] if parent >= 0 else False
         w.tech_prev_wood[band_id] = w.tech_prev_wood[parent] if parent >= 0 else False
+        w.tech_prev_dep[band_id] = w.tech_prev_dep[parent] if parent >= 0 else False
     w._tech_eff = None                                                    # effects judged afresh (review 010)
     w.tech_record[band_id] = w.tech_record[parent] if parent >= 0 else 0.0   # and keeps her records
     _scribes(w)[band_id] = 0.0                                            # scribes stay with the band that fed them
@@ -452,7 +453,7 @@ def _prev_arrays(w):
     """What each band practised, and which materials it held as goods, at the end of last year's technology pass
     (Codex review 018). Grown to the size of w.tech."""
     M = len(MATERIALS)
-    for name, width in (("tech_prev_prac", K), ("tech_prev_mats", M), ("tech_prev_wood", 0)):
+    for name, width in (("tech_prev_prac", K), ("tech_prev_mats", M), ("tech_prev_wood", 0), ("tech_prev_dep", K)):
         a = getattr(w, name, None)
         if a is None or len(a) < len(w.tech):
             out = np.zeros((len(w.tech), width) if width else len(w.tech), dtype=bool)
@@ -470,6 +471,14 @@ def _mark(w, live, ids, cells):
     _prev_arrays(w)
     w.tech_prev_prac[ids] = (w.tech[ids] > 0) & _possible(w, ids, cells)
     w.tech_prev_mats[ids] = _trade.goods_materials(w, ids, MATERIALS)
+    # practised only thanks to goods held: one band's own dependence, so joining bands cannot make one up from one
+    # band's practice and another's imports (Codex review 035, finding 5)
+    w._goods_mats_override = np.zeros_like(w.tech_prev_mats[ids])
+    try:
+        without = _possible(w, ids, cells)
+    finally:
+        w._goods_mats_override = None
+    w.tech_prev_dep[ids] = w.tech_prev_prac[ids] & ~without
     w.tech_prev_wood[ids] = _wood_used(w, ids, cells, w.tech_prev_prac[ids])
 
 
@@ -499,7 +508,7 @@ def _cut_off(w, live, ids, cells):
             w._static_forest = False
     lost = prev_mats & ~held_now
     with_last = possible_with(lost)
-    lapsed = w.tech_prev_prac[ids] & known & ~now
+    lapsed = w.tech_prev_dep[ids] & known & ~now          # practised on imports last year (review 035)
     # imports alone, or imports and wood together (Codex review 021, finding 7)
     both = lapsed & ~with_last & possible_with(lost, wood=True) & ~possible_with(np.zeros_like(lost), wood=True)
     cut = lapsed & (with_last | both)
@@ -1047,6 +1056,7 @@ def combine(w, src, dst, route: str, carriers: float | None = None):
         w.tech_prev_prac[dst.id] |= w.tech_prev_prac[src.id]
         w.tech_prev_mats[dst.id] |= w.tech_prev_mats[src.id]
         w.tech_prev_wood[dst.id] |= w.tech_prev_wood[src.id]
+        w.tech_prev_dep[dst.id] |= w.tech_prev_dep[src.id]
     for k in np.nonzero(gained)[0].tolist():
         t = TECHNIQUES[k]
         how = {"combined": "combined with", "merge": "took in the remnant of", "marriage": "took in by marriage someone from",
