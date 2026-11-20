@@ -247,7 +247,88 @@ class Review028(unittest.TestCase):
         self.assertLessEqual(ci, cy)                                     # arrivals among the cells counted
         rows = [r for r in w.dz_log if r[1] == d]
         self.assertTrue(any(r[3] == 2 and r[4] >= 0 for r in rows))     # a contact row names its source cell
-        self.assertTrue(any(r[2] == b.cell and r[7] for r in rows))     # the first cell had never met it
+        self.assertTrue(any(r[2] == b.cell and r[7] > 0 and r[9] == 0 for r in rows))   # the first cell: never met
+
+
+
+class Review029(unittest.TestCase):
+    """Codex review 029."""
+
+    def _group(self):
+        from origins.sim import groups
+        w = world()
+        b = w.living_bands()[0]
+        groups.fold(w, b)
+        return w, b, w.groups, b.group
+
+    def test_a_pregnancy_goes_with_the_woman(self):
+        from origins.sim import groups
+        w, b, G, g = self._group()
+        G.F[g] = 0
+        G.M[g] = 0
+        G.F[g, 25], G.M[g, 30] = 1, 1
+        G.preg[g] = 0
+        G.preg[g, 0] = 1
+        hF = np.zeros_like(G.F[g])
+        hF[25] = 1                                                      # Codex's case: the woman moves
+        self.assertEqual(int(groups._split_pregnancies(G, g, hF, w.rng["fission"]).sum()), 1)
+        self.assertEqual(int(groups._split_pregnancies(G, g, np.zeros_like(hF), w.rng["fission"]).sum()), 0)
+
+    def test_no_more_pregnancies_than_women(self):
+        from origins.sim import groups
+        w, b, G, g = self._group()
+        G.F[g] = 0
+        G.F[g, 20:23] = 1
+        G.preg[g] = 0
+        G.preg[g, :3] = 1
+        before = groups.women(G, np.array([g]))
+        G.F[g, 22] = 0                                                  # one of three women dies
+        groups.keep_pregnancies(G, np.array([g]), before)
+        self.assertEqual(float(G.preg[g].sum()), 2.0)                   # Codex's case: was 3
+
+    def test_adults_immunity_counts_the_deaths_of_the_old(self):
+        im = disease.adult_immune(np.array([0.2]), np.array([0.2]), np.array([0.04]), np.array([0.08]), old_share=1.0)
+        self.assertAlmostEqual(float(im[0]), 0.32 / 0.92, places=6)     # Codex's 0.347826 for a band of the old
+
+    def test_a_later_epidemic_starts_from_the_people_left(self):
+        w = world()
+        b = w.living_bands()[0]
+        d1 = add(w, b.cell, k=1e9, attack=1.0, cfr=0.3, child=1.0, hunger=0.0)
+        d2 = add(w, b.cell, k=1e9, attack=1.0, cfr=0.3, child=1.0, hunger=0.0)
+        first_year(w)
+        rows = {r[1]: r for r in w.dz_log if r[2] == b.cell}
+        self.assertGreater(rows[d1][14], 0)
+        self.assertEqual(rows[d2][5], rows[d1][5] - rows[d1][14])      # people at the second's start
+
+    def test_a_return_from_animals_is_not_counted_as_contact(self):
+        w = world()
+        b = w.living_bands()[0]
+        d = add(w, b.cell, k=1e-9, attack=0.9, cfr=0.0)
+        first_year(w)
+        w.dz_active[:, d] = False
+        w.dz_active[b.cell, d] = True                                   # only the first cell circulates
+        w.dz_imm[:, d] = 0.0
+        old = P.DZ_SPREAD, P.DZ_RESPILL_WILD
+        P.DZ_SPREAD, P.DZ_RESPILL_WILD = 0.0, 1.0                       # no contact spread; the reservoir seeds all
+        try:
+            c0 = dict(w.counts)
+            disease.yearly(w)
+        finally:
+            P.DZ_SPREAD, P.DZ_RESPILL_WILD = old
+        self.assertGreater(w.counts["ob_contact_cell_years"] - c0.get("ob_contact_cell_years", 0), 0)
+        self.assertGreater(w.counts["ob_new_starts"] - c0.get("ob_new_starts", 0)
+                           + sum(1 for r in w.dz_log if r[3] == 1), 0)    # the reservoir did seed cells
+        self.assertEqual(w.counts["ob_contact_infections"] - c0.get("ob_contact_infections", 0), 0)
+
+    def test_the_record_can_measure_check_10(self):
+        self.assertEqual(len(disease.LOG_FIELDS), 15)
+        w = world()
+        b = w.living_bands()[0]
+        add(w, b.cell, k=1e9, attack=0.9, cfr=0.1)
+        first_year(w)
+        r = w.dz_log[-1]
+        self.assertEqual(len(r), 15)
+        self.assertEqual(r[7] + r[9], r[5])                             # people split by whether they had met it
 
 
 if __name__ == "__main__":

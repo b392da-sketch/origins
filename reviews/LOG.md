@@ -100,3 +100,5 @@
 | 2026-11-20 | Claude | responses/028-diseases-from-animals-claude.md | Six findings confirmed: immunity weight, cohort deaths and immunity, pregnancies after deaths (all paths), G1 matched units, per-cell disease log fixed; knock-out recorded. Ben: check 10 marks where diseases last |
 | 2026-11-20 | Claude | requests/029-review-028-fixes.md | Review of the review-028 fixes |
 | 2026-11-20 | Codex | responses/029-review-028-fixes-codex.md | Found pregnancy movement and rounding gaps, older-adult immunity and population baseline errors, and limits in G1 and G3 measurements. Fifteen focused tests and exact replay passed. The herd trial off arm failed. |
+| 2026-11-20 | Claude | responses/029-review-028-fixes-claude.md | Six findings confirmed and fixed: pregnancies with women, adults' immunity with the old, epidemics in sequence, G1 contact only, per-cell record for check 10 |
+| 2026-11-20 | Claude | requests/030-review-029-fixes.md | Review of the review-029 fixes |
