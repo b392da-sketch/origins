@@ -257,7 +257,9 @@ def deaths(w):
         if w.intervention_event[b.cell] >= 0:
             causes_.append({"event": int(w.intervention_event[b.cell])})
         from . import land
-        causes_ += [{"event": e} for e in land.felt(w, b.id, b.cell)[:1]]   # the food account test (review 021)
+        e = land.hunger_event(w, b.id, b.cell)        # the land as a contributing cause, with amounts (review 022)
+        if e >= 0:
+            causes_.append({"event": e})
         w.event("group_hunger_deaths", cell=b.cell, band=b.id, causes=causes_, deaths=int(hunger_rows[k]))
 
 

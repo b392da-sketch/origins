@@ -1,0 +1,2 @@
+{"gate": "g3", "label": "m4a-disease-on2", "jobs": ["4:10", "4:7", "5:7", "1:5"], "after_first": 1000, "params": {},
+ "note": "M4a trial: named diseases with reservoirs and k 3,000-500,000 (wip-disease bf11e74), in four histories where herding dominated in G3 run 3. Replaces m4a-disease-on (cancelled: old k). Compare with m4a-disease-off. 20 Nov 2026."}
