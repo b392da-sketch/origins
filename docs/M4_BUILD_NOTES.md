@@ -1159,3 +1159,11 @@ Several others could not be read here: the DOI links were blocked, or the page s
 - Tent, J. (2017). Indigenous toponyms in the Antipodes: a gazetteer-based study. *Names*, 65(4), 204–214. doi:10.1080/00277738.2017.1369743.
 - Zair, N. (2023). Introduction. In *Orthographic Traditions and the Sub-elite in the Roman Empire*, 1–44. Cambridge University Press. doi:10.1017/9781009327633.002.
 - Blair, D., & Tent, J. (2021). A revised typology of place-naming. *Names*, 69(4), 30–47. doi:10.5195/names.2021.2260. (Abstract read.)
+
+**ChatGPT's written report** (20 November 2026, after the sources) adds:
+- **Emphasis:** the earliest surviving writing also includes royal ritual, divination and display. Postgate et al. (1995) argue this is largely survival bias. This is a difference of weight, not of fact.
+- **Writing as several technologies:** tallies, seals, material records, specialist accountants and writing are related but distinct. Growing scale creates pressure to adopt them, with no fixed threshold that guarantees writing. This agrees with Shin et al. (2020), whose thresholds are "elastic and porous".
+- **A palace collapse can take its script with it** without everyone losing the ability to write; the Aegean gap is disputed.
+- **Names come from people's dealings with places.** There is no secure universal order in which features are named. One place can gather several names, translations and adaptations. Name forms should follow each language: generic plus specific, compounds, possessives, single words, and borrowed names whose parts are no longer understood.
+
+ChatGPT lists Nissen 2016 and Regulski 2016 as read in full; I could not open either here, so their figures stay unverified (Uruk's size and population, and about 1% literacy in Old Kingdom Egypt).
