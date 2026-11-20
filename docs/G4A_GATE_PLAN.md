@@ -1,6 +1,6 @@
 # Gate G4a: plan and measurements (draft for Ben)
 
-Claude, 21 November 2026. **Status:** the measurements below are proposed; the three open points were decided by Ben on 21 November 2026 (end of this document). Ben approves the gate run; nothing here runs until he does. The checks and pass marks are those of `docs/M4_SPECIFICATION_v1.md` section 9 (approved 12 November 2026). This document says how each check is measured from the gate record, which the specification leaves open. All parameter values are tunable starting values, not facts.
+Claude, 21 November 2026. **Status: approved by Ben on 21 November 2026**, with his decisions on the three open points (end of this document). The gate runs after the comprehensive pre-gate review (requests 034–037) and its fixes (CLAUDE.md). The checks and pass marks are those of `docs/M4_SPECIFICATION_v1.md` section 9 (approved 12 November 2026). This document says how each check is measured from the gate record, which the specification leaves open. All parameter values are tunable starting values, not facts.
 
 ## Histories
 
@@ -61,7 +61,7 @@ The G4a record is the G3 record, so G3's checks can be re-run on it (check 1). I
 2. **"Most histories"** (checks 4b, 5, 7 and 9): at least two thirds of the histories where the check can be measured.
 3. **History length:** 6,000 years after the first village, as in G3, so the two gates can be compared.
 
-The gate run itself still waits for Ben's approval of this plan.
+Ben approved the plan on 21 November 2026.
 
 ## Pipeline check (21 November 2026)
 
