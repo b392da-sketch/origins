@@ -1,8 +1,8 @@
 """Evaluate gate G4a from the result files. Checks and pass marks: docs/M4_SPECIFICATION_v1.md section 9; how each is
 measured: docs/G4A_GATE_PLAN.md. All rates in the simulation are tunable starting values, not measurements.
 
-The proposed readings of "falls clearly" (check 6: below half the main arm's median) and "most histories" (two thirds
-of those where a check can be measured) are Claude's proposals in the gate plan, awaiting Ben's approval.
+"Falls clearly" (check 6: below half the main arm's median) and "most histories" (two thirds of those where a check
+can be measured) were decided by Ben on 21 November 2026 (gate plan, end).
 """
 from __future__ import annotations
 
@@ -15,8 +15,8 @@ import numpy as np
 
 from gates.g1_report import _spearman
 
-MOST = 2 / 3                    # "most histories" (proposed)
-KNOCK_SHARE = 0.5               # check 6: the knock-out's median below this share of the main arm's (proposed)
+MOST = 2 / 3                    # "most histories" (Ben, 21 November 2026)
+KNOCK_SHARE = 0.5               # check 6: the knock-out's median below this share of the main arm's (Ben, 21 Nov 2026)
 
 
 def _load(out: Path):
@@ -152,7 +152,7 @@ def report(out: Path) -> str:
     ok6 = (mk < KNOCK_SHARE * m2) if knock and not np.isnan(mk) and not np.isnan(m2) else None
     checks.append(("6. Knock-out: no population effect", ok6,
                    f"check 2's median correlation with the population term off: {mk:.2f}, against {m2:.2f} with it "
-                   f"(pass, proposed: below half)" if knock else "no knock-out histories"))
+                   f"(pass: below half)" if knock else "no knock-out histories"))
 
     # 7 trade follows supply and distance
     fl, hl, rf = [], [], []

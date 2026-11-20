@@ -1,6 +1,6 @@
 # Gate G4a: plan and measurements (draft for Ben)
 
-Claude, 21 November 2026. **Status: a proposal.** Ben approves the gate run; nothing here runs until he does. The checks and pass marks are those of `docs/M4_SPECIFICATION_v1.md` section 9 (approved 12 November 2026). This document says how each check is measured from the gate record, which the specification leaves open. All parameter values are tunable starting values, not facts.
+Claude, 21 November 2026. **Status:** the measurements below are proposed; the three open points were decided by Ben on 21 November 2026 (end of this document). Ben approves the gate run; nothing here runs until he does. The checks and pass marks are those of `docs/M4_SPECIFICATION_v1.md` section 9 (approved 12 November 2026). This document says how each check is measured from the gate record, which the specification leaves open. All parameter values are tunable starting values, not facts.
 
 ## Histories
 
@@ -41,7 +41,7 @@ The G4a record is the G3 record, so G3's checks can be re-run on it (check 1). I
 | 3 | Risk matters too, or doesn't | the same correlation with need, beside check 2 | none (reported) |
 | 4 | Diffusion follows contact | (a) per band, the share of techniques it knows that came from others; median over bands, then over histories. (b) per technique, Spearman correlation of a band's first-adoption year with its cell steps from the first invention | (a) median above 0.6; (b) positive in most histories |
 | 5 | Isolation causes loss | losses occur; loss rate per band-century by quintile of people within reach falls as reach rises (Spearman over quintiles negative); techniques known fall with reach | all three hold in most histories |
-| 6 | Knock-out: no population effect | check 2's median correlation in the knock-out arm, against the main arm | clearly lower (proposed: below half the main arm's) |
+| 6 | Knock-out: no population effect | check 2's median correlation in the knock-out arm, against the main arm | clearly lower: below half the main arm's (Ben, 21 November 2026) |
 | 7 | Trade follows supply and distance | fine stone, salt and shell held per person fall with cell steps from the source (Spearman negative); partner help per year rises with the share of bands short of food (Spearman positive) | both in most histories |
 | 8 | Goods are conserved | accounting failures (goods, food, people) | none in any history |
 | 9 | The land answers back | among cells irrigated in dry land, salt rises with years of use; fertility falls with years of continuous cropping; slow game is lower where hunting pressure is high; `land_hunger` and `land_move` events occur | all in most histories that farm; stated as exposure, not cause (Ben, 20 November 2026) |
@@ -55,11 +55,13 @@ The G4a record is the G3 record, so G3's checks can be re-run on it (check 1). I
 - the years from the first village to the first state, against Borcan, Olsson and Putterman (2021);
 - the place-name record: share of names kept by newcomers by feature size, and layers per place.
 
-## Open points for Ben
+## Ben's decisions (21 November 2026)
 
-1. **Check 6's mark** ("falls clearly") needs a number. Proposed: the knock-out arm's median below half the main arm's.
-2. **"Most histories"** in checks 4b, 5, 7 and 9. Proposed: at least two thirds of the histories where the check can be measured.
+1. **Check 6's mark:** the knock-out arm's median correlation below half the main arm's.
+2. **"Most histories"** (checks 4b, 5, 7 and 9): at least two thirds of the histories where the check can be measured.
 3. **History length:** 6,000 years after the first village, as in G3, so the two gates can be compared.
+
+The gate run itself still waits for Ben's approval of this plan.
 
 ## Pipeline check (21 November 2026)
 
