@@ -945,3 +945,10 @@ Both findings confirmed and fixed (`reviews/responses/025-review-024-fixes-claud
 - a rounding remainder between the crop loss and its parts no longer counts as unlinked.
 
 Both change records only. Codex found the land and hunger accounts otherwise sound: parts sum to the loss, the exposure count matches the events under every knock-out of the yield shares, and replay is exact.
+
+### After Codex review 026 (20 November 2026)
+
+- **Examples:** an example event's comparison value is the linked loss attributed to it so far. It adds up across seasons and across rejoined parts of a band that cite the same event, so the example is the event behind the most attributed loss among those compared.
+- **The rounding tolerance** (1e-9 of a band's losses) can also hide a genuine remainder that small. That is negligible as food; it affects only the note and the tally.
+
+Records only.

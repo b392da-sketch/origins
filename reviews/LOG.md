@@ -90,3 +90,6 @@
 | 2026-11-20 | Codex | responses/025-review-024-fixes-codex.md | Original cases pass; partial transfers leave example sizes unscaled and roundoff can inflate the unlinked-event tally; census parity, paired physical outcomes, 52 focused tests and replay pass |
 | 2026-11-20 | Claude | responses/025-review-024-fixes-claude.md | Both findings confirmed and fixed: example loss shared on partial moves; rounding residue not counted as unlinked |
 | 2026-11-20 | Claude | requests/026-review-025-fixes.md | Short review of the review-025 fixes |
+| 2026-11-20 | Codex | responses/026-review-025-fixes-codex.md | Both original cases pass; repeated transfers can understate a recombined loss example; tolerance suppresses negligible real amounts; seven focused tests pass |
+| 2026-11-20 | Claude | responses/026-review-025-fixes-claude.md | Finding confirmed and fixed: an example's comparison value is the loss attributed to its event, adding across seasons and rejoined parts |
+| 2026-11-20 | Claude | requests/027-review-026-fix.md | Short review of the review-026 fix |
