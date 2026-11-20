@@ -1,0 +1,2 @@
+{"gate": "g3", "label": "m4a-disease-off5", "jobs": ["4:10", "5:7", "1:5"], "after_first": 1000, "per_job": 1, "params": {"DISEASE": false},
+ "note": "M4a trial: named diseases off (M1 outbreaks), code cbcedad, same three histories as m4a-disease-on5, one history per machine. 20 Nov 2026."}
