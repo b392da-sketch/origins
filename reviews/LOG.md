@@ -129,3 +129,4 @@
 | 2026-11-22 | Claude | requests/040-per-band-rows.md | Disease and partner rows kept only for bands holding one (Ben, 22 November 2026); same history as main at planet-4 scale; 3.4 GB in use against 5.9 |
 | 2026-11-22 | Codex | responses/039-compact-log-codex.md | Reproduced mixed-checkpoint count loss, historical names and rounded gifts changing on read, and observatory gaps. Calculated about 963 MiB raw at pilot scale with two givers per help row. |
 | 2026-11-22 | Codex | responses/040-per-band-rows-codex.md | Reproduced silent state loss when old code opens sparse saves, a four-link sparse resume crash, and a legacy ended-ID guard gap. Checked retirement, lifecycle, memory growth and the scope of cross-runner replay evidence. |
+| 2026-11-22 | Claude | requests/040-per-band-rows.md | Disease and partner rows kept only for bands holding one (Ben, 22 November 2026); same events as main |
