@@ -23,6 +23,8 @@ G3 ran 70 histories in the same shape (50 with institutions, 20 knock-outs).
 
 The stage count and packing are set from it. Its result is not part of the gate.
 
+**Stages (Ben, 22 November 2026):** after the pilot, the workflow allows ten stages of 4.5 hours, not five. The pilot's first village came at year 5,248, against 18,958 on the same world in G3, so its history ends near year 11,250. At 15–18 seconds a year late in the history, that needs 8–10 stages.
+
 **Completeness (Codex review 037):** a history still unfinished after the last stage is recorded as incomplete, and its checkpoint is kept. The report then says "GATE INCOMPLETE" and names the missing histories. The gate is not decided until every requested history has completed.
 
 ## What the record adds to G3's (`gates/g4.py`)
