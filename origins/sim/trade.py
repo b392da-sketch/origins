@@ -320,19 +320,19 @@ def _parted(w, a: int, b: int) -> bool:
     return t is not None and w.t - t < 4 * P.PARTNER_REFORM_WAIT
 
 
-def _closeness(w, a, b) -> float:
+def _closeness(w, a, b, cache=None) -> float:
+    """Closeness of speech between two bands' languages. `cache`, a dict for one partnerships pass (no language
+    changes within it), keeps each language pair's value (G4a pilot; scoped to the pass after Codex review 038,
+    finding 3)."""
     from .language import shared_roots
-    # languages change only in the language phase, so a pair's shared roots are kept for the tick (G4a pilot:
-    # 1.5 million comparisons in 20 years at planet-4 scale; the same numbers)
-    c = getattr(w, "_close_cache", None)
-    if c is None or c[0] != w.t:
-        c = w._close_cache = (w.t, {})
     key = (a.language, b.language)
-    v = c[1].get(key)
-    if v is None:
-        la, lb = w.languages.get(a.language), w.languages.get(b.language)
-        same = shared_roots(la, lb) if (la is not None and lb is not None) else 1.0
-        v = c[1][key] = P.TECH_FOREIGN + (1.0 - P.TECH_FOREIGN) * same
+    if cache is not None and key in cache:
+        return cache[key]
+    la, lb = w.languages.get(a.language), w.languages.get(b.language)
+    same = shared_roots(la, lb) if (la is not None and lb is not None) else 1.0
+    v = P.TECH_FOREIGN + (1.0 - P.TECH_FOREIGN) * same
+    if cache is not None:
+        cache[key] = v
     return v
 
 
@@ -340,6 +340,7 @@ def partnerships_yearly(w, live):
     """Lapse, gifts, then new links. Draws from the 'trade' stream only."""
     from .language import ring2
     rng = w.rng["trade"]
+    close_cache: dict = {}                         # language pairs' closeness for this pass only (review 038)
     if w.partner_dropped:                          # forget partings older than the wait
         w.partner_dropped = {k: t for k, t in w.partner_dropped.items() if w.t - t < 4 * P.PARTNER_REFORM_WAIT}
     r2 = ring2(w)
@@ -410,7 +411,7 @@ def partnerships_yearly(w, live):
                 break
             if free[o.id] <= 0:
                 continue
-            close = _closeness(w, b, o)
+            close = _closeness(w, b, o, close_cache)
             if u < P.PARTNER_FORM * close:
                 _link(w, b.id, o.id)
                 free[b.id] -= 1
@@ -766,12 +767,15 @@ def prestige_factor(w, polity_id: int) -> float:
     if held <= 0:
         return 0.0
     # Members are looked up fresh each call, so a band changing polity within a tick counts at once (Codex review
-    # 018); only band sizes are kept for the tick (speed), so births and deaths within a tick are not seen here.
-    # (Until 21 November 2026 a tick cache was meant here, but its check compared against the number of band
-    # records, never equal to the array's length, so sizes were rebuilt for every band id on every call. They are
-    # now looked up for the members only: the same numbers, G4a pilot.)
-    members = np.nonzero(w.polity_of[:w.next_band] == polity_id)[0]
-    n = float(w.sizes_of(members).sum()) if len(members) else 0.0
+    # 018); only band sizes are kept for the tick (speed), so births and deaths within a tick are not seen here. The
+    # snapshot is taken at the tick's first call and again when a band is created (the record grows). (Kept as it was
+    # after Codex review 038, finding 1: a fresh lookup changed results within a tick. len(w.bands) is now cheap.)
+    c = getattr(w, "_sizes_tick", None)
+    if c is None or c[0] != w.t or len(c[1]) != len(w.bands):
+        c = (w.t, w.band_sizes().astype(float))
+        w._sizes_tick = c
+    members = np.nonzero(w.polity_of[:len(c[1])] == polity_id)[0]
+    n = float(c[1][members].sum()) if len(members) else 0.0
     return float(np.clip(held / max(n, 1.0) / P.PRESTIGE_NEED, 0.0, 1.0))
 
 

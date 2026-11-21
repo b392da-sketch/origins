@@ -1296,3 +1296,57 @@ class Review019(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Review038(unittest.TestCase):
+    """Codex review 038: the speed fixes from the G4a pilot must not change what any routine returns."""
+
+    def test_finding1_prestige_keeps_its_size_snapshot_within_a_tick(self):
+        from origins.sim import polity, traders
+        helper = GoodsEffects()
+        w, b, T = helper._one(size=100)
+        p = polity._new_polity(w, b, [{"note": "t"}], why="t")
+        traders.grow(w, p.id)
+        sizes = np.zeros(len(w.bands))
+        sizes[b.id] = 100
+        w.band_sizes = lambda: sizes
+        w.treasury[p.id, trade.GI["gold"]] = 50.0 * P.PRESTIGE_NEED     # half the need per member at 100 people
+        first = trade.prestige_factor(w, p.id)
+        sizes[b.id] = 50                                                 # deaths within the tick
+        self.assertEqual(trade.prestige_factor(w, p.id), first)          # not seen until the next tick (as before)
+        w.t += 1
+        self.assertGreater(trade.prestige_factor(w, p.id), first)
+
+    def test_finding2_size_helpers_refuse_absent_and_non_integer_ids(self):
+        w = World.new(1, 1, generate(1))
+        for bad in (-1, w.next_band):
+            with self.assertRaises(IndexError):
+                w.band_size(bad)
+            with self.assertRaises(IndexError):
+                w.sizes_of([bad])
+        with self.assertRaises(TypeError):
+            w.sizes_of([1.9])
+        with self.assertRaises(TypeError):
+            w.band_size(1.9)
+        ids = [b.id for b in w.living_bands()]
+        self.assertEqual(w.sizes_of(ids + ids[:1]).tolist(), w.band_sizes()[ids + ids[:1]].tolist())
+        self.assertEqual([w.band_size(i) for i in ids], w.band_sizes()[ids].tolist())
+
+    def test_finding3_closeness_is_kept_only_within_one_pass(self):
+        import copy
+        w = World.new(1, 1, generate(1))
+        a = w.living_bands()[0]
+        la = w.languages[a.language]
+        lb = copy.deepcopy(la)
+        lb.id = 10 ** 6
+        w.languages[lb.id] = lb
+        b = copy.copy(a)
+        b.language = lb.id
+        cache = {}
+        self.assertEqual(trade._closeness(w, a, b, cache), 1.0)
+        m = next(iter(lb.lexicon))
+        lb.lexicon[m] = [lb.lexicon[m][0], -12345] + list(lb.lexicon[m][2:])   # a root changed in place
+        self.assertEqual(trade._closeness(w, a, b, cache), 1.0)          # within one pass: kept
+        self.assertLess(trade._closeness(w, a, b), 1.0)                  # a new pass sees the change
+        src = __import__("inspect").getsource(trade.partnerships_yearly)
+        self.assertIn("close_cache: dict = {}", src)

@@ -538,10 +538,23 @@ class World:
         out = np.bincount(self.people.band[idx], minlength=self.next_band).astype(float)
         return out + groups.sizes(self)
 
+    def _check_ids(self, ids) -> np.ndarray:
+        """Band ids as a non-negative integer array below next_band; anything else raises (Codex review 038,
+        finding 2: an absent id must not read as an empty band or select another)."""
+        a = np.asarray(ids)
+        if a.size and not np.issubdtype(a.dtype, np.integer):
+            raise TypeError(f"band ids must be integers, not {a.dtype}")
+        a = a.astype(np.int64, copy=False)
+        if a.size and (a.min() < 0 or a.max() >= self.next_band):
+            raise IndexError("band id out of range")
+        return a
+
     def band_size(self, band_id: int) -> float:
         """People in one band, individuals plus group counts: band_sizes()[band_id] without building the array for
         every band id ever issued (G4a pilot, 21 November 2026: called on every move between bands, it took half the
-        time at planet-4 scale). The same number to the last bit: the group rows are added in row order, from 0."""
+        time at planet-4 scale). The same number to the last bit: the group rows are added in row order, from 0.
+        The id must be an integer in 0..next_band-1 (review 038)."""
+        band_id = int(self._check_ids([band_id])[0])
         idx = self.alive_idx()
         n = float(np.count_nonzero(self.people.band[idx] == band_id))
         G = self.groups
@@ -556,12 +569,11 @@ class World:
     def sizes_of(self, ids) -> np.ndarray:
         """band_sizes()[ids] for some band ids, without building the array for every band id ever issued (G4a
         pilot, 21 November 2026). The same numbers to the last bit: individuals are counted, and each band's group
-        rows are added in row order from 0, as band_sizes does."""
-        ids = np.asarray(ids, dtype=np.int64)
+        rows are added in row order from 0, as band_sizes does. Ids must be integers in 0..next_band-1 (review
+        038)."""
+        ids = self._check_ids(ids)
         if ids.size == 0:
             return np.zeros(ids.shape)
-        if ids.min() < 0 or ids.max() >= self.next_band:
-            raise IndexError("band id out of range")
         u, inv = np.unique(ids, return_inverse=True)
         idx = self.alive_idx()
 
