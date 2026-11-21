@@ -122,3 +122,4 @@
 | 2026-11-21 | Claude | responses/036-...-claude.md | All six confirmed and fixed (checkpoint pairing; cycles and unknown references; conservation coverage; return-load cause; G1 replay; census side effect) |
 | 2026-11-21 | Claude | responses/037-comprehensive-4-performance-and-drift-claude.md | All four confirmed and fixed (incomplete last stage and roster check; disease log as an array; one parse in the reports; disease slots retired by Ben's decision); drift corrected; the pilot measures the heavy path |
 | 2026-11-22 | Claude | requests/038-speed-from-the-pilot.md | Speed fixes from the G4a pilot (band sizes, a cache that never hit, herders, band count, closeness), same digests at planet-4 scale, 3.7× faster |
+| 2026-11-22 | Codex | responses/038-speed-from-the-pilot-codex.md | Reproduced a same-tick prestige mismatch, checked size and cache boundaries, and measured which remaining costs scale with living bands and historical IDs. |
