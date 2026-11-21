@@ -13,7 +13,7 @@ import numpy as np
 
 class SlotMap:
     def __init__(self, cap_ids: int = 64):
-        self.slot = np.full(cap_ids, -1, dtype=np.int64)     # band id -> slot, -1 if none
+        self.slot = np.full(cap_ids, -1, dtype=np.int64)     # band id -> slot; -1 none yet; -2 released
         self.owner = np.zeros(0, dtype=np.int64)              # slot -> band id, -1 if free
         self.free: list[int] = []
         self.arrays: list["SparseRows"] = []
@@ -34,6 +34,8 @@ class SlotMap:
         s = int(self.slot[band_id])
         if s >= 0:
             return s
+        if s == -2:
+            raise KeyError(f"band {band_id} has ended: its row was released")
         if self.free:
             s = self.free.pop()
         else:
@@ -50,7 +52,7 @@ class SlotMap:
     def release(self, band_id: int):
         if band_id < len(self.slot) and self.slot[band_id] >= 0:
             s = int(self.slot[band_id])
-            self.slot[band_id] = -1
+            self.slot[band_id] = -2
             self.owner[s] = -1
             for a in self.arrays:
                 a.data[s] = a.fill
@@ -132,6 +134,14 @@ class SparseRows:
     def rows(self):
         """The rows in use, by slot (free slots hold the fill value)."""
         return self.data[:len(self.slots.owner)]
+
+    def dense(self) -> np.ndarray:
+        """Every id's row as a dense array, released and unassigned ids at the fill value (for tests and small
+        worlds only)."""
+        out = np.full(self.shape, self.fill, dtype=self.dtype)
+        ids = self.slots.held()
+        out[ids] = self.data[self.slots.slot[ids]]
+        return out
 
     def by_id(self) -> tuple[np.ndarray, np.ndarray]:
         """(band ids holding a row, ascending; their rows in that order)."""

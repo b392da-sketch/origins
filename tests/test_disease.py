@@ -139,7 +139,7 @@ class Disease(unittest.TestCase):
         first_year(w)
         w2 = persist.from_bytes(persist.to_bytes(w), w.planet)
         self.assertEqual(w2.diseases, w.diseases)
-        self.assertTrue(np.array_equal(w2.dz_imm, w.dz_imm))
+        self.assertTrue(np.array_equal(w2.dz_imm.dense(), w.dz_imm.dense()))
         self.assertEqual(persist.digest(w2), persist.digest(w))
 
     def test_a_disease_that_died_out_can_pass_again_from_its_animals(self):
