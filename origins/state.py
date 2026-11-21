@@ -533,6 +533,48 @@ class World:
         out = np.bincount(self.people.band[idx], minlength=self.next_band).astype(float)
         return out + groups.sizes(self)
 
+    def band_size(self, band_id: int) -> float:
+        """People in one band, individuals plus group counts: band_sizes()[band_id] without building the array for
+        every band id ever issued (G4a pilot, 21 November 2026: called on every move between bands, it took half the
+        time at planet-4 scale). The same number to the last bit: the group rows are added in row order, from 0."""
+        idx = self.alive_idx()
+        n = float(np.count_nonzero(self.people.band[idx] == band_id))
+        G = self.groups
+        rows = G.rows()
+        g = 0.0
+        if len(rows):
+            mine = rows[G.band[rows] == band_id]
+            for v in (G.F[mine].sum(1) + G.M[mine].sum(1)).tolist():
+                g += v
+        return n + g
+
+    def sizes_of(self, ids) -> np.ndarray:
+        """band_sizes()[ids] for some band ids, without building the array for every band id ever issued (G4a
+        pilot, 21 November 2026). The same numbers to the last bit: individuals are counted, and each band's group
+        rows are added in row order from 0, as band_sizes does."""
+        ids = np.asarray(ids, dtype=np.int64)
+        if ids.size == 0:
+            return np.zeros(ids.shape)
+        if ids.min() < 0 or ids.max() >= self.next_band:
+            raise IndexError("band id out of range")
+        u, inv = np.unique(ids, return_inverse=True)
+        idx = self.alive_idx()
+
+        def at(v):
+            k = np.minimum(np.searchsorted(u, v), len(u) - 1)
+            ok = u[k] == v
+            return k[ok], ok
+        k, _ = at(self.people.band[idx])
+        out = np.bincount(k, minlength=len(u)).astype(float)
+        G = self.groups
+        rows = G.rows()
+        g = np.zeros(len(u))
+        if len(rows):
+            k, ok = at(G.band[rows])
+            r = rows[ok]                                   # only the rows of the bands asked about are summed
+            np.add.at(g, k, G.F[r].sum(1) + G.M[r].sum(1))
+        return (out + g)[inv].reshape(ids.shape)
+
     def population(self) -> int:
         from .sim import groups
         return int(len(self.alive_idx()) + round(groups.sizes(self).sum()))

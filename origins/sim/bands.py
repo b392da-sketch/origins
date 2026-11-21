@@ -239,7 +239,7 @@ def carry(w, src, dst, route, carriers):
     already does without an event per band; Ben, 14 November 2026, decision 6: until then merges dropped them)."""
     from . import technology, disease
     technology.combine(w, src, dst, route, carriers)
-    disease.combine(w, src, dst, carriers if carriers is not None else float(w.band_sizes()[src.id]))
+    disease.combine(w, src, dst, carriers if carriers is not None else w.band_size(src.id))
     if route in ("combined", "merge"):
         # a whole people joining is a change of record, not of history: last year's receipts from trade and any
         # past herding go with it (Codex review 035, finding 6)
@@ -254,8 +254,7 @@ def carry(w, src, dst, route, carriers):
         w.skill[dst.id] = np.maximum(w.skill[dst.id], w.skill[src.id])
         cache = getattr(w, "_herder_cache", None)       # dst's way of life may have changed (Codex review 009, finding 2)
         if cache is not None:
-            for key in [k for k in cache[1] if k[0] == dst.id]:
-                del cache[1][key]
+            cache[1].pop(dst.id, None)
 
 
 def consolidate_groups(w):
