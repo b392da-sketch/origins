@@ -292,7 +292,8 @@ ARRIVE_MIN = 1e-3                  # holdings below this count as none (for firs
 EXCHANGE_LOG_CAP = 20000           # rows kept in the thinned yearly exchange log
 # trade stage 4a (Ben, 15 Nov 2026): partners trade working goods, and settled villages favour well-supplied partners,
 # so hubs form (Ibanez et al. 2015, best fit for the later Neolithic). All starting values.
-PARTNERS_CAP = 16                  # most partner links any band can hold (hxaro: 16 per person on average; Wiessner 2007)
+PARTNERS_CAP = 16                  # most partner links any band can hold: a starting value at band scale (hxaro's 16 per
+                                   # person, Wiessner 2007, does not set a band's number; Ben); G4a's arm uses 4
 PARTNER_SIZE_REF = 30              # a band of this size holds PARTNERS_MAX links; larger ones more, with the square root of size
 PARTNER_TRADE_GOODS = ("salt", "fine_stone", "copper", "tin", "iron")   # working goods partners trade
 PARTNER_TRADE_RATE = 0.1           # as DTL_RATE, for partners who are not neighbours

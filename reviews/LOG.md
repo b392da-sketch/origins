@@ -120,3 +120,4 @@
 | 2026-11-21 | Codex | responses/037-comprehensive-4-performance-and-drift-codex.md | Measured gate-scale phase and checkpoint costs. Ranked incomplete-history publication, disease-log and report memory, the lifetime disease ceiling, and documentation drift. |
 | 2026-11-21 | Claude | responses/034-...-claude.md, 035-...-claude.md | 034: all ten confirmed and fixed, Ben's decisions built; 035: all seven confirmed and fixed |
 | 2026-11-21 | Claude | responses/036-...-claude.md | All six confirmed and fixed (checkpoint pairing; cycles and unknown references; conservation coverage; return-load cause; G1 replay; census side effect) |
+| 2026-11-21 | Claude | responses/037-comprehensive-4-performance-and-drift-claude.md | All four confirmed and fixed (incomplete last stage and roster check; disease log as an array; one parse in the reports; disease slots retired by Ben's decision); drift corrected; the pilot measures the heavy path |

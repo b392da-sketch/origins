@@ -13,21 +13,20 @@ review 034).
 from __future__ import annotations
 
 import json
-import shutil
-import tempfile
 from pathlib import Path
 
 import numpy as np
 
 from gates.g1_report import _spearman
+from origins import params as _P
 
 MOST = 2 / 3                    # "most histories" (Ben, 21 November 2026)
 MIN_COVERAGE = 0.5              # a check is measured only if at least half the histories can measure it (Ben, 21 Nov)
 KNOCK_SHARE = 0.5               # check 6: the knock-out's median below this share of the main arm's (Ben, 21 Nov 2026)
 PERSIST_YEARS = 10              # check 10 (Ben, 21 November 2026)
-HERDERS = 100
-AROUND = 5000
+from gates.g3 import SPELL_HERDERS as HERDERS, SPELL_AROUND as AROUND   # noqa: E402 (counted in the record)
 CENSUS_YEARS = 100
+DZ_RETIRE = _P.DZ_RETIRE_YEARS  # for the text (Ben, 21 November 2026)
 REQUIRED_CHAINS = ("invention", "loss", "adoption", "goods arrival", "gift exchange", "trade route", "help in need",
                    "new disease", "outbreak", "land and hunger", "land and moves", "place name")
 
@@ -108,18 +107,47 @@ def loss_by_reach(r):
     return rates, _spearman(np.arange(len(rates)), rates), rk, int(rate.sum())
 
 
+# fields only G4a's record has: left out when G3's (and through it G2's) report reads the same records, so they are
+# not written and parsed again (Codex review 037, finding 3)
+G4_ONLY = ("census", "census_fields", "chains", "chains_fields", "first_adoptions", "first_adoptions_fields",
+           "first_invention", "goods_falloff", "help_by_year", "help_fields", "inventions_by_band", "land_cells",
+           "land_cells_fields", "land_events", "land_exposure", "learned_share", "learned_share_fields",
+           "losses_by_band", "writing_log", "writing_inventions")
+
+
 def _g3(runs):
-    tmp = Path(tempfile.mkdtemp())
-    for r in runs:
-        (tmp / f"run_w{r['world_seed']}_s{r['run_seed']}.json").write_text(json.dumps(r))
     from gates.g3_report import report as g3report
-    txt = g3report(tmp)
-    shutil.rmtree(tmp)
-    return txt
+    return g3report(None, records=[{k: v for k, v in r.items() if k not in G4_ONLY} for r in runs])
+
+
+def roster(out: Path, recs):
+    """The histories the request asked for (request.json beside the results, as the workflow puts it) against those
+    that arrived completed. Returns (expected, missing, incomplete) as names "w<planet>_s<seed>[_<arm>]"; expected is
+    None without a request (Codex review 037, finding 1: a history must not drop out of the denominator unseen)."""
+    def name(ws, rs, arm):
+        return f"w{ws}_s{rs}" + (f"_{arm}" if arm else "")
+    got = {name(r["world_seed"], r["run_seed"], r.get("arm") or "") for r in recs if r.get("status") == "completed"}
+    inc = sorted(name(r["world_seed"], r["run_seed"], r.get("arm") or "") for r in recs
+                 if r.get("status") != "completed")
+    req = out / "request.json"
+    if not req.exists():
+        return None, [], inc
+    from gates.plan import _plan
+    exp = set()
+    for j in _plan(json.loads(req.read_text()))["include"]:
+        if j["kind"] == "run" or (j["kind"].startswith("run_") and j["kind"] not in ("run_nostore", "run_noinst")):
+            exp.add(name(j["ws"], j["rs"], j["kind"][4:] if j["kind"] != "run" else ""))
+    return sorted(exp), sorted(exp - got), inc
+
+
+INCOMPLETE = {"flag": False}
 
 
 def report(out: Path) -> str:
-    allr = [r for r in _load(out) if r.get("status") == "completed"]
+    recs = _load(out)
+    exp, missing, inc = roster(out, recs)
+    allr = [r for r in recs if r.get("status") == "completed"]
+    del recs
     runs = [r for r in allr if not r.get("arm")]
     arms = {}
     for r in allr:
@@ -129,6 +157,15 @@ def report(out: Path) -> str:
     L = []
     add = L.append
     add("# Gate G4a report — 'knowledge and exchange'\n")
+    INCOMPLETE["flag"] = bool(missing)
+    if exp is None:
+        add("**Roster not checked:** no request.json beside the results.\n")
+    elif missing:
+        add(f"**GATE INCOMPLETE: {len(missing)} of {len(exp)} requested histories did not complete:** "
+            + ", ".join(missing) + (f" (stopped unfinished: {', '.join(inc)})" if inc else "")
+            + ". The checks below cover only the completed histories and are not a gate verdict.\n")
+    else:
+        add(f"Roster: all {len(exp)} requested histories completed.\n")
     add(f"Main histories: {n} on {len(sorted({r['world_seed'] for r in runs}))} planets. Arms: "
         + (", ".join(f"{a} {len(v)}" for a, v in sorted(arms.items())) or "none")
         + ". All rates are tunable starting values (origins/params.py), not measurements.\n")
@@ -321,13 +358,19 @@ def report(out: Path) -> str:
         if spells:
             meas10 += 1
         for sp in spells:
-            d, cell, y0, y1, yrs, deaths, yearly = sp
+            d, cell, y0, y1, yrs = sp[:5]
+            if len(sp) == 7:                              # records before review 037: a pair per spell-year
+                yearly = sp[6]
+                dense = sum(1 for h, around in yearly if h >= HERDERS and around >= AROUND)
+                around0 = yearly[0][1] if yearly else None
+            else:                                         # counted when the record was built (gates/g3.py)
+                dense, around0 = sp[6], sp[7]
             open_end = y1 >= end - 1
             if yrs >= PERSIST_YEARS:
-                p_years += len(yearly)
-                p_dense += sum(1 for h, around in yearly if h >= HERDERS and around >= AROUND)
+                p_years += yrs
+                p_dense += dense
             wild = host_of(d, y0) == "wild"
-            small = bool(yearly) and yearly[0][1] < AROUND
+            small = around0 is not None and around0 < AROUND
             if (wild or small) and not open_end:
                 n_wild += 1
                 short_wild += yrs < PERSIST_YEARS
@@ -364,7 +407,11 @@ def report(out: Path) -> str:
                    f"(a source circulating 25+ years), deaths per person: never met {rate['never']:.3f}, met within a "
                    f"generation {rate['recent']:.3f}, longer ago {rate['long ago']:.3f}; in arrivals reaching both, "
                    f"never met {mrate['never']:.3f} against met {mrate['met']:.3f}. Spells with diseases in {meas10} of "
-                   f"{n} histories (pass: most persistence where herds and dense populations meet, wild and small "
+                   f"{n} histories. Disease slots: {sum(r.get('disease_counts', {}).get('dz_retired', 0) for r in runs)} "
+                   f"reused after a disease left people for {DZ_RETIRE} years; new starts blocked because all slots "
+                   f"held a disease: {sum(r.get('disease_counts', {}).get('dz_blocked_starts', 0) for r in runs)} in "
+                   f"{sum(1 for r in runs if r.get('disease_counts', {}).get('dz_blocked_starts', 0))} histories "
+                   f"(Codex review 037) (pass: most persistence where herds and dense populations meet, wild and small "
                    f"starts mostly fade, and the never-met heaviest; Ben, 20-21 November 2026)"))
 
     # 11 traceable: every required kind present, and every sampled chain resolving (finding 9)
@@ -461,13 +508,18 @@ def report(out: Path) -> str:
         for pid, ys in tier.items():
             ten.append(len(ys) * 10)
             wr.append(bool(practised.get(pid, set()) & ys))
+    cut = [r for r in runs if r.get("polity_log_coverage", {}).get("truncated")]
     if ten:
         ten, wr = np.array(ten), np.array(wr)
         bins = [(0, 50), (50, 200), (200, 10 ** 9)]
         add("- **Writing against tenure** (polities that reached tier 2+; years there, from 10-year samples): "
             + "; ".join(f"{a}–{b if b < 10 ** 9 else ''} years: {int(wr[(ten >= a) & (ten < b)].sum())} of "
                         f"{int(((ten >= a) & (ten < b)).sum())} practised writing at the seat"
-                        for a, b in bins))
+                        for a, b in bins)
+            + (f". **The polity log was cut to its newest 3,000,000 rows in {len(cut)} of {len(runs)} histories** "
+               f"(earliest kept year: " + ", ".join(f"w{r['world_seed']}s{r['run_seed']} {r['polity_log_coverage']['from_year']:,}"
+                                                     for r in cut) + "); tenure there is counted from that year"
+               if cut else "; the polity log is whole in every history"))
     # M1's carried-forward items (Ben, 21 November 2026)
     cs, ss = [], []
     for r in runs:

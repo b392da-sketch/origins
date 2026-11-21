@@ -8,7 +8,8 @@ Keeping is likelier for larger and more remote features and less likely the more
 they hear it from, and after conquest (major places keep names, minor ones do not: Hall 2012; native names survive
 in remote uplands and least in units the state names: Wang et al. 2011; river names passed between languages: Kitson
 2011; names grow with population density: Hunn 1994; kinds of naming: Tent & Blair 2011; build notes, "writing and
-place names"). Every layer keeps its year, language, how it came (new, kept, replaced) and its cause.
+place names"). Every layer keeps its year, language, how it came (new, kept, replaced, or imposed: a conquered people
+taking up its conquerors' name, driven by conquest events, PLACE_ADOPT; Ben, 21 November 2026) and its cause.
 
 A layer's form is the form at the year it was given; its form now is that form carried through every sound change
 of its language's lineage since (as language.word_history does for words). Generic words (river, lake, hill,
@@ -17,11 +18,12 @@ and its random draws are unchanged; they too change through each lineage's rules
 
 Features are derived from the planet (no random draws): rivers are split into a trunk and its tributaries at each
 join (a stream continues up its larger branch); lakes are joined lake cells, used from the land around them; hills
-and mountains are local peaks of elevation; coasts are joined coastal cells within one climate region. Settlements
+and mountains are local peaks of elevation; coasts are joined coastal cells within one climate region; regions are stretches of land named "land of the people"
+or as a described land (PLACE_REGION_PEOPLE; Ben, 21 November 2026). Settlements
 are made where a settled people (technology._settled) or a polity's seat lives, and outlast it as named places.
 
 reads: bands (cell, language, size), languages, planet, farm share and still years (settled), polity_of,
-conquered_at; writes: w.places (saved, in the digest), events "place_named"; stream "places".
+conquered_at, conquest events since the last pass; runs every PLACE_CHECK_YEARS (10), not yearly; writes: w.places (saved, in the digest), events "place_named"; stream "places".
 All numbers are tunable starting values in params.py.
 """
 from __future__ import annotations

@@ -359,6 +359,11 @@ def finish(w, ws, rs, seconds, pr, tag):
     (OUT / f"run_w{ws}_s{rs}{tag}.json").write_text(json.dumps(rec))
 
 
+def _rss():
+    import resource
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6
+
+
 def worker(jobs, budget, ckpt: Path, arm: str):
     from origins import engine, params, persist
     from origins.state import World
@@ -375,7 +380,10 @@ def worker(jobs, budget, ckpt: Path, arm: str):
         cp, meta = ckpt / f"w{ws}_s{rs}{tag}.zip", ckpt / f"w{ws}_s{rs}{tag}.json"
         start = time.time()
         if cp.exists():
+            t0 = time.time()
             w = persist.from_bytes(cp.read_bytes(), g2.resume_planet(cp, ws))
+            print(f"w{ws} s{rs}{tag}: restored year {w.year} ({cp.stat().st_size / 2 ** 20:.0f} MiB) in "
+                  f"{time.time() - t0:.0f} s, {_rss():.2f} GB peak", flush=True)        # sizing (review 037)
             m = json.loads(meta.read_text())
             if "t" in m and int(m["t"]) != int(w.t):        # a world and probes from different checkpoints (review 036)
                 raise RuntimeError(f"checkpoint {cp.name}: world at tick {w.t}, probes at tick {m['t']}")
@@ -392,6 +400,8 @@ def worker(jobs, budget, ckpt: Path, arm: str):
             census(w, pr)
             if w.year % 500 == 0:
                 print(f"w{ws} s{rs}{tag}: year {w.year}, {w.population():,} people, {len(w.events):,} events, "
+                      f"{len(w.living_bands()):,} bands living of {len(w.tech):,} allocated, "
+                      f"{len(getattr(w, 'dz_log', [])):,} disease rows, {time.time() - start:.0f} s, "
                       f"peak memory {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.2f} GB", flush=True)
             if w.first_village is not None and "fv_deaths" not in pr:
                 pr["fv_deaths"] = {"by_cause": w.accum["deaths_by_cause"].tolist(), "by_age": w.accum["deaths"].tolist()}
@@ -400,12 +410,19 @@ def worker(jobs, budget, ckpt: Path, arm: str):
                 tmp = cp.with_suffix(".tmp")
                 import gc
                 gc.collect()
+                t0 = time.time()
                 persist.to_file(w, tmp, fast=True)
                 tmp.replace(cp)
+                print(f"w{ws} s{rs}{tag}: saved {cp.stat().st_size / 2 ** 20:.0f} MiB in {time.time() - t0:.0f} s, "
+                      f"{_rss():.2f} GB peak", flush=True)
                 meta.write_text(json.dumps({"t": int(w.t), "seconds": spent + time.time() - start, "year": w.year, "probe": pr}))
                 print(f"w{ws} s{rs}{tag}: checkpoint at year {w.year}", flush=True)
                 return
+        t0 = time.time()
         finish(w, ws, rs, spent + time.time() - start, pr, tag)
+        f = OUT / f"run_w{ws}_s{rs}{tag}.json"
+        print(f"w{ws} s{rs}{tag}: record {f.stat().st_size / 2 ** 20:.0f} MiB built in {time.time() - t0:.0f} s, "
+              f"{_rss():.2f} GB peak", flush=True)
         _PR["pr"] = None
         print(f"w{ws} s{rs}{tag}: completed at year {w.year} in {spent + time.time() - start:.0f} s", flush=True)
 
@@ -422,8 +439,10 @@ def main():
     a = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     if a.what == "report":
-        from gates.g4_report import report
+        from gates.g4_report import report, INCOMPLETE
         print(report(OUT))
+        if INCOMPLETE["flag"]:
+            sys.exit(3)                 # published, but the workflow marks the run failed (Codex review 037)
         return
     ck = Path(a.ckpt)
     ck.mkdir(parents=True, exist_ok=True)

@@ -359,3 +359,103 @@ class Review036(unittest.TestCase):
         g4.census(w, pr)
         self.assertTrue(pr.get("census"))
         self.assertEqual(persist.digest(w), d0)
+
+
+class Review037(unittest.TestCase):
+    """Codex review 037: an unfinished history must not leave the denominator unseen; the report parses once; the
+    disease registry and the polity log say when they saturate. (Findings 2 and 4: tests/test_disease.py.)"""
+
+    def _dir(self, recs, req):
+        import json
+        import tempfile
+        from pathlib import Path
+        d = Path(tempfile.mkdtemp())
+        for r in recs:
+            arm = f"_{r['arm']}" if r.get("arm") else ""
+            (d / f"run_w{r['world_seed']}_s{r['run_seed']}{arm}.json").write_text(json.dumps(r))
+        if req is not None:
+            (d / "request.json").write_text(json.dumps(req))
+        return d
+
+    def test_finding1_a_missing_or_unfinished_history_marks_the_gate_incomplete(self):
+        req = {"gate": "g4", "planets": "1", "seeds": "1-2", "arms": {"nopop": "1"}}
+        d = self._dir([{"status": "incomplete", "world_seed": 1, "run_seed": 2, "arm": None, "year": 9000}], req)
+        exp, missing, inc = R.roster(d, R._load(d))
+        self.assertEqual(exp, ["w1_s1", "w1_s1_nopop", "w1_s2"])
+        self.assertEqual(missing, exp)
+        self.assertEqual(inc, ["w1_s2"])
+        txt = R.report(d)
+        self.assertIn("GATE INCOMPLETE: 3 of 3", txt)
+        self.assertTrue(R.INCOMPLETE["flag"])
+
+    def test_finding1_the_last_stage_records_an_unfinished_history(self):
+        import os
+        import shutil
+        import subprocess
+        import tempfile
+        from pathlib import Path
+        t = Path(tempfile.mkdtemp())
+        (t / "req.json").write_text('{"gate": "g4", "label": "t", "planets": "1", "seeds": "1"}')
+        root = Path(__file__).resolve().parents[1]
+        shutil.rmtree(root / "out", ignore_errors=True)
+        env = dict(os.environ, FINAL_STAGE="1", BUDGET="1", CKPT=str(t / "ck"))
+        p = subprocess.run(["gates/run_job.sh", str(t / "req.json"), "run", "1:1"], cwd=root, env=env,
+                           capture_output=True, text=True)
+        try:
+            self.assertNotEqual(p.returncode, 0)
+            self.assertIn("INCOMPLETE", p.stdout)
+            self.assertIn('"status": "incomplete"', (root / "out" / "run_w1_s1.json").read_text())
+            self.assertTrue((t / "ck" / "w1_s1.zip").exists())      # kept for the ckpt5 artifact
+        finally:
+            shutil.rmtree(root / "out", ignore_errors=True)
+            shutil.rmtree(t, ignore_errors=True)
+
+    def test_finding3_g3_and_g2_read_the_records_given_without_g4_fields(self):
+        import inspect
+        from gates import g3_report
+        seen = {}
+        orig = g3_report.report
+
+        def spy(out, records=None):
+            seen["out"], seen["keys"] = out, set().union(*(r.keys() for r in records)) if records else set()
+            return ""
+        g3_report.report = spy
+        try:
+            R._g3([{"world_seed": 1, "run_seed": 1, "census": [1], "chains": [], "polity_log": []}])
+        finally:
+            g3_report.report = orig
+        self.assertIsNone(seen["out"])
+        self.assertNotIn("census", seen["keys"])
+        self.assertIn("polity_log", seen["keys"])
+        self.assertIn("records=", inspect.getsource(g3_report.report).split("from gates.g2_report")[1][:200])
+
+    def test_polity_log_coverage_is_recorded(self):
+        import inspect
+        from gates import g3
+        self.assertIn("polity_log_coverage", inspect.getsource(g3.finish))
+        self.assertIn("polity log was cut", inspect.getsource(R.report))
+
+    def test_finding2_spells_counted_from_the_array_match_the_old_pass(self):
+        from gates import g3
+        from origins.sim import disease as dz
+        rng = np.random.default_rng(5)
+        rows = []
+        for i in range(3000):
+            rows.append([int(rng.integers(0, 60)), int(rng.integers(0, 3)), int(rng.integers(0, 4)),
+                         int(rng.choice([0, 1, 2, 3, 3, 3, 3])), -1, -1, 200, .4, 1, 1, 1, 1, 1, 1,
+                         int(rng.choice([0, 150])), int(rng.choice([100, 6000])), int(rng.integers(0, 5))])
+        # the old pass (before review 037), year pairs kept
+        old, open_ = [], {}
+        for r in sorted(rows, key=lambda r: (r[1], r[2], r[0])):
+            k, sp = (r[1], r[2]), open_.get((r[1], r[2]))
+            if sp is not None and r[0] == sp[3] + 1 and r[3] == 3:
+                sp[3] = r[0]; sp[4] += 1; sp[5] += r[16]; sp[6].append([r[14], r[15]])   # noqa: E702
+            else:
+                if sp is not None:
+                    old.append(sp)
+                open_[k] = [r[1], r[2], r[0], r[0], 1, r[16], [[r[14], r[15]]]]
+        old += list(open_.values())
+        want = sorted([s[:6] + [sum(1 for h, a in s[6] if h >= 100 and a >= 5000), s[6][0][1]] for s in old])
+
+        got = sorted(g3.disease_spells(dz.RowLog(rows).array(), 3, dz.LOG_DEATHS))
+        self.assertEqual(got, want)

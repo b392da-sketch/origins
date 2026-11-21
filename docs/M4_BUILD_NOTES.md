@@ -526,7 +526,7 @@ Ben's decisions (15 November 2026):
 `origins/sim/traders.py`, called in the yearly trade phase after neighbours' exchange and before wear.
 
 - **Traders:** `TRADER_SHARE` 0.2 of the specialists at a polity's seat, fed from surplus as specialists are.
-- **Routes by gravity:** each polity's traders serve up to `ROUTES_MAX` 3 other seats, chosen among the 12 nearest by polity size × size / cost².
+- **Routes by gravity:** each polity's traders serve up to `ROUTES_MAX` 3 other seats, chosen among the 12 nearest by polity size × size / cost². *(Superseded: 12 candidates by straight-line gravity, then costed; see the later trade entries.)*
 - **Travel cost:** A* over the cells, at most `TRADE_RANGE` 30:
   - a land cell on foot costs 1, divided by 1 + pack animals and carts;
   - climbing costs `MOUNTAIN_COST` 2 per 1,000 m, and high ground (above 2,000 m) adds `HIGH_COST` 0.5 per step;
@@ -537,7 +537,7 @@ Ben's decisions (15 November 2026):
 - **On the way:**
   - road loss is 1 − exp(−`ROAD_LOSS` 0.01 × cost);
   - each polity holding cells on the road takes `TOLL` 0.05, unless going round all its land loses less (recorded once per route and polity as `toll_evaded`);
-  - the destination's ruler takes `FIRST_PICK` 0.1;
+  - the destination's ruler takes `FIRST_PICK` 0.1; *(superseded: now `RULER_LEVY`)*
   - the traders keep `TRADER_KEEP` 0.25 of what is delivered and take it home.
 - **Rulers' stores** (`w.treasury`, per polity; saved, in the digest and in the goods ledger): they wear as everyone's goods do; they pass to the seat when a polity ends (lost if the seat has gone), and to the conqueror when it is conquered.
 - **Records:** `trade_route_opened` once per pair of polities; `good_arrived` with `route="trader"`; a thinned `route_log` (moved, lost, tolls, first picks, kept, tolls paid and gone round).
@@ -652,7 +652,7 @@ The specification (section 4.3) asks four things of trade: move goods to where t
 
 All seven of Ben's effects; `GOODS_EFFECTS` False switches all of them off. Values are starting values.
 
-1. **Materials held as goods** (`trade.goods_materials`, in `technology._possible`): a band holding `MATERIAL_HELD` 0.005 per person of fine stone, salt, copper, tin, iron or gold counts as having that material. Each year `technology._cut_off` notes which techniques a band practises only because of goods; when those goods run out and the material is not within reach, a `technique_cut_off` event says the trade's supply ran out. Saved as `w.tech_import`. Inventions name each material as "within reach" or "held, brought by trade".
+1. **Materials held as goods** (`trade.goods_materials`, in `technology._possible`): a band holding `MATERIAL_HELD` 0.005 per person of fine stone, salt, copper, tin, iron or gold counts as having that material. Each year `technology._cut_off` notes which techniques a band practises only because of goods; when those goods run out and the material is not within reach, a `technique_cut_off` event says the trade's supply ran out. Saved as `w.tech_import`. *(Superseded: now `tech_prev_prac`, `tech_prev_mats`, `tech_prev_wood` and `tech_prev_dep`.)* Inventions name each material as "within reach" or "held, brought by trade".
 2. **Metal tools need metal:** copper-working's food effects scale with metal held (copper + tin + iron), full at `METAL_NEED` 0.02 per person.
 3. **Salt:** spoiling of stored food × (1 − `SALT_SPOIL` 0.2 × s) and food from herds × (1 + `SALT_HERD` 0.1 × s), where s is salt held over `SALT_NEED` 0.05 per person, at most 1.
 4. **Prestige goods:** polity capacity × (1 + `PRESTIGE_HOLD` 0.1 × p), where p is gold and shell in the ruler's store per member over `PRESTIGE_NEED` 0.05, at most 1.
@@ -1284,5 +1284,29 @@ Review 033 was the last separate review of this step; anything further goes into
   - import dependence is per band (`tech_prev_dep`);
   - whole joins keep receipts and herding history;
   - unfolding keeps pregnancies.
+
+All values are starting values.
+
+### After Codex reviews 036 and 037 (21 November 2026): the comprehensive pre-gate review, parts 3 and 4
+
+**Ben's decision (21 November 2026):** retire diseases long gone. When all 64 disease slots are taken, a new disease takes the slot of the disease longest gone from people, if it has not circulated for `DZ_RETIRE_YEARS` 2,000 years (a starting value). Its animal reservoir goes with it. Until then, the 64th disease ended emergence for the rest of a history.
+
+**Built after 036** (answer in `reviews/responses/036-...-claude.md`):
+- checkpoints pair the world and the probes by tick;
+- the cause-chain validator catches cycles and unknown references, and gives the same answer in any order;
+- conservation checks men's counts, rulers' stores and non-finite values;
+- return loads name their giver;
+- G1's replay steps both worlds alike;
+- the census changes nothing.
+
+**Built after 037** (answer in `reviews/responses/037-...-claude.md`):
+- **Disease slots are retired** as decided: a `disease_retired` event, `w.diseases_retired`, a `uid` per disease, and the counts `dz_retired` and `dz_blocked_starts`, all reported with check 10.
+- **The per-cell disease log** is an array (`disease.RowLog`), saved in `arrays.npz` and included in the digest.
+- **Spells are built in the gate record** from that array. Each spell counts its years where herds and dense populations met (100 herders, 5,000 around), in place of a pair per year.
+- **An unfinished history** in the last stage is recorded as incomplete and its checkpoint kept. The report checks the roster against the request and says "GATE INCOMPLETE", naming the missing histories, and the run is marked failed.
+- **The reports parse the records once.** G4's report passes its records to G3's, and G3's to G2's, in memory, without the G4-only fields.
+- **Large records** are compressed before publication.
+- **The polity log's cut** at 3 million rows is stated in the record and in the tenure line.
+- **Drift fixes:** docstrings, the `PARTNERS_CAP` comment, superseded statements marked in place, the workflow header, and the gate plan's title and pipeline note.
 
 All values are starting values.

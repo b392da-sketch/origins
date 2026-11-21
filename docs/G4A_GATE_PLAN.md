@@ -1,4 +1,4 @@
-# Gate G4a: plan and measurements (draft for Ben)
+# Gate G4a: plan and measurements
 
 Claude, 21 November 2026. **Status: approved by Ben on 21 November 2026**, with his decisions on the three open points (end of this document). The gate runs after the comprehensive pre-gate review (requests 034–037) and its fixes (CLAUDE.md). The checks and pass marks are those of `docs/M4_SPECIFICATION_v1.md` section 9 (approved 12 November 2026). This document says how each check is measured from the gate record, which the specification leaves open. All parameter values are tunable starting values, not facts.
 
@@ -16,7 +16,14 @@ The three small arms are the comparisons agreed for the gate in November (Ben, 2
 
 G3 ran 70 histories in the same shape (50 with institutions, 20 knock-outs).
 
-**Planet 4:** in G3 its histories reached 2.6 million people and needed several machine stages and checkpoints. With M4a's extra arrays it may need more. The comprehensive review measures this first.
+**Planet 4:** in G3 its histories reached 2.6 million people and needed several machine stages and checkpoints. With M4a's extra arrays it may need more. Before the gate, one planet-4 history (seed 1) runs alone on GitHub as a pilot (Ben, 21 November 2026). It measures:
+- time per year;
+- peak memory, and memory at save, restore and record-building;
+- checkpoint and record size.
+
+The stage count and packing are set from it. Its result is not part of the gate.
+
+**Completeness (Codex review 037):** a history still unfinished after the last stage is recorded as incomplete, and its checkpoint is kept. The report then says "GATE INCOMPLETE" and names the missing histories. The gate is not decided until every requested history has completed.
 
 ## What the record adds to G3's (`gates/g4.py`)
 
@@ -81,4 +88,4 @@ Ben approved the plan on 21 November 2026.
 
 `gates/g4.py` and `gates/g4_report.py` were run end to end on the planet-3 save at year 9,700, for 110 years: 664 s of simulation, 185 s to build the record, then the report. It is a check that the code runs and every check can be computed, not a result: one history, too short for most checks.
 - **The record-building first took over an hour.** Every band in a cause chain was looked up by scanning all 2 million events, read from disk. Fixed in `explain.py`: an index of band origins, and gate samples share references already found good. Same answers; 60 sampled chains in 10 s, against 9–44 s each before.
-- **Every check computes.** Checks 2 and 3 need several centuries of census rows, and check 10 needs diseases that persist; in this short run they show "nan", as expected.
+- **Every check computes on this one short history.** This shows the code paths run; it does not show that every check can be measured on the full roster (Codex review 037). Checks 2 and 3 need several centuries of census rows, and check 10 needs diseases that persist; in this short run they show "nan", as expected.

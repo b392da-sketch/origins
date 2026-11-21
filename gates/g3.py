@@ -45,6 +45,33 @@ def done(w) -> bool:
     return fv is not None and w.year >= w.events[fv]["data"]["year"] + after_first()
 
 
+# check 10's meeting of herds and dense populations (Ben, 21 November 2026): counted per spell when the record is
+# built, so the record does not keep a pair per spell-year (Codex review 037, finding 2)
+SPELL_HERDERS = 100
+SPELL_AROUND = 5000
+
+
+def disease_spells(a, H, D):
+    """Unbroken runs of a disease on a cell from the per-cell log array (rows: year, disease, cell, how at column H,
+    ..., herders, people around, deaths at column D): [disease, cell, first year, last year, years, deaths, years where
+    herds and dense populations met, people around in the first year]. A run continues while the next row of the
+    same disease and cell is the next year and kept (how 3)."""
+    if not len(a):
+        return []
+    o = np.lexsort((a[:, 0], a[:, 2], a[:, 1]))                          # by disease, cell, year
+    yr, dz, cl, how = a[o, 0], a[o, 1], a[o, 2], a[o, H]
+    start = np.ones(len(o), dtype=bool)
+    start[1:] = (dz[1:] != dz[:-1]) | (cl[1:] != cl[:-1]) | (yr[1:] != yr[:-1] + 1) | (how[1:] != 3)
+    first = np.flatnonzero(start)
+    last = np.r_[first[1:], len(o)] - 1
+    near = a[o, -2]
+    dense = ((a[o, -3] >= SPELL_HERDERS) & (near >= SPELL_AROUND)).astype(np.int64)
+    deaths = np.add.reduceat(a[o, D], first)
+    nd = np.add.reduceat(dense, first)
+    return [[int(dz[i]), int(cl[i]), int(yr[i]), int(yr[j]), int(j - i + 1), int(dd), int(n), int(near[i])]
+            for i, j, dd, n in zip(first.tolist(), last.tolist(), deaths.tolist(), nd.tolist())]
+
+
 def kept_polities(w, pl, rng) -> set:
     """Polities whose whole histories the record keeps: all of them up to 1,500; beyond, a sample of 1,500, plus every
     polity that ever held 5+ settlements, was ever a complex chiefdom or state, or had a band holding writing or
@@ -65,6 +92,9 @@ def finish(w, ws, rs, seconds, pr, institutions, write=True):
     rec["institutions"] = institutions
     rec["after_first"] = after_first()
     pl = w.polity_log
+    # the polity log keeps its newest 3,000,000 rows (polity.yearly): say how far back it reaches (Codex review 037)
+    rec["polity_log_coverage"] = {"rows": len(pl), "truncated": len(pl) >= 3_000_000,
+                                  "from_year": int(pl[0][0]) if pl else None}
     rng = np.random.default_rng([ws, rs, 11])
     keep = kept_polities(w, pl, rng)                        # whole polity histories: sample polities, not rows
     pl = [r for r in pl if r[1] in keep]
@@ -154,30 +184,19 @@ def finish(w, ws, rs, seconds, pr, institutions, write=True):
         # from its animals, by contact). Years kept on a cell are summed into spells: each unbroken run of a disease
         # on a cell, so long-lasting diseases are not under-sampled and nothing is thinned.
         from origins.sim import disease as _dz
-        log = _dz.upgrade_log(getattr(w, "dz_log", []))
+        a = _dz.log_array(w)                     # the array itself, not lists (Codex review 037, finding 2)
         H = _dz.LOG_FIELDS.index("how (0 new, 1 again from its animals, 2 contact, 3 kept)")
-        rec["disease_log"] = [r for r in log if r[H] != 3]
+        arr = a[a[:, H] != 3]
+        rec["disease_log"] = [[float(v) if j == _dz.LOG_FLOAT else int(v) for j, v in enumerate(r)] for r in arr.tolist()]
         rec["disease_log_fields"] = _dz.LOG_FIELDS
-        spells, open_ = [], {}
-        for r in sorted(log, key=lambda r: (r[1], r[2], r[0])):
-            k = (r[1], r[2])
-            sp = open_.get(k)
-            if sp is not None and r[0] == sp[3] + 1 and r[H] == 3:
-                sp[3] = r[0]
-                sp[4] += 1
-                sp[5] += r[_dz.LOG_DEATHS]
-                sp[6].append([r[-3], r[-2]])
-            else:
-                if sp is not None:
-                    spells.append(sp)
-                open_[k] = [r[1], r[2], r[0], r[0], 1, r[_dz.LOG_DEATHS], [[r[-3], r[-2]]]]
-        spells += list(open_.values())
+        spells = disease_spells(a, H, _dz.LOG_DEATHS)
         rec["disease_spells"] = spells
-        # each spell keeps its herders and nearby people year by year, so whether herds and dense populations met
-        # during circulation can be read off (Codex review 031, finding 2)
+        # each spell counts its years where herds and dense populations met (Codex review 031, finding 2; counted
+        # here rather than kept year by year since review 037)
         rec["disease_spell_fields"] = ["disease", "cell", "first year", "last year", "years", "deaths",
-                                       "each year: [people herding domesticated animals on the cell, "
-                                       "people on the cell and its neighbours]"]
+                                       f"years with {SPELL_HERDERS}+ people herding domesticated animals on the cell "
+                                       f"and {SPELL_AROUND:,}+ people on the cell and its neighbours",
+                                       "people on the cell and its neighbours in the first year"]
         rec["disease_spillovers"] = int(w.counts.get("dz_spillovers", 0))
         smp = [{"event": e["id"]} for e in obs]
         if len(smp) > 200:

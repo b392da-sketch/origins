@@ -4,8 +4,11 @@ name: gate
 # Start it by pushing a request file to gates/requests/ on the "gate" branch
 # (or with "Run workflow" on the Actions page, naming the request file).
 # Results and the report are committed to the "gate-results" branch under results/<label>/.
-# A history that is not finished after one machine's time limit continues from its checkpoint in a second
-# stage and, if needed, a third (about 13 hours in all); a request can also name only some jobs ("jobs": ["4:1", ...]).
+# A history that is not finished after one machine's time limit continues from its checkpoint in up to four more
+# stages (five in all, 4.5 hours of simulation each, about 22.5 hours with reloads). A history still unfinished after the
+# fifth is recorded as incomplete, its checkpoint is kept as an artifact (ckpt5-*), the report names it and says the
+# gate is incomplete, and the run is marked failed (Codex review 037). A request can also name only some jobs
+# ("jobs": ["4:1", ...]).
 
 on:
   push:
@@ -236,14 +239,23 @@ jobs:
         run: pip install -r requirements.txt
       - name: continue
         if: steps.need.outputs.go == '1'
+        env:
+          FINAL_STAGE: "1"
         run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} "${{ matrix.jobs }}"
       - uses: actions/upload-artifact@v4
-        if: steps.need.outputs.go == '1'
+        if: always() && steps.need.outputs.go == '1'
         with:
           name: stage5-${{ matrix.name }}
           path: out/
           if-no-files-found: ignore
           retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.need.outputs.go == '1'
+        with:
+          name: ckpt5-${{ matrix.name }}
+          path: /tmp/ckpt/
+          if-no-files-found: ignore
+          retention-days: 14
 
   report:
     needs: [plan, run, continue, continue2, continue3, continue4]
@@ -267,7 +279,9 @@ jobs:
           LABEL=$(python3 -c "import json;print(json.load(open('$REQ'))['label'])")
           rm -rf gates/results_$GATE && mkdir -p gates/results_$GATE
           find artifacts \( -name 'run_*.json' -o -name 'groups_*.json' \) -not -path '*/ckpt-*' -exec cp {} gates/results_$GATE/ \;
-          python -m gates.$GATE report > report.md || echo "report failed" >> report.md
+          cp "$REQ" gates/results_$GATE/request.json      # the report checks the roster against it (review 037)
+          RC=0; python -m gates.$GATE report > report.md || RC=$?
+          [ $RC = 0 ] || echo "report exit code $RC (3: requested histories missing; otherwise the report failed)" >> report.md
           cp "$REQ" request.json
           # publish from a separate clean clone of the results branch (the main checkout has local changes)
           REPO="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}"
@@ -278,6 +292,9 @@ jobs:
           fi
           rm -rf pub/results/$LABEL && mkdir -p pub/results/$LABEL
           cp gates/results_$GATE/*.json report.md request.json pub/results/$LABEL/
+          # git refuses files over 100 MiB: compress any large record (Codex review 037, finding 3)
+          find pub/results/$LABEL -name '*.json' -size +90M -exec gzip -9 {} \;
+          if find pub/results/$LABEL -size +95M | grep -q .; then echo "a record is over 95 MiB even compressed"; RC=4; fi
           echo "run ${{ github.run_id }} commit ${{ github.sha }}" > pub/results/$LABEL/RUN.txt
           cd pub
           git config user.name "origins-gate"
@@ -285,6 +302,7 @@ jobs:
           git add -A results/$LABEL
           git commit -qm "Gate results: $LABEL (run ${{ github.run_id }})"
           for i in 1 2 3; do git push -q origin gate-results && break; git pull -q --rebase origin gate-results; done
+          exit $RC
       - uses: actions/upload-artifact@v4
         if: always()
         with:

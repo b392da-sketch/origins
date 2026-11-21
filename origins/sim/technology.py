@@ -7,7 +7,8 @@ A technique is a piece of knowledge a people can hold. Each has:
 - what kind of need presses towards it.
 
 Held per band as a quality from 0 (unknown) to 1 (the best known): w.tech[band, k]. A daughter band starts with her
-mother's techniques and records.
+mother's techniques and records, except the scribes' count (w.tech_scribes), which a daughter does not inherit: it
+passes only when bands combine or merge (Ben, 21 November 2026).
 
 - Invention (stage 2) is rare and gives a crude technique (TECH_INVENT_LEVEL).
 - Keeping (stage 3; Henrich 2004): a technique is PRACTISED when its prerequisites are met. Practised, its quality
