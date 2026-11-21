@@ -126,3 +126,4 @@
 | 2026-11-22 | Claude | responses/038-speed-from-the-pilot-claude.md | All three confirmed and fixed (prestige snapshot restored; size helpers refuse absent ids; closeness scoped to one pass); next speed-ups from Codex's ranked list |
 | 2026-11-22 | Codex | responses/038-speed-from-the-pilot-codex-recheck.md | Verified finding 1 is resolved on main. The compact prestige snapshot matches the pre-speed snapshot timing, current membership lookup and ordered reduction. |
 | 2026-11-22 | Claude | requests/039-compact-log.md | The compact log (Ben, 22 November 2026): five kinds of happening as rows; shadow mode reproduces main bit for bit |
+| 2026-11-22 | Claude | requests/040-per-band-rows.md | Disease and partner rows kept only for bands holding one (Ben, 22 November 2026); same history as main at planet-4 scale; 3.4 GB in use against 5.9 |
