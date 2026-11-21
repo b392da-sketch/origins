@@ -447,9 +447,25 @@ class Review031(unittest.TestCase):
         b = w.living_bands()[0]
         add(w, b.cell, k=1e9, attack=0.9, cfr=0.0)
         w.counts["ob_contact_infections"] = 5
-        w2 = persist.from_bytes(persist.to_bytes(w), w.planet)
+        w2 = persist.from_bytes(_unmarked(persist.to_bytes(w)), w.planet)   # a save from before review 031
         self.assertNotIn("ob_contact_infections", w2.counts)
         self.assertEqual(w2.counts["unattributed_ob_contact_infections"], 5)
+
+
+
+def _unmarked(data: bytes) -> bytes:
+    """A save as written before review 034: without the mark that named diseases count under their own keys."""
+    import io, json, zipfile
+    src, out = zipfile.ZipFile(io.BytesIO(data)), io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        for name in src.namelist():
+            raw = src.read(name)
+            if name == "meta.json":
+                meta = json.loads(raw)
+                meta.pop("dz_counts_split", None)
+                raw = json.dumps(meta).encode()
+            z.writestr(name, raw)
+    return out.getvalue()
 
 
 if __name__ == "__main__":
