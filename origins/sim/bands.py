@@ -284,6 +284,8 @@ def consolidate_groups(w):
         land.move_crop_loss(w, b.id, o.id, 1.0)
         b.alive = False
         b.ended = w.t
+        from . import disease
+        disease.release(w, b.id)                     # its disease rows are freed (origins/rows.py)
         del b.trail[:-3]
         b.last_move = f"combined with {w.band_name(o)} (same land)"
         w.counts["consolidated"] = w.counts.get("consolidated", 0) + 1
@@ -337,6 +339,8 @@ def end_band(w, b, why, log=True):
     w.bands_changed()
     b.ended = w.t
     trade.band_ended(w, b.id)
+    from . import disease
+    disease.release(w, b.id)                           # its disease rows are freed (origins/rows.py)
     if getattr(w, "crop_store", None) is not None and b.id < len(w.crop_store):
         w.crop_store[b.id] = 0.0                       # fields nobody is left to harvest (not yet counted as food)
     land.drop_crop_loss(w, b.id)

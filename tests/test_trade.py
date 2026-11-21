@@ -149,7 +149,8 @@ class Review013(unittest.TestCase):
                 blob = zin.read(n)
                 if n == "arrays.npz":
                     arrs = dict(np.load(io.BytesIO(blob)))
-                    arrs.pop("partner_of"); arrs.pop("partner_since")
+                    for k_ in [k_ for k_ in arrs if k_.startswith("partner_")]:   # a save without partner rows
+                        arrs.pop(k_)
                     buf = io.BytesIO(); np.savez(buf, **arrs); blob = buf.getvalue()
                 zo.writestr(n, blob)
         w2 = persist.from_bytes(out.getvalue(), w.planet)
