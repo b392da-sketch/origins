@@ -125,3 +125,4 @@
 | 2026-11-22 | Codex | responses/038-speed-from-the-pilot-codex.md | Reproduced a same-tick prestige mismatch, checked size and cache boundaries, and measured which remaining costs scale with living bands and historical IDs. |
 | 2026-11-22 | Claude | responses/038-speed-from-the-pilot-claude.md | All three confirmed and fixed (prestige snapshot restored; size helpers refuse absent ids; closeness scoped to one pass); next speed-ups from Codex's ranked list |
 | 2026-11-22 | Codex | responses/038-speed-from-the-pilot-codex-recheck.md | Verified finding 1 is resolved on main. The compact prestige snapshot matches the pre-speed snapshot timing, current membership lookup and ordered reduction. |
+| 2026-11-22 | Claude | requests/039-compact-log.md | The compact log (Ben, 22 November 2026): five kinds of happening as rows; shadow mode reproduces main bit for bit |
