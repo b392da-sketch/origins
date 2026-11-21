@@ -337,6 +337,7 @@ class PartnersTrade(unittest.TestCase):
         for b, n in zip(bs, (10, 30, 120, 3000)):
             sizes[b.id] = n
         w.band_sizes = lambda: sizes
+        w.sizes_of = lambda ids, w=w: w.band_sizes()[np.asarray(ids, dtype=int)]   # stubbed alike (sizes_of: G4a pilot)
         self.assertEqual(trade.allowance(w, [b.id for b in bs]).tolist(), [4, 4, 8, 16])
 
     def test_a_settled_band_trades_up_to_a_better_supplied_partner(self):
@@ -598,6 +599,7 @@ class Traders(unittest.TestCase):
         sizes = np.zeros(len(w.band_sizes()) + 64, dtype=int)
         sizes[bs[0].id] = sizes[bs[1].id] = 200
         w.band_sizes = lambda: sizes[:len(w.bands)] if len(w.bands) <= len(sizes) else np.resize(sizes, len(w.bands))
+        w.sizes_of = lambda ids, w=w: w.band_sizes()[np.asarray(ids, dtype=int)]   # stubbed alike (sizes_of: G4a pilot)
         w.spec[bs[0].id] = 10.0                                  # two traders at A's seat
         return w, bs, A, B, c, sizes
 
@@ -762,6 +764,7 @@ class Review016(unittest.TestCase):
             others.append(Q)
         w.bands_changed()
         w.band_sizes = lambda: np.resize(sizes, len(w.bands))
+        w.sizes_of = lambda ids, w=w: w.band_sizes()[np.asarray(ids, dtype=int)]   # stubbed alike (sizes_of: G4a pilot)
         w.spec[a.id] = 10.0
         F = trade.GI["fine_stone"]
         w.goods[a.id, F] = 100.0
@@ -818,6 +821,7 @@ class Decisions16Nov(unittest.TestCase):
         for b in bs[2:]:
             sizes[b.id] = 5
         w.band_sizes = lambda: np.resize(sizes, len(w.bands))
+        w.sizes_of = lambda ids, w=w: w.band_sizes()[np.asarray(ids, dtype=int)]   # stubbed alike (sizes_of: G4a pilot)
         w.spec[bs[0].id] = 10.0
         w.goods[bs[0].id, trade.GI["salt"]] = 50.0
         old = P.ROUTES_MAX
@@ -841,6 +845,7 @@ class Curation(unittest.TestCase):
         sizes = np.zeros(len(w.bands) + 64, dtype=int)
         sizes[rich.id] = sizes[poor.id] = 100
         w.band_sizes = lambda: np.resize(sizes, len(w.bands))
+        w.sizes_of = lambda ids, w=w: w.band_sizes()[np.asarray(ids, dtype=int)]   # stubbed alike (sizes_of: G4a pilot)
         F, S = trade.GI["fine_stone"], trade.GI["salt"]
         w.goods[rich.id, F], w.goods[poor.id, F] = 100.0, 0.1     # 1 and 0.001 per person
         w.goods[rich.id, S], w.goods[poor.id, S] = 100.0, 0.1
@@ -948,6 +953,7 @@ class GoodsEffects(unittest.TestCase):
         sizes = np.zeros(len(w.bands) + 64, dtype=int)
         sizes[b.id] = size
         w.band_sizes = lambda: np.resize(sizes, len(w.bands))
+        w.sizes_of = lambda ids, w=w: w.band_sizes()[np.asarray(ids, dtype=int)]   # stubbed alike (sizes_of: G4a pilot)
         return w, b, T
 
     def test_imported_copper_lets_a_band_work_it_and_its_loss_is_recorded(self):
@@ -1043,6 +1049,7 @@ class GoodsEffects(unittest.TestCase):
         sizes = np.zeros(len(w.bands) + 64, dtype=int)
         sizes[a.id] = sizes[b.id] = 100
         w.band_sizes = lambda: np.resize(sizes, len(w.bands))
+        w.sizes_of = lambda ids, w=w: w.band_sizes()[np.asarray(ids, dtype=int)]   # stubbed alike (sizes_of: G4a pilot)
         ids, cells = np.array([a.id, b.id]), np.array([a.cell, b.cell])
         self.assertEqual(trade.trade_need(w, ids, cells).tolist(), [0.0, 0.0])
         w.goods[a.id, trade.GI["pottery"]] = 100.0                 # pottery counts too
