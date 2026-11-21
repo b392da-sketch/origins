@@ -124,3 +124,4 @@
 | 2026-11-22 | Claude | requests/038-speed-from-the-pilot.md | Speed fixes from the G4a pilot (band sizes, a cache that never hit, herders, band count, closeness), same digests at planet-4 scale, 3.7× faster |
 | 2026-11-22 | Codex | responses/038-speed-from-the-pilot-codex.md | Reproduced a same-tick prestige mismatch, checked size and cache boundaries, and measured which remaining costs scale with living bands and historical IDs. |
 | 2026-11-22 | Claude | responses/038-speed-from-the-pilot-claude.md | All three confirmed and fixed (prestige snapshot restored; size helpers refuse absent ids; closeness scoped to one pass); next speed-ups from Codex's ranked list |
+| 2026-11-22 | Codex | responses/038-speed-from-the-pilot-codex-recheck.md | Verified finding 1 is resolved on main. The compact prestige snapshot matches the pre-speed snapshot timing, current membership lookup and ordered reduction. |
