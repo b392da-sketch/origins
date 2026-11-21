@@ -371,9 +371,24 @@ class PartnersTrade(unittest.TestCase):
         w, (a, b) = self._bands_on(c)
         trade._link(w, a.id, b.id)
         w.goods[a.id, trade.GI["salt"]] = 7.0
-        w.partner_of = w.partner_of[:, :4].copy()
-        w.partner_since = w.partner_since[:, :4].copy()
-        w2 = persist.from_bytes(persist.to_bytes(w), planet=w.planet)
+        import io
+        import zipfile
+        data = persist.to_bytes(w)                        # rewritten as a save from before stage 4a: dense, four links
+        zin, out = zipfile.ZipFile(io.BytesIO(data)), io.BytesIO()
+        with zipfile.ZipFile(out, "w") as zo:
+            for n in zin.namelist():
+                blob = zin.read(n)
+                if n == "arrays.npz":
+                    arrs = dict(np.load(io.BytesIO(blob)))
+                    for k_ in [k_ for k_ in arrs if k_.startswith("partner_")]:
+                        arrs.pop(k_)
+                    arrs["partner_of"] = w.partner_of.dense()[:, :4].copy()
+                    arrs["partner_since"] = w.partner_since.dense()[:, :4].copy()
+                    buf = io.BytesIO()
+                    np.savez(buf, **arrs)
+                    blob = buf.getvalue()
+                zo.writestr(n, blob)
+        w2 = persist.from_bytes(out.getvalue(), planet=w.planet)
         self.assertEqual(w2.partner_of.shape[1], P.PARTNERS_CAP)
         self.assertEqual(trade.partners(w2, a.id), [b.id])
         self.assertEqual(w2.goods[a.id, trade.GI["salt"]], 7.0)
