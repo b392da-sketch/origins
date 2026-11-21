@@ -152,7 +152,7 @@ def band_ended(w, band_id: int):
     """An ended band's goods are lost (scattered, buried, taken up by no one we follow); its partnerships end."""
     if getattr(w, "goods", None) is None or band_id >= len(w.goods):
         return
-    _unlink_all(w, band_id, why="ended")
+    _unlink_all(w, band_id)
     for i, g in enumerate(GOODS):
         if w.goods[band_id, i]:
             w.goods_ledger[g]["lost"] += float(w.goods[band_id, i])
@@ -269,7 +269,7 @@ def gift_totals(w, a: int, b: int) -> dict:
     return out
 
 
-def _unlink_all(w, a: int, why: str = "ended"):
+def _unlink_all(w, a: int, joined: int | None = None):
     """End all of a band's partnerships, each with a lapse event carrying its gift totals (Codex review 015: ending,
     merging and consolidation used to erase them)."""
     if getattr(w, "partner_of", None) is None or a >= len(w.partner_of):
@@ -278,9 +278,9 @@ def _unlink_all(w, a: int, why: str = "ended"):
     for b in partners(w, a):
         tot = gift_totals(w, a, b)
         _unlink(w, a, b)
-        name = w.band_name(ba) if ba is not None else f"band {a}"
-        w.event("partnership_lapsed", cell=ba.cell if ba is not None else -1, band=a, partner=b, gifts=tot,
-                causes=[{"band": a}, {"note": f"the partnership ended when {name} {why}"}])
+        minorlog.lapsed(w, a, b, ba.cell if ba is not None else -1,
+                        minorlog.LAPSED_ENDED if joined is None else minorlog.LAPSED_JOINED, tot,
+                        other=-1 if joined is None else joined)
 
 
 def move_good(w, src_id: int, dst_id: int, i: int, amount: float):
@@ -354,9 +354,7 @@ def partnerships_yearly(w, live):
             elif alive[o].cell not in reach[b.id] and o > b.id:
                 tot = gift_totals(w, b.id, o)
                 _unlink(w, b.id, o)
-                w.event("partnership_lapsed", cell=b.cell, band=b.id, partner=o, gifts=tot,
-                        causes=[{"band": o}, {"note": f"{w.band_name(b)} and {w.band_name(alive[o])} were no longer "
-                                                          f"within reach of each other"}])
+                minorlog.lapsed(w, b.id, o, b.cell, minorlog.LAPSED_REACH, tot)
     # gifts: lasting goods pass both ways each year, keeping the link alive and carrying goods along chains
     for b in live:
         for o in partners(w, b.id):
@@ -386,9 +384,7 @@ def partnerships_yearly(w, live):
                     from ..state import log_row
                     log_row(w, "gift_log", [w.t, b.id, o, given[str(b.id)], given[str(o)]], P.EXCHANGE_LOG_CAP)
                     if first:
-                        w.event("gift_exchange", cell=b.cell, band=b.id, partner=o, goods=given,
-                                causes=[{"band": o}, {"note": f"{w.band_name(b)} and {w.band_name(alive[o])} "
-                                                              f"exchanged their first gifts as partners"}])
+                        minorlog.first_gifts(w, b.id, o, b.cell, given)
     # new links: pairs within reach with room, drawn in band order, likelier between peoples who share words
     by_cell: dict = {}
     for b in live:
@@ -416,10 +412,7 @@ def partnerships_yearly(w, live):
                 _link(w, b.id, o.id)
                 free[b.id] -= 1
                 free[o.id] -= 1
-                w.event("partnership_formed", cell=b.cell, band=b.id, partner=o.id,
-                        causes=[{"band": o.id}, {"note": f"{w.band_name(b)} and {w.band_name(o)} lived within reach "
-                                                          f"of each other ({close:.0%} closeness of speech) and began "
-                                                          f"to exchange gifts"}])
+                minorlog.formed(w, b.id, o.id, b.cell, minorlog.FORMED_NEAR, closeness=close)
 
 
 def _switch(w, live, reach, by_cell, free, rng):
@@ -456,14 +449,8 @@ def _switch(w, live, reach, by_cell, free, rng):
         free[worst] = free.get(worst, 0) + 1
         _link(w, b.id, best.id)
         free[best.id] -= 1
-        ow = w.bands[worst]
-        w.event("partnership_lapsed", cell=b.cell, band=b.id, partner=worst, gifts=tot,
-                causes=[{"band": worst}, {"note": f"{w.band_name(b)} gave up its partnership with {w.band_name(ow)}, "
-                                                  f"its worst-supplied partner, for a better-supplied one"}])
-        w.event("partnership_formed", cell=b.cell, band=b.id, partner=best.id,
-                causes=[{"band": best.id}, {"note": f"{w.band_name(b)}, settled and with no room for more partners, "
-                                                    f"took up {w.band_name(best)}, better supplied with tools, salt "
-                                                    f"and metal than {w.band_name(ow)}"}])
+        minorlog.lapsed(w, b.id, worst, b.cell, minorlog.LAPSED_SWAP, tot)
+        minorlog.formed(w, b.id, best.id, b.cell, minorlog.FORMED_SWAP, dropped=worst)
 
 
 def share_in_need(w, bands, ids, avail, need_now, keep_need):
@@ -500,10 +487,7 @@ def share_in_need(w, bands, ids, avail, need_now, keep_need):
         if got > 0:
             avail[k] += got
             b = bands[k]
-            w.event("helped_by_partners", cell=b.cell, band=bid, amount=round(got, 3), givers=givers,
-                    causes=[{"band": g} for g in givers] + [{"note": f"{w.band_name(b)} could not meet its needs this "
-                                                                    f"season; its gift partners gave food they could "
-                                                                    f"spare"}])
+            minorlog.helped(w, bid, b.cell, round(got, 3), givers)   # a row of the compact log (Ben, 22 Nov 2026)
     return avail
 
 
@@ -712,6 +696,7 @@ def check_end(w):
 
 
 from .. import params as P  # noqa: E402
+from . import minorlog  # noqa: E402
 
 
 # --------------------------------------------------------------------------- stage 5: what goods change

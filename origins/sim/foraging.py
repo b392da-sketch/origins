@@ -57,7 +57,7 @@ def move(w):
                            f"{here / P.SEASON_DAYS:.2f} food units per person-day available")
             ev = _land_move(w, b, here, float(v[j]), occ_here, cache)
             if ev >= 0:
-                b.last_move += f"; the land: event {ev}"
+                b.last_move += "; the land: " + __import__("origins.sim.minorlog", fromlist=["x"]).move_text(ev)
             b.cell = best
             b.trail = (b.trail + [(w.t, best)])[-40:]
             w.reveal_pending.add(b.id)
@@ -88,10 +88,8 @@ def _land_move(w, b, here, there, occ_here, cache) -> int:
     fac = land.kind_factors(w, c)
     kinds = {int(w.land_event[c, j]): k for j, k in enumerate(land.KINDS)}
     events.sort(key=lambda e: fac[kinds[e]])
-    note = (f"{w.band_name(b)} left: {here / P.SEASON_DAYS:.2f} food units per person-day where it was, against "
-            f"{there / P.SEASON_DAYS:.2f} next door; with this season's regrowth at the land's natural level it would "
-            f"have had {here_nat / P.SEASON_DAYS:.2f}, and stayed")
-    return w.event("land_move", cell=c, band=b.id, causes=[{"note": note}] + [{"event": e} for e in events])
+    from . import minorlog                              # the note is written when the row is read (minorlog.as_event)
+    return minorlog.land_move(w, b.id, c, here, there, here_nat, events)   # a row of the compact log (Ben, 22 Nov)
 
 
 def forage_and_eat(w):
