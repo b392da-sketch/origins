@@ -40,8 +40,12 @@ def describe(w, ref: dict) -> dict:
     p = w.people
     if "note" in ref:
         return {"title": ref["note"], "causes": []}
-    if "event" in ref:
-        e = w.events[int(ref["event"])]
+    if "event" in ref or "log" in ref:
+        if "log" in ref:                                   # a row of the compact log (Ben, 22 November 2026)
+            from .sim import minorlog
+            e = minorlog.as_event(w, ref["log"][0], int(ref["log"][1]))
+        else:
+            e = w.events[int(ref["event"])]
         title = _event_title(w, e)
         causes = e["causes"]
         if e["kind"] == "war" and "why" in e["data"]:
@@ -284,7 +288,7 @@ def resolvable(w, ref: dict, depth: int | None = None, max_nodes: int = 200_000,
     references raises instead of answering (Codex review 036)."""
     p = w.people
     use = good is not None and depth is None
-    KNOWN = ("note", "event", "death", "birth", "partnership", "band")
+    KNOWN = ("note", "event", "death", "birth", "partnership", "band", "log")
 
     def key_of(r):
         return tuple(sorted((k, str(v)) for k, v in r.items() if k in KNOWN))
@@ -294,6 +298,11 @@ def resolvable(w, ref: dict, depth: int | None = None, max_nodes: int = 200_000,
             return False                                    # an unknown kind of reference resolves nothing
         if "event" in r and not (0 <= int(r["event"]) < len(w.events)):
             return False
+        if "log" in r:
+            from .sim import minorlog
+            kind, i = r["log"]
+            if kind not in minorlog.KINDS or not (0 <= int(i) < minorlog.size(w, kind)):
+                return False
         for k in ("death", "birth", "partnership"):
             if k in r and not (0 <= int(r[k]) < p.n):
                 return False

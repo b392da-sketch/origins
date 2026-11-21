@@ -567,10 +567,16 @@ def band_detail(w, bid: int) -> dict:
     out["farming"] = band_farming(w, b, out["size"])
     pid = _pol_of(w, b.id)
     out["polity"] = {"id": pid, "name": w.polities[pid].name, "seat": w.polities[pid].seat == b.id} if pid >= 0 else None
-    out["events"] = [{"id": e["id"], "title": explain.describe(w, {"event": e["id"]})["title"],
-                      "bp": P.START_YEARS_BP - e["t"] // P.TICKS_PER_YEAR}
-                     for e in w.events if e["band"] == bid or e["data"].get("new_band") == bid
-                     or e["data"].get("into") == bid][-30:]
+    from .sim import minorlog
+    evs = [{"id": e["id"], "ref": f"event:{e['id']}", "t": e["t"],
+            "title": explain.describe(w, {"event": e["id"]})["title"],
+            "bp": P.START_YEARS_BP - e["t"] // P.TICKS_PER_YEAR}
+           for e in w.events if e["band"] == bid or e["data"].get("new_band") == bid
+           or e["data"].get("into") == bid][-30:]
+    rows = [{"id": -1, "ref": f"log:{e['id']['log'][0]}:{e['id']['log'][1]}", "t": e["t"],
+             "title": explain.describe(w, e["id"])["title"], "bp": P.START_YEARS_BP - e["t"] // P.TICKS_PER_YEAR}
+            for e in minorlog.band_rows(w, bid)[-30:]]          # partnerships, help, gifts, land moves
+    out["events"] = sorted(evs + rows, key=lambda x: x["t"])[-30:]
     return out
 
 
@@ -669,6 +675,9 @@ def recent_events(w, limit=60) -> list:
 
 def parse_ref(s: str) -> dict:
     kind, _, val = s.partition(":")
+    if kind == "log":                                  # log:<kind>:<row>, a row of the compact log
+        k, _, i = val.partition(":")
+        return {"log": [k, int(i)]}
     return {kind: int(val)}
 
 

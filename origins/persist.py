@@ -101,6 +101,8 @@ def to_file(w: World, f, fast: bool = False) -> None:
     arrays.update({k: getattr(w, k) for k in _disease.ARRAYS if getattr(w, k, None) is not None})
     if getattr(w, "dz_log", None) is not None:
         arrays["dz_log"] = _disease.log_array(w)          # the per-cell disease record, as an array (review 037)
+    from .sim import minorlog as _minor
+    arrays.update(_minor.arrays(w))                       # the compact log (Ben, 22 November 2026)
     arrays.update({"p_" + k: v for k, v in w.people.arrays().items()})
     arrays.update({"g_" + k: v for k, v in w.groups.arrays().items()})
     arrays.update({"b_" + k: v for k, v in w.bands.arrays().items()})
@@ -249,6 +251,8 @@ def from_bytes(data: bytes, planet=None) -> World:
     _places.from_json(w, meta.get("places", {}))
     if "dz_log" in arrays and np.asarray(arrays["dz_log"]).size:
         w.dz_log = _disease.RowLog.from_array(arrays["dz_log"])
+    from .sim import minorlog as _minor                  # the compact log: older saves start with it empty
+    _minor.load(w, {k: v for k, v in arrays.items() if k.startswith("minor_")})
     for k in _disease.ARRAYS:
         if k in arrays and np.asarray(arrays[k]).size:
             setattr(w, k, np.array(arrays[k], dtype=getattr(w, k).dtype))
@@ -378,6 +382,9 @@ def digest(w: World) -> str:
                 if getattr(w, k, None) is not None],
               __import__("origins.sim.disease", fromlist=["x"]).log_array(w)):
         h.update(np.ascontiguousarray(arr).tobytes())
+    for k, v in sorted(__import__("origins.sim.minorlog", fromlist=["x"]).arrays(w).items()):   # the compact log
+        h.update(k.encode())
+        h.update(np.ascontiguousarray(v).tobytes())
     for k, v in sorted(w.bands.arrays().items()):
         h.update(k.encode())
         h.update(np.ascontiguousarray(v).tobytes())

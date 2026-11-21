@@ -277,14 +277,15 @@ class Review020(unittest.TestCase):
         w.stock[c] = 100.0 * occ
         # better next door than here, but not better than here with game as it once was
         w.stock[nb[0]] = 100.0 * P.MOVE_THRESHOLD * (1 + 0.5 * (1 / wf - 1)) * sz
-        n0 = len(w.events)
+        from origins.sim import minorlog
+        n0 = minorlog.size(w, "land_move")
         foraging.move(w)
-        moves = [e for e in w.events[n0:] if e["kind"] == "land_move"]
+        moves = minorlog.since(w, "land_move", n0)                   # rows of the compact log (Ben, 22 Nov 2026)
         self.assertEqual(len(moves), 1)
         self.assertIn({"event": ev}, moves[0]["causes"])
-        mid = [i for i in range(n0, len(w.events)) if w.events[i]["kind"] == "land_move"][0]
-        self.assertTrue(explain.resolvable(w, {"event": mid}))
-        self.assertIn(f"event {mid}", b.last_move)
+        mid = n0
+        self.assertTrue(explain.resolvable(w, {"log": ["land_move", mid]}))
+        self.assertIn(f"land move {mid}", b.last_move)
         b.cell = c
         w.bands_changed()
         w._binfo = None

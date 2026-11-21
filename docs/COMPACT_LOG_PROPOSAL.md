@@ -1,6 +1,6 @@
 # The compact log: partnerships, help, gifts and land moves (proposal for Ben)
 
-Claude, 22 November 2026. **Status: draft for Ben's decision.** Ben approved the idea on 21 November 2026. This document gives the details he asked to see first. All numbers are measurements from the G4a planet-4 pilot (checkpoint at year 5,765), not targets.
+Claude, 22 November 2026. **Status: approved by Ben on 22 November 2026: all five kinds move.** Ben approved the idea on 21 November 2026. This document gives the details he asked to see first. All numbers are measurements from the G4a planet-4 pilot (checkpoint at year 5,765), not targets.
 
 ## Why
 

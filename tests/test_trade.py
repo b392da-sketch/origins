@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 
 from origins import engine, persist, params as P
-from origins.sim import technology as T, trade
+from origins.sim import minorlog, technology as T, trade
 from origins.state import World
 from origins.worldgen import generate
 
@@ -176,12 +176,12 @@ class Review013(unittest.TestCase):
         w.goods[a.id, trade.GI["shell"]] = 100.0
         old = P.PARTNER_FORM
         P.PARTNER_FORM = 0.0
-        n0 = len(w.events)
+        n0 = minorlog.size(w, "gift_exchange")
         try:
             trade.partnerships_yearly(w, w.living_bands())
         finally:
             P.PARTNER_FORM = old
-        ev = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "gift_exchange"]
+        ev = minorlog.since(w, "gift_exchange", n0)
         self.assertEqual(len(ev), 1)
         self.assertAlmostEqual(ev[0]["data"]["goods"][str(a.id)]["shell"], 5.0)
 
@@ -403,9 +403,9 @@ class GiftTotals(unittest.TestCase):
 
     def test_totals_add_up_and_only_the_first_exchange_is_an_event(self):
         w, a, b = self._pair()
-        n0 = len(w.events)
+        n0 = minorlog.size(w, "gift_exchange")
         self._years(w, 3)
-        ev = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "gift_exchange"]
+        ev = minorlog.since(w, "gift_exchange", n0)
         self.assertEqual(len(ev), 1)
         tot = trade.gift_totals(w, a.id, b.id)
         self.assertEqual(tot["years"], 3)
@@ -424,9 +424,9 @@ class GiftTotals(unittest.TestCase):
                and c not in set(int(x) for x in __import__("origins.sim.language", fromlist=["ring2"]).ring2(w)[a.cell])]
         b.cell = far[0]
         w.bands_changed()
-        n0 = len(w.events)
+        n0 = minorlog.size(w, "partnership_lapsed")
         self._years(w, 1)
-        lap = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "partnership_lapsed"]
+        lap = minorlog.since(w, "partnership_lapsed", n0)
         self.assertEqual(len(lap), 1)
         self.assertEqual(lap[0]["data"]["gifts"], tot)
         self.assertFalse(w.partner_gave[a.id].any())
@@ -505,17 +505,17 @@ class Review015(unittest.TestCase):
 
     def test_a_band_that_ends_keeps_its_gift_record(self):
         w, a, b, tot = self._gifts()
-        n0 = len(w.events)
+        n0 = minorlog.size(w, "partnership_lapsed")
         trade.band_ended(w, b.id)
-        lap = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "partnership_lapsed"]
+        lap = minorlog.since(w, "partnership_lapsed", n0)
         self.assertEqual(len(lap), 1)
         self.assertEqual(lap[0]["data"]["gifts"], tot)
 
     def test_consolidation_keeps_the_gift_record(self):
         w, a, b, tot = self._gifts()
-        n0 = len(w.events)
-        trade._unlink_all(w, b.id, why="joined another band")
-        lap = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "partnership_lapsed"]
+        n0 = minorlog.size(w, "partnership_lapsed")
+        trade._unlink_all(w, b.id, joined=a.id)
+        lap = minorlog.since(w, "partnership_lapsed", n0)
         self.assertEqual(len(lap), 1)
         self.assertEqual(lap[0]["data"]["gifts"], tot)
 
@@ -604,7 +604,7 @@ class Traders(unittest.TestCase):
         return w, bs, A, B, c, sizes
 
     def _year(self, w):
-        from origins.sim import trade, traders
+        from origins.sim import minorlog, trade, traders
         trade.check_begin(w)
         traders.yearly(w, w.living_bands())
         w.invariant_failures = getattr(w, "invariant_failures", [])

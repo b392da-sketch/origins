@@ -505,7 +505,7 @@ async function showBand(id){
     ${d.custom_changes.length ? `<ul class="list">${d.custom_changes.map(c => `<li>${esc(c.custom)}: ${esc(c.from)} → ${esc(c.to)} <small>${esc(c.how)}, ${bp(c.bp)}</small></li>`).join("")}</ul>` : ""}</details>
     ${farmingBlock(d.farming)}
     ${body}
-    <h2 style="margin-top:10px">Band history</h2><ul class="list">${d.events.map(e => `<li onclick="why('event:${e.id}')">${esc(e.title)} <small>${bp(e.bp)}</small></li>`).join("") || '<li class="muted">—</li>'}</ul>`;
+    <h2 style="margin-top:10px">Band history</h2><ul class="list">${d.events.map(e => `<li onclick="why('${e.ref || "event:" + e.id}')">${esc(e.title)} <small>${bp(e.bp)}</small></li>`).join("") || '<li class="muted">—</li>'}</ul>`;
 }
 function farmingBlock(f){
   if (!f || (!f.crops.length && f.share === 0)) return "";
@@ -590,7 +590,7 @@ async function refreshLanguages(){
 function renderWhy(n, depth){
   const kids = (n.causes || []).map(c => renderWhy(c, depth + 1)).join("");
   const ref = n.ref ? Object.entries(n.ref)[0] : null;
-  const title = ref && ref[0] !== "note" ? `<a onclick="why('${ref[0]}:${ref[1]}')">${esc(n.title)}</a>` : esc(n.title);
+  const title = ref && ref[0] !== "note" ? `<a onclick="why('${ref[0]}:${Array.isArray(ref[1]) ? ref[1].join(":") : ref[1]}')">${esc(n.title)}</a>` : esc(n.title);
   return `<div class="${depth ? "node" : ""}"><div class="title">${depth ? "because " : ""}${title}</div>${n.when ? `<div class="when">${esc(n.when)}</div>` : ""}${kids}</div>`;
 }
 async function why(ref){
