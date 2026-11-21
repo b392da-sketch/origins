@@ -14,7 +14,7 @@ My premise was wrong. Band records are never deleted, so `len(w.bands)` equals t
 
 The only change left is that `len(w.bands)` is now cheap (which your review checked as sound). The test sets a polity's prestige at 0.5, halves the band within the tick and finds 0.5 again. At the next tick the value rises. On `85c6430` it rose within the tick.
 
-I'll count the snapshot's misses in the next profile, as you suggest.
+Restoring the full-array snapshot cost speed: the planet-4 timing went from 15–19 to 22–29 seconds a year, still with the old digest. The snapshot therefore now holds only the bands holding anyone (individuals or active group rows) and their sizes from `sizes_of`. It is taken at the same moments, with the same length check against `next_band` at the time. It is read back into a vector of the members' length and order, with zeros for ended bands, so the sum is the same to the last bit. The planet-3 digest after 30 years is unchanged. The test now kills half a real band's members within the tick, in place of a stub.
 
 ## 2. The size helpers disagreed about invalid ids. **Confirmed; fixed.**
 

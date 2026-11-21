@@ -770,12 +770,27 @@ def prestige_factor(w, polity_id: int) -> float:
     # 018); only band sizes are kept for the tick (speed), so births and deaths within a tick are not seen here. The
     # snapshot is taken at the tick's first call and again when a band is created (the record grows). (Kept as it was
     # after Codex review 038, finding 1: a fresh lookup changed results within a tick. len(w.bands) is now cheap.)
+    # The snapshot holds the living bands' sizes only (ended bands have none): the same values as the full array,
+    # read back into a vector of the same length and order, so the sum is the same to the last bit (G4a pilot).
     c = getattr(w, "_sizes_tick", None)
-    if c is None or c[0] != w.t or len(c[1]) != len(w.bands):
-        c = (w.t, w.band_sizes().astype(float))
+    if c is None or c[0] != w.t or c[1] != len(w.bands):
+        G = w.groups
+        live = np.unique(np.concatenate([w.people.band[w.alive_idx()].astype(np.int64),
+                                         G.band[G.rows()].astype(np.int64)]))   # every band holding anyone
+        # c[1] is the length the full array had (next_band), compared with len(w.bands) as before
+        c = (w.t, w.next_band, live, w.sizes_of(live).astype(float))
         w._sizes_tick = c
-    members = np.nonzero(w.polity_of[:len(c[1])] == polity_id)[0]
-    n = float(c[1][members].sum()) if len(members) else 0.0
+    members = np.nonzero(w.polity_of[:c[1]] == polity_id)[0]
+    if len(members):
+        vals = np.zeros(len(members))
+        live, sz = c[2], c[3]
+        if len(live):
+            k = np.minimum(np.searchsorted(live, members), len(live) - 1)
+            ok = live[k] == members
+            vals[ok] = sz[k[ok]]
+        n = float(vals.sum())
+    else:
+        n = 0.0
     return float(np.clip(held / max(n, 1.0) / P.PRESTIGE_NEED, 0.0, 1.0))
 
 

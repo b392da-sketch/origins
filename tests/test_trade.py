@@ -1302,17 +1302,18 @@ class Review038(unittest.TestCase):
     """Codex review 038: the speed fixes from the G4a pilot must not change what any routine returns."""
 
     def test_finding1_prestige_keeps_its_size_snapshot_within_a_tick(self):
-        from origins.sim import polity, traders
-        helper = GoodsEffects()
-        w, b, T = helper._one(size=100)
+        from origins.sim import demography, polity, traders
+        w = World.new(1, 1, generate(1))
+        b = w.living_bands()[0]
+        trade.ensure(w, w.next_band - 1, -1)
         p = polity._new_polity(w, b, [{"note": "t"}], why="t")
         traders.grow(w, p.id)
-        sizes = np.zeros(len(w.bands))
-        sizes[b.id] = 100
-        w.band_sizes = lambda: sizes
-        w.treasury[p.id, trade.GI["gold"]] = 50.0 * P.PRESTIGE_NEED     # half the need per member at 100 people
+        n = w.band_size(b.id)
+        w.treasury[p.id, trade.GI["gold"]] = 0.5 * n * P.PRESTIGE_NEED     # half the need per member
         first = trade.prestige_factor(w, p.id)
-        sizes[b.id] = 50                                                 # deaths within the tick
+        self.assertAlmostEqual(first, 0.5, places=9)
+        mem = w.members(b.id)
+        demography.kill(w, mem[:len(mem) // 2], np.zeros(len(mem) // 2, dtype=int))   # deaths within the tick
         self.assertEqual(trade.prestige_factor(w, p.id), first)          # not seen until the next tick (as before)
         w.t += 1
         self.assertGreater(trade.prestige_factor(w, p.id), first)
