@@ -217,7 +217,7 @@ def yearly(w):
     if getattr(P, "CURATION", False):
         # scarce tools are used sparingly (Ben, 16 November 2026): wear x max(CURATION_MIN, h / (h + CURATION_HALF)),
         # h = holdings per person
-        n = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
+        n = np.maximum(w.sizes_of(ids).astype(float), 1.0)
         for g in P.CURATED_GOODS:
             i = GI[g]
             h = w.goods[ids, i] / n
@@ -298,7 +298,7 @@ def move_good(w, src_id: int, dst_id: int, i: int, amount: float):
 def allowance(w, ids) -> np.ndarray:
     """How many partner links each band can hold: PARTNERS_MAX at PARTNER_SIZE_REF people, growing with the square
     root of size, at most PARTNERS_CAP (stage 4a; starting values)."""
-    n = np.maximum(w.band_sizes()[np.asarray(ids)].astype(float), 1.0)
+    n = np.maximum(w.sizes_of(np.asarray(ids)).astype(float), 1.0)
     k = np.floor(P.PARTNERS_MAX * np.sqrt(np.maximum(n / P.PARTNER_SIZE_REF, 1.0)))
     return np.minimum(k, P.PARTNERS_CAP).astype(int)
 
@@ -308,7 +308,7 @@ def supply(w, ids) -> np.ndarray:
     the bands given, summed."""
     ids = np.asarray(ids)
     cols = [GI[g] for g in P.PARTNER_TRADE_GOODS]
-    n = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
+    n = np.maximum(w.sizes_of(ids).astype(float), 1.0)
     per = w.goods[ids][:, cols] / n[:, None]
     mean = per.mean(axis=0)
     return (per / np.where(mean > 0, mean, 1.0)).sum(axis=1)
@@ -572,7 +572,7 @@ def down_the_line(w, live, ids, cells):
     I, J, KIND = _partner_pairs(w, live, ids, cells, I, J, KIND)
     if not len(I):
         return
-    sizes = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
+    sizes = np.maximum(w.sizes_of(ids).astype(float), 1.0)
     q = technology.practised_quality(w)
     def best(key):
         v = q[ids, technology.INDEX[key]].astype(float)
@@ -717,7 +717,7 @@ def per_person(w, ids, names) -> np.ndarray:
     ids = np.asarray(ids)
     if getattr(w, "goods", None) is None or not len(ids):
         return np.zeros(len(ids))
-    n = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
+    n = np.maximum(w.sizes_of(ids).astype(float), 1.0)
     rows = np.minimum(ids, len(w.goods) - 1)
     held = w.goods[rows][:, [GI[g] for g in names]].sum(axis=1)
     return np.where(ids < len(w.goods), held, 0.0) / n
@@ -758,12 +758,11 @@ def prestige_factor(w, polity_id: int) -> float:
         return 0.0
     # Members are looked up fresh each call, so a band changing polity within a tick counts at once (Codex review
     # 018); only band sizes are kept for the tick (speed), so births and deaths within a tick are not seen here.
-    c = getattr(w, "_sizes_tick", None)
-    if c is None or c[0] != w.t or len(c[1]) != len(w.bands):
-        c = (w.t, w.band_sizes().astype(float))
-        w._sizes_tick = c
-    members = np.nonzero(w.polity_of[:len(c[1])] == polity_id)[0]
-    n = float(c[1][members].sum()) if len(members) else 0.0
+    # (Until 21 November 2026 a tick cache was meant here, but its check compared against the number of band
+    # records, never equal to the array's length, so sizes were rebuilt for every band id on every call. They are
+    # now looked up for the members only: the same numbers, G4a pilot.)
+    members = np.nonzero(w.polity_of[:w.next_band] == polity_id)[0]
+    n = float(w.sizes_of(members).sum()) if len(members) else 0.0
     return float(np.clip(held / max(n, 1.0) / P.PRESTIGE_NEED, 0.0, 1.0))
 
 
@@ -816,5 +815,5 @@ def trade_need(w, ids, cells) -> np.ndarray:
     if getattr(w, "goods", None) is None or not len(ids):
         return np.zeros(len(ids))
     _trade_in_size(w)
-    n = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
+    n = np.maximum(w.sizes_of(ids).astype(float), 1.0)
     return np.clip(w.trade_in[ids] / n / P.TRADE_NEED_REF, 0.0, 1.0)

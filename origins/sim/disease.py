@@ -182,8 +182,7 @@ def combine(w, src, dst, carriers: float):
     bands are modelled with a fixed share of children (DZ_CHILD_SHARE), not their actual ages."""
     if getattr(w, "dz_imm", None) is None or not w.diseases:
         return
-    sizes = w.band_sizes()
-    n_after = float(sizes[dst.id]) if dst.id < len(sizes) else 0.0
+    n_after = w.band_size(dst.id) if dst.id < w.next_band else 0.0
     c = max(float(carriers), 0.0)
     if c <= 0:
         return
@@ -213,7 +212,7 @@ def yearly(w):
     nd = len(w.diseases)
     ids = np.array([b.id for b in bands])
     cells = np.array([b.cell for b in bands])
-    sizes = w.band_sizes()[ids].astype(float)
+    sizes = w.sizes_of(ids).astype(float)
     _age_and_wane(w, ids)
     n = w.planet.n
     # people who can still catch each disease, per cell
