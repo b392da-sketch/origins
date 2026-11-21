@@ -139,6 +139,7 @@ class Bands:
         self.live: dict[int, Band] = {}
         self.cap = 0
         self.packed = np.zeros(0, dtype=np.bool_)
+        self._npacked = 0                # packed.sum(), kept so len() does not count 2 million flags (G4a pilot)
         self.col = {k: np.zeros(0, dtype=t) for k, t in _NUM}
         self.code = {k: np.zeros(0, dtype=np.int32) for k in _STR}
         self.trail = np.zeros((0, TRAIL_KEEP, 2), dtype=np.int64)
@@ -172,7 +173,9 @@ class Bands:
         return i in self.live or (0 <= i < self.cap and bool(self.packed[i]))
 
     def __len__(self):
-        return len(self.live) + int(self.packed.sum())
+        if self._npacked is None:
+            self._npacked = int(self.packed.sum())
+        return len(self.live) + self._npacked
 
     def values(self):
         """All bands in id order (packed ones rebuilt: slow for very large worlds)."""
@@ -218,6 +221,7 @@ class Bands:
             for j, (t, c) in enumerate(tr):
                 self.trail[i, j] = (t, c)
             self.packed[i] = True
+            self._npacked = None
         return len(done)
 
     def _unpack(self, i) -> Band:
@@ -244,6 +248,7 @@ class Bands:
         self._grow(n)
         if n:
             self.packed[:n] = d["packed"]
+            self._npacked = None
             self.trail[:n] = d["trail"]
             self.trail_n[:n] = d["trail_n"]
             for k in self.col:

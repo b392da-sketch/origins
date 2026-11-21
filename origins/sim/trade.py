@@ -322,9 +322,18 @@ def _parted(w, a: int, b: int) -> bool:
 
 def _closeness(w, a, b) -> float:
     from .language import shared_roots
-    la, lb = w.languages.get(a.language), w.languages.get(b.language)
-    same = shared_roots(la, lb) if (la is not None and lb is not None) else 1.0
-    return P.TECH_FOREIGN + (1.0 - P.TECH_FOREIGN) * same
+    # languages change only in the language phase, so a pair's shared roots are kept for the tick (G4a pilot:
+    # 1.5 million comparisons in 20 years at planet-4 scale; the same numbers)
+    c = getattr(w, "_close_cache", None)
+    if c is None or c[0] != w.t:
+        c = w._close_cache = (w.t, {})
+    key = (a.language, b.language)
+    v = c[1].get(key)
+    if v is None:
+        la, lb = w.languages.get(a.language), w.languages.get(b.language)
+        same = shared_roots(la, lb) if (la is not None and lb is not None) else 1.0
+        v = c[1][key] = P.TECH_FOREIGN + (1.0 - P.TECH_FOREIGN) * same
+    return v
 
 
 def partnerships_yearly(w, live):
