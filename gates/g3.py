@@ -142,6 +142,11 @@ def finish(w, ws, rs, seconds, pr, institutions, write=True):
     # again/by contact/kept), with whether its cause chain resolves (sampled)
     if getattr(w, "diseases", None) is not None:
         rec["diseases"] = [{k: v for k, v in dz.items() if k != "event"} for dz in w.diseases]
+        # diseases whose slot was freed for a new one (review 037): the slot number in the log is reused, so
+        # a row's disease is the one whose years [year, retired) hold the row's year
+        rec["diseases_retired"] = [{k: v for k, v in dz.items() if k != "event"}
+                                   for dz in (getattr(w, "diseases_retired", None) or [])]
+        rec["disease_counts"] = {k: v for k, v in w.counts.items() if k in ("dz_retired", "dz_blocked_starts")}
         obs = [e for e in w.events if e["kind"] == "outbreak" and "disease" in e["data"]]
         rec["disease_outbreaks"] = [[e["t"] // 4, e["data"]["disease"], e["data"]["cells"], e["data"]["deaths"]]
                                     for e in obs]

@@ -53,7 +53,7 @@ def init(w):
     # band x disease: the last year it circulated among them; -1 never; -2 met at an unknown time (older saves)
     w.dz_last = -np.ones((64, ND_CAP), dtype=np.int32)
     w.dz_since = -np.ones((w.planet.n, ND_CAP), dtype=np.int32)    # year it began circulating unbroken on the cell
-    w.dz_log = []                   # one row per cell and disease each year it circulates there: LOG_FIELDS
+    w.dz_log = RowLog()             # one row per cell and disease each year it circulates there: LOG_FIELDS
 
 
 LOG_FIELDS = ["year", "disease", "cell", "how (0 new, 1 again from its animals, 2 contact, 3 kept)",
@@ -65,6 +65,62 @@ LOG_FIELDS = ["year", "disease", "cell", "how (0 new, 1 again from its animals, 
               "people herding domesticated animals on the cell", "people on the cell and its neighbours",
               "deaths"]
 LOG_DEATHS = LOG_FIELDS.index("deaths")
+LOG_FLOAT = LOG_FIELDS.index("share who could catch it")       # every other field is a whole number
+
+
+class RowLog:
+    """The per-cell disease record, held as a growing NumPy array rather than Python lists (Codex review 037: a
+    dense history's millions of rows were copied into JSON at every save and restore). Behaves as a list of rows:
+    append, len, iteration and indexing give lists, with whole numbers as int."""
+
+    def __init__(self, rows=None):
+        self._a = np.zeros((1024, len(LOG_FIELDS)), dtype=np.float64)
+        self.n = 0
+        for r in rows or []:
+            self.append(r)
+
+    @classmethod
+    def from_array(cls, a):
+        g = cls()
+        a = np.asarray(a, dtype=np.float64).reshape(-1, len(LOG_FIELDS))
+        g._a = np.zeros((max(1024, 2 * len(a)), len(LOG_FIELDS)))
+        g._a[:len(a)] = a
+        g.n = len(a)
+        return g
+
+    def array(self):
+        return self._a[:self.n]
+
+    def append(self, row):
+        if self.n == len(self._a):
+            b = np.zeros((2 * len(self._a), self._a.shape[1]))
+            b[:self.n] = self._a
+            self._a = b
+        self._a[self.n] = row
+        self.n += 1
+
+    def _row(self, i):
+        r = self._a[i]
+        return [float(r[j]) if j == LOG_FLOAT else int(r[j]) for j in range(len(r))]
+
+    def __len__(self):
+        return self.n
+
+    def __iter__(self):
+        for i in range(self.n):
+            yield self._row(i)
+
+    def __getitem__(self, i):
+        if isinstance(i, slice):
+            return [self._row(j) for j in range(*i.indices(self.n))]
+        if i < 0:
+            i += self.n
+        if not 0 <= i < self.n:
+            raise IndexError(i)
+        return self._row(i)
+
+    def __eq__(self, other):
+        return list(self) == list(other)
 LOG_PEOPLE = LOG_FIELDS.index("people at the epidemic's start")
 
 
@@ -357,9 +413,47 @@ def _respill(w, rng, pop, herders, active, source):
             w.counts["dz_spillovers"] = w.counts.get("dz_spillovers", 0) + 1
 
 
+def _free_slot(w):
+    """A slot for a new disease: the next one while fewer than ND_CAP have appeared; then the slot of the disease
+    longest gone from people, if it has not circulated among anyone for DZ_RETIRE_YEARS (Ben, 21 November 2026,
+    after Codex review 037: until then the 64th disease ended emergence for the rest of a history). A retired
+    disease's animal reservoir goes with it. None when every disease is still within that time."""
+    if len(w.diseases) < ND_CAP:
+        return len(w.diseases)
+    if getattr(w, "_dz_slot_year", None) == w.year:
+        return w._dz_slot_cache
+    _last_rows(w)
+    last = w.dz_last.max(axis=0) if len(w.dz_last) else np.full(ND_CAP, -1)
+    born = np.array([dz.get("year", 0) for dz in w.diseases])
+    gone = (~w.dz_active.any(axis=0)) & (np.maximum(last, born) < w.year - P.DZ_RETIRE_YEARS)
+    slot = int(np.argmin(np.where(gone, np.maximum(last, born), np.iinfo(np.int64).max))) if gone.any() else None
+    w._dz_slot_year, w._dz_slot_cache = w.year, slot
+    return slot
+
+
+def _retire(w, d):
+    """Free slot d: its disease is recorded as retired and its immunity, exposure and circulation cleared."""
+    old = dict(w.diseases[d])
+    _last_rows(w)
+    col = w.dz_last[:, d]
+    old["retired"] = int(w.year)
+    old["last_circulated"] = int(max(int(col.max()) if len(col) else -1, -1))
+    w.event("disease_retired", cell=int(old.get("cell", 0)), disease=old.get("name"),
+            causes=([{"event": int(old["event"])}] if old.get("event") is not None else [])
+            + [{"note": f"{old.get('name')} had not circulated among people for {P.DZ_RETIRE_YEARS:,} years and is "
+                        f"taken as gone from its animals too"}])
+    if not hasattr(w, "diseases_retired") or w.diseases_retired is None:
+        w.diseases_retired = []
+    w.diseases_retired.append(old)
+    w.dz_imm[:, d] = 0.0
+    w.dz_last[:, d] = -1
+    w.dz_active[:, d] = False
+    w.dz_since[:, d] = -1
+    w.counts["dz_retired"] = w.counts.get("dz_retired", 0) + 1
+    w._dz_slot_year = None
+
+
 def _emerge(w, rng, bands, ids, cells, sizes, pop, active, source, herders=None):
-    if len(w.diseases) >= ND_CAP:
-        return
     from . import farming
     pressure = _herders(w, ids, cells, sizes) if herders is None else herders
     for (c, s), h in sorted(pressure.items()):
@@ -368,7 +462,10 @@ def _emerge(w, rng, bands, ids, cells, sizes, pop, active, source, herders=None)
         since = (w.t - w.events[first]["t"]) / P.TICKS_PER_YEAR if first is not None else 0.0
         together = min(1.0, since / P.DZ_DOM_YEARS)
         chance = P.DZ_EMERGE_HERD * h * together
-        if rng.random() < chance and len(w.diseases) < ND_CAP:
+        if rng.random() < chance:
+            if _free_slot(w) is None:
+                w.counts["dz_blocked_starts"] = w.counts.get("dz_blocked_starts", 0) + 1   # all slots in use
+                continue
             _new(w, rng, c, name, active, source,
                  f"{int(h)} people herding {farming.NAMES[name]} here, which people have kept for "
                  f"{int(since)} years", first)
@@ -377,14 +474,18 @@ def _emerge(w, rng, bands, ids, cells, sizes, pop, active, source, herders=None)
     draw = rng.random(len(peopled))
     hit = peopled[draw < P.DZ_EMERGE_WILD * pop[peopled]]
     for c in hit.tolist():
-        if len(w.diseases) >= ND_CAP:
-            break
+        if _free_slot(w) is None:
+            w.counts["dz_blocked_starts"] = w.counts.get("dz_blocked_starts", 0) + 1
+            continue
         _new(w, rng, int(c), "wild", active, source,
              f"a sickness passed from wild animals to {int(pop[c])} people here", None)
 
 
 def _new(w, rng, cell, host, active, source, note, first_event):
-    d = len(w.diseases)
+    d = _free_slot(w)
+    if d < len(w.diseases):
+        _retire(w, d)
+        active[:, d] = False
     lo, hi = np.log(P.DZ_CFR_RANGE[0]), np.log(P.DZ_CFR_RANGE[1])
     cfr = float(np.exp(rng.uniform(lo, hi)))
     k_lo, k_hi = np.log(P.DZ_K_RANGE[0]), np.log(P.DZ_K_RANGE[1])
@@ -394,13 +495,18 @@ def _new(w, rng, cell, host, active, source, note, first_event):
         "k": round(float(np.exp(rng.uniform(k_lo, k_hi))), 1), "lasting": bool(rng.random() < P.DZ_LASTING),
         "hunger": round(float(rng.uniform(*P.DZ_HUNGER_RANGE)), 2), "year": int(w.year), "cell": int(cell),
     }
-    traits["name"] = _name(w, cell, host, d)
+    traits["uid"] = len(w.diseases) + len(getattr(w, "diseases_retired", []) or [])   # unique across reuse of slots
+    traits["name"] = _name(w, cell, host, traits["uid"])
     causes = [{"note": note}]
     if first_event is not None:
         causes.append({"event": int(first_event)})
     traits["event"] = w.event("new_disease", cell=cell, causes=causes, disease=traits["name"], host=host,
                               deaths_per_case=traits["cfr"], lasting=traits["lasting"])
-    w.diseases.append(traits)
+    if d < len(w.diseases):
+        w.diseases[d] = traits
+    else:
+        w.diseases.append(traits)
+    w._dz_slot_year = None
     active[cell, d] = True
     source[(cell, d)] = "new"
 
@@ -546,13 +652,24 @@ def _kill(w, rng, blist, bid, pc, pa, po, event_id) -> np.ndarray:
 # ------------------------------------------------------------------ saves
 
 def to_json(w):
-    return {"diseases": getattr(w, "diseases", []), "log": getattr(w, "dz_log", [])}
+    """The catalogue; the per-cell log goes with the arrays (log_array), not into JSON (review 037)."""
+    return {"diseases": getattr(w, "diseases", []), "retired": getattr(w, "diseases_retired", []) or []}
+
+
+def log_array(w):
+    g = getattr(w, "dz_log", None)
+    if g is None:
+        return np.zeros((0, len(LOG_FIELDS)))
+    if not isinstance(g, RowLog):
+        g = w.dz_log = RowLog(upgrade_log(g))
+    return g.array()
 
 
 def from_json(w, d):
     init(w)
     w.diseases = d.get("diseases", [])
-    w.dz_log = upgrade_log(d.get("log", []))
+    w.diseases_retired = d.get("retired", [])
+    w.dz_log = RowLog(upgrade_log(d.get("log", [])))   # older saves kept it in JSON; newer ones in the arrays
     w.dz_last = -np.ones((0, ND_CAP), dtype=np.int32)  # restored from the arrays, or derived from immunity
 
 

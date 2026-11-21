@@ -403,6 +403,7 @@ DZ_CHILD_MULT_RANGE = (0.5, 2.0)  # children's deaths per case against adults'
 DZ_OLD_MULT = 2.0                 # people of 50 and over against adults
 DZ_OLD_SHARE = 0.15               # share of adults aged 50 and over, for adults' immunity (a fixed share, as
                                   # DZ_CHILD_SHARE; Codex review 029)
+DZ_RETIRE_YEARS = 2000            # a disease gone from people this long frees its slot, reservoir and all (Ben, 21 Nov 2026)
 DZ_GENERATION = 25                # years: a disease met within this is 'recent'; first contact is arrival from where
                                   # it has circulated this long into bands that never met it (Ben, 20 November 2026)
 DZ_K_RANGE = (3000.0, 500000.0)    # people who can still catch it, on a cell and its neighbours, at which it keeps

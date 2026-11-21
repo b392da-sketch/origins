@@ -311,7 +311,12 @@ def report(out: Path) -> str:
     meas10 = 0
     for r in runs:
         spells = r.get("disease_spells", [])
-        dz = {d.get("id", i): d for i, d in enumerate(r.get("diseases", []))}
+        periods = {}                                     # slot -> [(first year, end year, host)] (slots reused: review 037)
+        for i, d in enumerate(r.get("diseases", [])):
+            periods.setdefault(d.get("id", i), []).append((d.get("year", 0), 10 ** 9, d.get("host")))
+        for d in r.get("diseases_retired", []):
+            periods.setdefault(d.get("id"), []).append((d.get("year", 0), d.get("retired", 10 ** 9), d.get("host")))
+        host_of = lambda slot, y: next((h for a, b, h in periods.get(slot, []) if a <= y < b), None)   # noqa: E731
         end = r.get("end_year", 10 ** 9)
         if spells:
             meas10 += 1
@@ -321,7 +326,7 @@ def report(out: Path) -> str:
             if yrs >= PERSIST_YEARS:
                 p_years += len(yearly)
                 p_dense += sum(1 for h, around in yearly if h >= HERDERS and around >= AROUND)
-            wild = dz.get(d, {}).get("host") == "wild"
+            wild = host_of(d, y0) == "wild"
             small = bool(yearly) and yearly[0][1] < AROUND
             if (wild or small) and not open_end:
                 n_wild += 1

@@ -99,6 +99,8 @@ def to_file(w: World, f, fast: bool = False) -> None:
     arrays.update({"land_" + k: getattr(w, k) for k in _land.ARRAYS if getattr(w, k, None) is not None})
     from .sim import disease as _disease
     arrays.update({k: getattr(w, k) for k in _disease.ARRAYS if getattr(w, k, None) is not None})
+    if getattr(w, "dz_log", None) is not None:
+        arrays["dz_log"] = _disease.log_array(w)          # the per-cell disease record, as an array (review 037)
     arrays.update({"p_" + k: v for k, v in w.people.arrays().items()})
     arrays.update({"g_" + k: v for k, v in w.groups.arrays().items()})
     arrays.update({"b_" + k: v for k, v in w.bands.arrays().items()})
@@ -245,6 +247,8 @@ def from_bytes(data: bytes, planet=None) -> World:
     _disease.from_json(w, meta.get("disease", {}))
     from .sim import places as _places                   # place names (M4a): older saves start with none
     _places.from_json(w, meta.get("places", {}))
+    if "dz_log" in arrays and np.asarray(arrays["dz_log"]).size:
+        w.dz_log = _disease.RowLog.from_array(arrays["dz_log"])
     for k in _disease.ARRAYS:
         if k in arrays and np.asarray(arrays[k]).size:
             setattr(w, k, np.array(arrays[k], dtype=getattr(w, k).dtype))
@@ -371,7 +375,8 @@ def digest(w: World) -> str:
               *[getattr(w, k) for k in __import__("origins.sim.land", fromlist=["ARRAYS"]).ARRAYS
                 if getattr(w, k, None) is not None],
               *[getattr(w, k) for k in __import__("origins.sim.disease", fromlist=["ARRAYS"]).ARRAYS
-                if getattr(w, k, None) is not None]):
+                if getattr(w, k, None) is not None],
+              __import__("origins.sim.disease", fromlist=["x"]).log_array(w)):
         h.update(np.ascontiguousarray(arr).tobytes())
     for k, v in sorted(w.bands.arrays().items()):
         h.update(k.encode())
