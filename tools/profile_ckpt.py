@@ -24,6 +24,9 @@ def main(cp: Path, ws: int, years: int):
     w = persist.from_bytes(cp.read_bytes(), g2.resume_planet(cp, ws))
     print(f"restored year {w.year} in {time.time() - t0:.0f} s, peak {rss():.2f} GB; next_band {w.next_band:,}, "
           f"living {len(w.living_bands()):,}, events {len(w.events):,}", flush=True)
+    t0 = time.time()
+    engine.step(w, 40)                       # ten years without the profiler, for the true speed
+    print(f"10 years without the profiler: {(time.time() - t0) / 10:.2f} s per year", flush=True)
     phase = defaultdict(float)
     pr = cProfile.Profile()
     from origins.sim import observe
