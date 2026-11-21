@@ -6,8 +6,6 @@ the conflict checks (6-8) are added with conflict.
 from __future__ import annotations
 
 import json
-import shutil
-import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -81,8 +79,11 @@ def recovered(rec, col, xyz, spacing, within_years=1000, within_cells=4, share=0
     return False
 
 
-def report(out: Path) -> str:
-    allr = [r for r in _load(out, "run_w*_s*.json") if r.get("status") == "completed"]
+def report(out: Path, records=None) -> str:
+    """records: already-parsed results (G4's report passes its own without the G4-only fields; Codex review 037,
+    finding 3)."""
+    recs = records if records is not None else _load(out, "run_w*_s*.json")
+    allr = [r for r in recs if r.get("status") == "completed"]
     runs = [r for r in allr if r.get("institutions", True)]
     knock = [r for r in allr if not r.get("institutions", True)]
     L = []
@@ -100,13 +101,8 @@ def report(out: Path) -> str:
     farm = [r for r in runs if r["first_village_year"] is not None]
 
     # 1 M0-M2 still hold: the G2 report on the histories with institutions (check 8 needs G2's no-storage runs)
-    tmp = Path(tempfile.mkdtemp())
-    for r in runs:
-        rr = dict(r)
-        (tmp / f"run_w{r['world_seed']}_s{r['run_seed']}.json").write_text(json.dumps(rr))
     from gates.g2_report import report as g2report
-    g2txt = g2report(tmp)
-    shutil.rmtree(tmp)
+    g2txt = g2report(None, records=[dict(r) for r in runs])   # shallow copies, no second parse (review 037)
     rows = [l for l in g2txt.splitlines() if l.startswith("| ") and not l.startswith("| Check") and "---" not in l]
     g2fail = [l.split("|")[1].strip() for l in rows if "| FAIL |" in l and not l.startswith("| 8.") and not l.startswith("| 9.")]
     checks.append(("1. M0-M2 still hold", not g2fail,

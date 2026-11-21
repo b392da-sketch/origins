@@ -224,6 +224,7 @@ TECH_WORKING = 0.5                 # quality at which a technique is held well e
 TECH_INVENT = 5e-6                 # yearly chance a band invents a technique it could hold, at reference population and no pressure ...
 TECH_NEED_FLOOR = 0.2              # ... times (this + the pressure behind it, 0..1) ...
 TECH_POP_REF = 1000                # ... times (people within two rings / this) ...
+TECH_TRADE_REACH = 0.5             # a traders' road adds this share of the people around the far seat to invention's reach (review 034)
 TECH_POP_EXPONENT = 1.0            # ... to this power (0: the knock-out with no population effect, specification check 6)
 TECH_EASY_KEEP = 5                 # ... times (this / the technique's keep) ...
 TECH_DIFFICULTY = 2.0              # ... to this power (first trial: independent inventions far too common, e.g. writing 21 times in 400 years)
@@ -241,6 +242,15 @@ TECH_FOREIGN = 0.2                 # chance a lesson takes between peoples with 
 TECH_CRAFT_REF = 0.05              # specialist share of a band at which teaching is most faithful (decision 2)
 TECH_CRAFT_GAIN = 1.0              # at that share: practitioners needed halved, refinement doubled
 TECH_WRITING_HOLD = 0.5            # share of copying losses that writing of quality 1 prevents
+TECH_SCRIBES = True                # writing is practised by specialists only (scribes; Ben, 20 Nov 2026); False: by a share of all adults, as before
+TECH_SCRIBE_YEARS = 25.0           # scribes: a band's specialists averaged over about this many years (yearly step 1/this)
+TECH_SCRIBE_TIER = 2               # scribes are kept only at seats of polities of this tier or above (complex chiefdom; Ben, 21 Nov 2026)
+TECH_WRITING_LOG_YEARS = 10        # how often bands holding writing or scribes are logged for the gate (review 032)
+TECH_SCRIBE_MIN = 1.0              # scribes a band needs to write at all (invent, learn, practise)
+TECH_SCRIBES_KEEP = 30             # scribes within reach that keep writing alive (about Pylos's thirty; Ben, 20 Nov 2026)
+TECH_STIMULUS = {"writing": 10.0}  # invention chance x this when a people within reach (or along a traders' road) writes (stimulus diffusion; Ben, 20 Nov 2026)
+TECH_RECORDS_SHARE = 0.3           # share of writing's capacity effect that tallies give when the seat keeps record-keepers (khipu; Ben, 20 Nov 2026)
+TECH_RECORD_KEEPERS = 10.0         # ... in full with this many specialists at the seat (fewer: in proportion)
 TECH_RECOVER = 0.002               # yearly chance, x writing quality, of recovering a lost technique from records
 TECH_HILL_RELIEF = 300.0           # metres of relief to a neighbouring cell that make land hilly (terracing)
 # M4a stage 5 (Ben, 14 November 2026: starting values, open to revision): full effect of each technique at quality 1
@@ -282,7 +292,8 @@ ARRIVE_MIN = 1e-3                  # holdings below this count as none (for firs
 EXCHANGE_LOG_CAP = 20000           # rows kept in the thinned yearly exchange log
 # trade stage 4a (Ben, 15 Nov 2026): partners trade working goods, and settled villages favour well-supplied partners,
 # so hubs form (Ibanez et al. 2015, best fit for the later Neolithic). All starting values.
-PARTNERS_CAP = 16                  # most partner links any band can hold (hxaro: 16 per person on average; Wiessner 2007)
+PARTNERS_CAP = 16                  # most partner links any band can hold: a starting value at band scale (hxaro's 16 per
+                                   # person, Wiessner 2007, does not set a band's number; Ben); G4a's arm uses 4
 PARTNER_SIZE_REF = 30              # a band of this size holds PARTNERS_MAX links; larger ones more, with the square root of size
 PARTNER_TRADE_GOODS = ("salt", "fine_stone", "copper", "tin", "iron")   # working goods partners trade
 PARTNER_TRADE_RATE = 0.1           # as DTL_RATE, for partners who are not neighbours
@@ -393,6 +404,7 @@ DZ_CHILD_MULT_RANGE = (0.5, 2.0)  # children's deaths per case against adults'
 DZ_OLD_MULT = 2.0                 # people of 50 and over against adults
 DZ_OLD_SHARE = 0.15               # share of adults aged 50 and over, for adults' immunity (a fixed share, as
                                   # DZ_CHILD_SHARE; Codex review 029)
+DZ_RETIRE_YEARS = 2000            # a disease gone from people this long frees its slot, reservoir and all (Ben, 21 Nov 2026)
 DZ_GENERATION = 25                # years: a disease met within this is 'recent'; first contact is arrival from where
                                   # it has circulated this long into bands that never met it (Ben, 20 November 2026)
 DZ_K_RANGE = (3000.0, 500000.0)    # people who can still catch it, on a cell and its neighbours, at which it keeps
@@ -411,3 +423,24 @@ DZ_CHILD_YEARS = 15.0
 DZ_FLIGHT_ATTACK, DZ_FLIGHT_OUT = 0.7, 1.5         # flight: fewer caught here, more carried away (guesses)
 DZ_ISOLATE_ATTACK, DZ_ISOLATE_OUT = 0.6, 0.5       # isolating the sick (Acholi gemo): fewer caught, less carried
 DZ_ISOLATE_CRISIS = 0.5                            # ... and survivors care for the sick: half the crisis deaths
+
+# --- M4a: place names (writing and place names; Ben, 20 November 2026). Starting values, not facts.
+PLACES = True                      # False: no place names (the knock-out)
+PLACE_CHECK_YEARS = 10             # how often peoples by a feature may name it
+PLACE_NAME_RATE = 0.02             # yearly chance a people names a feature it lives by, at PLACE_POP_REF speakers by it
+PLACE_POP_REF = 100.0              # ... (more speakers by it: sooner; chance 1 - exp(-years x rate x speakers / this))
+PLACE_HILL_M = 800.0               # a local peak at least this high is a named hill ...
+PLACE_MOUNTAIN_M = 2000.0          # ... and at least this high, a mountain
+PLACE_TOWN_REF = 5000.0            # people at which a settlement counts as fully large (log scale)
+PLACE_DENSITY_REF = 200.0          # people per cell of a feature at which its remoteness is one half
+PLACE_KEEP_BASE = 0.2              # chance newcomers keep a name they hear: this ...
+PLACE_KEEP_SIZE = 0.5              # ... + this x the feature's size (0..1) ...
+PLACE_KEEP_REMOTE = 0.2            # ... + this x its remoteness (0..1) ...
+PLACE_KEEP_NEWCOMERS = 0.6         # ... times (1 - this x the newcomers' share of the people by it) ...
+PLACE_KEEP_CONQUEST = 0.5          # ... times this when those they hear it from were conquered by their polity ...
+PLACE_CONQUEST_YEARS = 100         # ... within this many years
+PLACE_BARE = {"river": 0.25, "lake": 0.15, "hill": 0.1, "mountain": 0.1, "coast": 0.2, "settlement": 0.1}   # named just 'river' etc.
+PLACE_REGION_PEOPLE = 0.5         # chance a region is named 'land of the people' after the namers' own name (Ben, 21 Nov 2026)
+PLACE_ADOPT = 0.5                  # chance a conquered people takes its conquerors' name for a feature, x (1 - this below x size) ...
+PLACE_ADOPT_SIZE = 0.8             # ... so settlements and small features most (Wang et al. 2011; Ben, 21 Nov 2026)
+PLACE_EPONYM = 0.3                 # chance a new settlement is named after a person

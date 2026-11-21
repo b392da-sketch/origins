@@ -7,7 +7,8 @@ A technique is a piece of knowledge a people can hold. Each has:
 - what kind of need presses towards it.
 
 Held per band as a quality from 0 (unknown) to 1 (the best known): w.tech[band, k]. A daughter band starts with her
-mother's techniques and records.
+mother's techniques and records, except the scribes' count (w.tech_scribes), which a daughter does not inherit: it
+passes only when bands combine or merge (Ben, 21 November 2026).
 
 - Invention (stage 2) is rare and gives a crude technique (TECH_INVENT_LEVEL).
 - Keeping (stage 3; Henrich 2004): a technique is PRACTISED when its prerequisites are met. Practised, its quality
@@ -125,6 +126,8 @@ MATERIALS = ("forest", "flint", "clay", "salt", "copper", "tin", "iron", "coal",
 WOOD_TECHS = [i for i, t in enumerate(TECHNIQUES) if any("forest" in g for g in t.materials)]
 TERRAIN = ("hills", "water")
 WRITING = INDEX["writing"]
+TALLIES = INDEX["tallies"]
+SCRIBAL = [WRITING]        # practised by specialists only: scribes are kept by a polity (Ben, 20 November 2026)
 
 
 def _check():
@@ -146,6 +149,24 @@ _check()
 def init(w):
     w.tech = np.zeros((64, K), dtype=np.float32)
     w.tech_record = np.zeros((64, K), dtype=np.float32)
+    w.tech_scribes = np.zeros(64)          # scribes per band: its specialists averaged over about a generation
+
+
+def _scribes(w):
+    """The per-band scribes array, sized to w.tech (older saves and worlds: started from today's specialists at the
+    seats of living complex chiefdoms and states)."""
+    s = getattr(w, "tech_scribes", None)
+    if s is None or len(s) != len(w.tech):
+        out = np.zeros(len(w.tech))
+        if s is not None:
+            n = min(len(s), len(out))
+            out[:n] = s[:n]
+        elif hasattr(w, "spec"):
+            for p in getattr(w, "polities", {}).values():
+                if p.ended < 0 and getattr(p, "tier", 0) >= P.TECH_SCRIBE_TIER and 0 <= p.seat < min(len(w.spec), len(out)):
+                    out[p.seat] = w.spec[p.seat]
+        w.tech_scribes = out
+    return w.tech_scribes
 
 
 def _grow(a, n):
@@ -171,13 +192,17 @@ def ensure(w, band_id: int, parent: int):
         w.tech = _grow(w.tech, band_id)
         w.tech_record = _grow(w.tech_record, band_id)
     w.tech[band_id] = w.tech[parent] if parent >= 0 else 0.0            # a daughter knows what her mother knew
+    if SCRIBAL and getattr(P, "TECH_SCRIBES", True):
+        w.tech[band_id, SCRIBAL] = 0.0                                   # ... except writing: the scribes stay
     if getattr(w, "tech_prev_prac", None) is not None:                  # ... and what was practised on imports
         _prev_arrays(w)
         w.tech_prev_prac[band_id] = w.tech_prev_prac[parent] if parent >= 0 else False
         w.tech_prev_mats[band_id] = w.tech_prev_mats[parent] if parent >= 0 else False
         w.tech_prev_wood[band_id] = w.tech_prev_wood[parent] if parent >= 0 else False
+        w.tech_prev_dep[band_id] = w.tech_prev_dep[parent] if parent >= 0 else False
     w._tech_eff = None                                                    # effects judged afresh (review 010)
     w.tech_record[band_id] = w.tech_record[parent] if parent >= 0 else 0.0   # and keeps her records
+    _scribes(w)[band_id] = 0.0                                            # scribes stay with the band that fed them
 
 
 def held(w, band_id: int, key: str, level: float | None = None) -> bool:
@@ -233,6 +258,8 @@ def prerequisites_met(w, b, t: Technique, near: set | None = None) -> tuple[bool
         missing.append("needs hilly land" if t.terrain == "hills" else "needs a river or lake")
     if t.settled and not _settled(w, np.array([b.id]))[0]:
         missing.append("needs a settled people")
+    if INDEX[t.key] in SCRIBAL and getattr(P, "TECH_SCRIBES", True) and _scribes(w)[b.id] < P.TECH_SCRIBE_MIN:
+        missing.append("needs scribes: specialists fed from surplus, kept for a generation")
     return (not missing), missing
 
 
@@ -368,6 +395,10 @@ def _possible(w, ids, cells, lvl=None) -> np.ndarray:
             ok[:, k] &= land[:, TERRAIN.index(t.terrain)]
         if t.settled:
             ok[:, k] &= settled
+    if SCRIBAL and getattr(P, "TECH_SCRIBES", True):     # a people writes only where it keeps scribes (Ben, 20-21 Nov)
+        has = _scribes(w)[np.asarray(ids)] >= P.TECH_SCRIBE_MIN
+        for k in SCRIBAL:
+            ok[:, k] &= has
     return ok
 
 
@@ -423,7 +454,7 @@ def _prev_arrays(w):
     """What each band practised, and which materials it held as goods, at the end of last year's technology pass
     (Codex review 018). Grown to the size of w.tech."""
     M = len(MATERIALS)
-    for name, width in (("tech_prev_prac", K), ("tech_prev_mats", M), ("tech_prev_wood", 0)):
+    for name, width in (("tech_prev_prac", K), ("tech_prev_mats", M), ("tech_prev_wood", 0), ("tech_prev_dep", K)):
         a = getattr(w, name, None)
         if a is None or len(a) < len(w.tech):
             out = np.zeros((len(w.tech), width) if width else len(w.tech), dtype=bool)
@@ -441,6 +472,14 @@ def _mark(w, live, ids, cells):
     _prev_arrays(w)
     w.tech_prev_prac[ids] = (w.tech[ids] > 0) & _possible(w, ids, cells)
     w.tech_prev_mats[ids] = _trade.goods_materials(w, ids, MATERIALS)
+    # practised only thanks to goods held: one band's own dependence, so joining bands cannot make one up from one
+    # band's practice and another's imports (Codex review 035, finding 5)
+    w._goods_mats_override = np.zeros_like(w.tech_prev_mats[ids])
+    try:
+        without = _possible(w, ids, cells)
+    finally:
+        w._goods_mats_override = None
+    w.tech_prev_dep[ids] = w.tech_prev_prac[ids] & ~without
     w.tech_prev_wood[ids] = _wood_used(w, ids, cells, w.tech_prev_prac[ids])
 
 
@@ -470,7 +509,7 @@ def _cut_off(w, live, ids, cells):
             w._static_forest = False
     lost = prev_mats & ~held_now
     with_last = possible_with(lost)
-    lapsed = w.tech_prev_prac[ids] & known & ~now
+    lapsed = w.tech_prev_dep[ids] & known & ~now          # practised on imports last year (review 035)
     # imports alone, or imports and wood together (Codex review 021, finding 7)
     both = lapsed & ~with_last & possible_with(lost, wood=True) & ~possible_with(np.zeros_like(lost), wood=True)
     cut = lapsed & (with_last | both)
@@ -567,7 +606,8 @@ def yearly(w):
     x (TECH_EASY_KEEP / keep) ** TECH_DIFFICULTY: harder techniques (more practitioners needed) are rarer inventions.
     A new invention is crude (TECH_INVENT_LEVEL) and improves only with practice (keep_and_spread).
 
-    Connected people are everyone within two rings of the band's cell (contact; Henrich 2004; Kline & Boyd 2010).
+    Connected people are everyone within two rings of the band's cell (contact; Henrich 2004; Kline & Boyd 2010), plus,
+    for a seat on a traders' road, the people around the seat at its far end (connected_people).
     TECH_POP_EXPONENT 0 is the knock-out with no population effect (M4 specification section 3.2, check 6)."""
     if not getattr(P, "TECHNOLOGY", False):
         return
@@ -579,7 +619,7 @@ def yearly(w):
     sizes = np.asarray(w.live_sizes(), dtype=float)
     cells = np.array([b.cell for b in live])
     cell_pop = np.bincount(cells, weights=sizes, minlength=w.planet.n)
-    connected = _reach(w, cells, cell_pop[:, None])[:, 0]
+    connected = connected_people(w, ids, cells, cell_pop)
     _cut_off(w, live, ids, cells)
     possible = _possible(w, ids, cells) & (w.tech[ids] <= 0)
     needs = _needs(w, live, ids, cells, sizes, cell_pop)
@@ -587,6 +627,10 @@ def yearly(w):
     pop = (connected / P.TECH_POP_REF) ** P.TECH_POP_EXPONENT
     hard = (P.TECH_EASY_KEEP / np.array([t.keep for t in TECHNIQUES], dtype=float)) ** P.TECH_DIFFICULTY
     chance = P.TECH_INVENT * (P.TECH_NEED_FLOOR + need) * pop[:, None] * hard[None, :]
+    seen = _stimulus(w, live, ids, cells)
+    base = chance.copy()                                 # without the stimulus (Codex review 032, finding 5)
+    for k, mult in getattr(P, "TECH_STIMULUS", {}).items():
+        chance[:, INDEX[k]] *= np.where(seen[:, INDEX[k]] >= 0, mult, 1.0)
     rng = w.rng["technology"]
     draw = rng.random(chance.shape)
     hits = np.argwhere(possible & (draw < chance))
@@ -599,14 +643,99 @@ def yearly(w):
                f"with {connected[i]:,.0f} people within reach")
         if t.materials:
             why += "; materials: " + ", ".join(_material_source(w, b, group) for group in t.materials)
-        w.event("invention", cell=b.cell, band=b.id, technique=t.key, causes=[{"note": why}],
-                need=t.need, pressure=round(float(top), 3), connected=int(connected[i]))
+        causes = [{"note": why}]
+        src = int(seen[i, k]) if t.key in getattr(P, "TECH_STIMULUS", {}) else -1
+        extra = {}
+        if src >= 0:
+            # exposure is recorded always; the stimulus is named as the cause only where the draw would have failed
+            # without it (Codex review 032, finding 5)
+            needed = bool(draw[i, k] >= base[i, k])
+            extra = {"stimulus": src, "stimulus_needed": needed}
+            if needed:
+                causes = [{"band": src}, {"note": why + f"; they knew that {w.band_name(w.bands[src])} wrote, though "
+                                          "not how: the idea, not the script, was borrowed (stimulus diffusion)"}]
+            else:                                       # exposure, not a cause (Codex review 033, finding 5)
+                causes = [{"note": why + f"; {w.band_name(w.bands[src])} nearby wrote, but they would have invented "
+                                         "it without that knowledge"}]
+        w.event("invention", cell=b.cell, band=b.id, technique=t.key, causes=causes,
+                need=t.need, pressure=round(float(top), 3), connected=int(connected[i]), **extra)
         firsts = w.tech_firsts if hasattr(w, "tech_firsts") else {}
         if t.key not in firsts:
             firsts[t.key] = len(w.events) - 1
             w.tech_firsts = firsts
+    if hasattr(w, "spec"):                               # scribes follow the specialists slowly (a generation)
+        sc = _scribes(w)
+        spec = np.asarray(w.spec[ids], dtype=float) if len(w.spec) > ids.max() else np.zeros(len(ids))
+        # scribes are the polity's specialists: those at a living polity's seat (Ben, 20 November 2026). A village's
+        # leader, ritual specialists and craft workers do not keep a script.
+        # ... and only at seats of polities large enough to need them: complex chiefdoms and states (tier
+        # TECH_SCRIBE_TIER; writing follows scale: Shin et al. 2020; Ben, 21 November 2026)
+        seats = {int(p.seat) for p in getattr(w, "polities", {}).values()
+                 if p.ended < 0 and getattr(p, "tier", 0) >= P.TECH_SCRIBE_TIER}
+        spec = spec * np.isin(ids, np.fromiter(seats, dtype=np.int64, count=len(seats)))
+        sc[ids] += (spec - sc[ids]) / P.TECH_SCRIBE_YEARS
     keep_and_spread(w, live, ids, cells, sizes, connected, need)
-    _mark(w, live, ids, cells)                          # after every acquisition this year (Codex review 018)
+    _mark(w, live, ids, cells)
+    if w.year % P.TECH_WRITING_LOG_YEARS == 0:
+        _log_writing(w, live, ids, cells)
+
+
+def _log_writing(w, live, ids, cells):
+    """Every TECH_WRITING_LOG_YEARS: each band that holds writing or keeps scribes, with its polity's tier, its
+    scribes, writing's level and whether it practises it now (Codex review 032, finding 4: the gate must tell
+    writing in use from writing remembered, and set it against how long chiefdoms and states last)."""
+    log = getattr(w, "tech_writing_log", None)
+    if log is None:
+        log = w.tech_writing_log = []
+    sc = _scribes(w)[ids]
+    lv = w.tech[ids, WRITING].astype(float)
+    pick = np.nonzero((lv > 0) | (sc >= P.TECH_SCRIBE_MIN))[0]
+    if not len(pick):
+        return
+    ok = _possible(w, ids[pick], cells[pick])[:, WRITING]
+    for j, i in enumerate(pick.tolist()):
+        pid = int(w.polity_of[ids[i]]) if hasattr(w, "polity_of") and ids[i] < len(w.polity_of) else -1
+        p = w.polities.get(pid) if pid >= 0 else None
+        seat = p is not None and int(p.seat) == int(ids[i])
+        log.append([int(w.year), int(ids[i]), pid, int(p.tier) if p is not None else -1, bool(seat),
+                    round(float(sc[i]), 1), round(float(lv[i]), 3), bool(lv[i] > 0 and ok[j])])                          # after every acquisition this year (Codex review 018)
+
+
+def _stimulus(w, live, ids, cells) -> np.ndarray:
+    """For each band and technique in TECH_STIMULUS, a band within two rings, or at the other end of a traders' road,
+    that practises it well (TECH_WORKING), or -1. Knowing that a thing can be done makes inventing it likelier, even
+    without learning how: the Cherokee syllabary (Sequoyah, about 1821) and other scripts invented after seeing
+    writing (Kroeber's 'stimulus diffusion'; build notes, writing and place names). Only the idea passes; the script
+    is new (Ben, 20 November 2026)."""
+    out = np.full((len(ids), K), -1, dtype=np.int64)
+    keys = [INDEX[k] for k in getattr(P, "TECH_STIMULUS", {})]
+    if not keys:
+        return out
+    lvl = w.tech[ids].astype(float)
+    ok = _possible(w, ids, cells, lvl)
+    for k in keys:
+        does = (lvl[:, k] >= P.TECH_WORKING) & ok[:, k]
+        if not does.any():
+            continue
+        best = np.full(w.planet.n, -1, dtype=np.int64)          # the lowest-numbered such band on each cell
+        for i in np.nonzero(does)[0][::-1].tolist():
+            best[cells[i]] = int(ids[i])
+        from .language import ring2
+        r2 = ring2(w)
+        for i, c in enumerate(cells.tolist()):
+            for x in r2[c]:
+                if x >= 0 and best[x] >= 0 and best[x] != ids[i]:
+                    out[i, k] = best[x]
+                    break
+        links = getattr(w, "trade_links", None) or []
+        if links and getattr(P, "TRADE", False):
+            pos = {int(b): i for i, b in enumerate(np.asarray(ids).tolist())}
+            for a_seat, b_seat in links:
+                for x, y in ((a_seat, b_seat), (b_seat, a_seat)):
+                    i, j = pos.get(int(x)), pos.get(int(y))
+                    if i is not None and j is not None and out[i, k] < 0 and does[j]:
+                        out[i, k] = int(y)
+    return out
 
 
 from .. import params as P  # noqa: E402  (after the data, which does not depend on parameters)
@@ -664,13 +793,62 @@ def skilled(w, live, ids) -> np.ndarray:
     return P.TECH_PRACTISE_SHARE * np.maximum(_adults(w, live, ids) - spec, 0.0) + spec
 
 
+def connected_people(w, ids, cells, cell_pop) -> np.ndarray:
+    """People within reach for invention: everyone within two rings of the band's cell, plus, for each traders' road
+    travelled last year (w.trade_links), TECH_TRADE_REACH of the people within two rings of the seat at its far end,
+    unless that seat is itself within the two rings. Trade raises the connected population (M4 specification
+    sections 3.2 and 4.2; Henrich 2004; Powell, Shennan & Thomas 2009; built after Codex review 034, Ben, 21 November
+    2026). Partners already lie within two rings, so add nothing here. The gate's census uses this same function."""
+    ids = np.asarray(ids)
+    base = _reach(w, cells, cell_pop[:, None])[:, 0]
+    out = base.copy()
+    links = getattr(w, "trade_links", None) or []
+    share = float(getattr(P, "TECH_TRADE_REACH", 0.0))
+    if not links or share <= 0 or not getattr(P, "TRADE", False):
+        return out
+    pos = {int(b): i for i, b in enumerate(ids.tolist())}
+    from .language import ring2
+    r2 = ring2(w)
+    for a, b in links:
+        for x, y in ((int(a), int(b)), (int(b), int(a))):
+            i, j = pos.get(x), pos.get(y)
+            if i is None or j is None:
+                continue
+            if cells[j] in set(int(c) for c in r2[cells[i]] if c >= 0) or cells[j] == cells[i]:
+                continue                                  # already within reach
+            out[i] += share * base[j]
+    return out
+
+
+def keep_needed() -> np.ndarray:
+    """Skilled practitioners within reach each technique needs to be kept: its keep, except that writing kept by
+    scribes needs TECH_SCRIBES_KEEP (about the thirty scribes of Pylos: Palaima 2004; Ben, 20 November 2026)."""
+    keep = np.array([t.keep for t in TECHNIQUES], dtype=float)
+    if SCRIBAL and getattr(P, "TECH_SCRIBES", True):
+        keep[SCRIBAL] = P.TECH_SCRIBES_KEEP
+    return keep
+
+
+def skilled_by_technique(w, live, ids, skilled_people=None) -> np.ndarray:
+    """Skilled practitioners per band and technique (bands x K). Writing is practised by specialists only: a script
+    is kept by scribes whom a polity feeds (its specialists averaged over about a generation, TECH_SCRIBE_YEARS, so
+    one poor harvest does not erase it; Ben, 20 November 2026), so it falls when the state can no longer keep them, as Linear B did with
+    the Mycenaean palaces (Palaima 2004; Ben, 20 November 2026; build notes, writing and place names)."""
+    if skilled_people is None:
+        skilled_people = skilled(w, live, ids)
+    out = np.repeat(np.asarray(skilled_people, dtype=float)[:, None], K, axis=1)
+    if SCRIBAL and getattr(P, "TECH_SCRIBES", True):
+        out[:, SCRIBAL] = _scribes(w)[np.asarray(ids)][:, None]
+    return out
+
+
 def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
     """Stage 3: keeping, refining and losing (Henrich 2004), teaching (specialists and writing), recovery from
     records. Stage 4: spreading by contact. See the module docstring; each change of state is recorded."""
     rng = w.rng["technology"]
     n_cells = w.planet.n
     lvl = w.tech[ids].astype(float)
-    keep = np.array([t.keep for t in TECHNIQUES], dtype=float)
+    keep = keep_needed()
     known = lvl > 0
     practised = known & _possible(w, ids, cells, lvl)
     # skilled practitioners, not everyone: a share of the adults, plus the specialists (Ben, 14 November 2026;
@@ -678,11 +856,12 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
     # & Henrich 2011)
     spec = np.asarray(w.spec[ids], dtype=float) if hasattr(w, "spec") else np.zeros(len(ids))
     skilled_people = skilled(w, live, ids)
+    S = skilled_by_technique(w, live, ids, skilled_people)            # writing: specialists only (scribes)
     pract_cell = np.zeros((n_cells, K))
-    np.add.at(pract_cell, cells, practised * skilled_people[:, None])
+    np.add.at(pract_cell, cells, practised * S)
     practitioners = _reach(w, cells, pract_cell)                     # skilled practitioners within reach
     best_cell = np.zeros((n_cells, K))
-    np.maximum.at(best_cell, cells, np.where(practised & (skilled_people[:, None] > 0), lvl, 0.0))
+    np.maximum.at(best_cell, cells, np.where(practised & (S > 0), lvl, 0.0))
     best = _reach(w, cells, best_cell, how="max")                      # the best practitioner within reach
     # teaching: specialists make copying more faithful (Ben, decision 2; craft specialists from M2's surplus)
     craft = np.clip(spec / np.maximum(sizes, 1.0) / P.TECH_CRAFT_REF, 0, 1)
@@ -705,7 +884,7 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
         t = TECHNIQUES[k]
         if practised[i, k]:
             why = (f"{w.band_name(b)} lost {t.name}: only {practitioners[i, k]:,.0f} skilled people within reach practised "
-                   f"it, fewer than the {t.keep} it takes to keep it alive, so each generation learned it less well")
+                   f"it, fewer than the {keep[k]:.0f} it takes to keep it alive, so each generation learned it less well")
         else:
             _ok, missing = prerequisites_met(w, b, t)
             why = (f"{w.band_name(b)} forgot {t.name}: it was no longer practised ("
@@ -736,12 +915,13 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
     practising_now = (new > 0) & possible_now
     # teachers are skilled practitioners, counted as in keeping (Codex review 010, finding 1: children taught)
     teach_cell = np.zeros((n_cells, K))
-    np.add.at(teach_cell, cells, practising_now * skilled_people[:, None])
-    teachers = _reach(w, cells, teach_cell) - practising_now * skilled_people[:, None]
-    skilled_cell = np.bincount(cells, weights=skilled_people, minlength=n_cells)
-    skilled_reach = _reach(w, cells, skilled_cell[:, None])[:, 0]          # everyone who could be a practitioner
+    np.add.at(teach_cell, cells, practising_now * S)
+    teachers = _reach(w, cells, teach_cell) - practising_now * S
+    skilled_cell = np.zeros((n_cells, K))
+    np.add.at(skilled_cell, cells, S)
+    skilled_reach = _reach(w, cells, skilled_cell)                     # everyone who could be a practitioner
     can = possible_now & (new <= 0) & (teachers > 0.5)
-    share = teachers / np.maximum(skilled_reach[:, None], 1.0)
+    share = teachers / np.maximum(skilled_reach, 1.0)
     chance = P.TECH_SPREAD * np.clip(share, 0, 1)
     if need is not None:
         chance = chance * (P.TECH_NEED_FLOOR + need)
@@ -749,7 +929,7 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
     hits = np.argwhere(can & (draw < chance)).tolist()
     w._tech_eff = None
     if not hits:
-        _trade_lessons(w, live, ids, new, possible_now, practising_now, need, rng, skilled_people)
+        _trade_lessons(w, live, ids, new, possible_now, practising_now, need, rng, S)
         w.tech[ids] = new.astype(np.float32)
         w._tech_eff = None
         return
@@ -764,10 +944,10 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
         # a teacher, drawn in proportion to the practitioners each band has (so the expected closeness is the
         # practitioners' average); the lesson takes with chance = cultural closeness (M4 spec 3.4; Ben, decision 5)
         cand = [j for c in r2[b.cell] if c >= 0 for j in by_cell.get(int(c), ())
-                if j != i and practising_now[j, k] and skilled_people[j] > 0]
+                if j != i and practising_now[j, k] and S[j, k] > 0]
         if not cand:
             continue
-        wts = skilled_people[cand] / skilled_people[cand].sum()
+        wts = S[cand, k] / S[cand, k].sum()
         j = cand[int(rng.choice(len(cand), p=wts))]
         src = live[j]
         la, lb = w.languages.get(b.language), w.languages.get(src.language)
@@ -786,17 +966,17 @@ def keep_and_spread(w, live, ids, cells, sizes, connected, need=None):
             continue                                                  # too crude a lesson to take hold
         new[i, k] = level
         why = (f"{w.band_name(b)} learned {t.name} from {w.band_name(src)} ({same:.0%} of words shared); "
-               f"{teachers[i, k]:,.0f} of the {skilled_reach[i]:,.0f} skilled people within reach practised it")
+               f"{teachers[i, k]:,.0f} of the {skilled_reach[i, k]:,.0f} skilled people within reach practised it")
         w.event("technique_adopted", cell=b.cell, band=b.id, technique=t.key,
                 causes=[{"band": src.id}, {"note": why + ("; they were gift partners" if via_partner else "")}],
                 source=src.id, route="partnership" if via_partner else "contact",
                 level=round(level, 3), closeness=round(close, 3))
-    _trade_lessons(w, live, ids, new, possible_now, practising_now, need, rng, skilled_people)   # after contact (stage 5)
+    _trade_lessons(w, live, ids, new, possible_now, practising_now, need, rng, S)   # after contact (stage 5)
     w.tech[ids] = new.astype(np.float32)
     w._tech_eff = None                                  # effects are judged afresh after the year's changes
 
 
-def _trade_lessons(w, live, ids, new, possible_now, practising_now, need, rng, skilled_people=None):
+def _trade_lessons(w, live, ids, new, possible_now, practising_now, need, rng, S=None):
     """Traders' routes carry techniques between the two seats (M4 spec 4.2: trade creates contact; Ben, 16 November
     2026): along each route travelled last year, each seat can learn what the other practises, with chance
     TECH_SPREAD x TRADE_TEACH x (need floor + need) x closeness of speech. Recorded with route "trade"."""
@@ -813,9 +993,9 @@ def _trade_lessons(w, live, ids, new, possible_now, practising_now, need, rng, s
             i, j = pos.get(int(x)), pos.get(int(y))
             if i is None or j is None:
                 continue
-            if skilled_people is not None and skilled_people[j] <= 0:
-                continue                                  # no skilled practitioner to teach (Codex review 018)
             can = possible_now[i] & (new[i] <= 0) & practising_now[j]
+            if S is not None:
+                can = can & (S[j] > 0)                    # no skilled practitioner to teach (Codex review 018)
             ks = np.nonzero(can)[0]
             if not len(ks):
                 continue
@@ -858,12 +1038,18 @@ def combine(w, src, dst, route: str, carriers: float | None = None):
     if carriers is not None:
         a = a * np.clip(carriers / keep, 0.0, 1.0)
     a = np.where(a >= P.TECH_LOST, a, 0.0)                              # a fragment too small to take hold
+    if SCRIBAL and getattr(P, "TECH_SCRIBES", True) and route not in ("combined", "merge"):
+        a[SCRIBAL] = 0.0              # writing goes only with whole peoples and their scribes, not with migrants
     d = w.tech[dst.id].astype(float)
     gained = (a > 0) & (d <= 0)
     w.tech[dst.id] = np.maximum(a, d).astype(np.float32)
     w._tech_eff = None
     if getattr(w, "tech_record", None) is not None:
         w.tech_record[dst.id] = np.maximum(w.tech_record[dst.id], w.tech_record[src.id])
+    if route in ("combined", "merge"):                                   # whole peoples join: their scribes with them
+        sc = _scribes(w)
+        sc[dst.id] += sc[src.id]
+        sc[src.id] = 0.0
     if route in ("combined", "merge", "migration") and getattr(w, "tech_prev_prac", None) is not None:
         # people joining in numbers bring last year's record of practising on imports, so a later cut-off in the
         # band they join is recorded (Codex review 019)
@@ -871,6 +1057,7 @@ def combine(w, src, dst, route: str, carriers: float | None = None):
         w.tech_prev_prac[dst.id] |= w.tech_prev_prac[src.id]
         w.tech_prev_mats[dst.id] |= w.tech_prev_mats[src.id]
         w.tech_prev_wood[dst.id] |= w.tech_prev_wood[src.id]
+        w.tech_prev_dep[dst.id] |= w.tech_prev_dep[src.id]
     for k in np.nonzero(gained)[0].tolist():
         t = TECHNIQUES[k]
         how = {"combined": "combined with", "merge": "took in the remnant of", "marriage": "took in by marriage someone from",
@@ -1001,8 +1188,16 @@ def land_advantage_multiplier(w, band_id: int) -> float:
 
 
 def capacity_multiplier(w, seat_id: int) -> float:
-    """Tallies and writing at the seat let officials manage more (M3 capacity)."""
-    base = 1.0 + _e("tallies") * band_quality(w, seat_id, "tallies") + _e("writing") * band_quality(w, seat_id, "writing")
+    """Tallies and writing at the seat let officials manage more (M3 capacity). Records without a script: tallies
+    kept by record-keepers (the seat's specialists) give part of writing's effect, as the Inka khipu and its
+    khipukamayuq did (Medrano & Urton 2018; Ben, 20 November 2026). Writing and kept tallies are not added: the larger counts."""
+    qt = band_quality(w, seat_id, "tallies")
+    qw = band_quality(w, seat_id, "writing")
+    keepers = 0.0
+    if hasattr(w, "spec") and 0 <= seat_id < len(w.spec):
+        keepers = float(np.clip(float(w.spec[seat_id]) / P.TECH_RECORD_KEEPERS, 0.0, 1.0))
+    kept = getattr(P, "TECH_RECORDS_SHARE", 0.0) * qt * keepers
+    base = 1.0 + _e("tallies") * qt + _e("writing") * max(qw, kept)
     if getattr(P, "TRADE", False) and 0 <= seat_id < len(w.polity_of):
         from . import trade as _trade
         base *= 1.0 + P.PRESTIGE_HOLD * _trade.prestige_factor(w, int(w.polity_of[seat_id]))   # prestige goods (stage 5)

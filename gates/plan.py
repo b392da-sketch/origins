@@ -6,8 +6,9 @@ A request looks like:
 
 Histories of the same kind are packed PER_JOB to a job (one runner of 4 CPUs runs them side by side; Ben, 14 November
 2026: until then one history per job left three CPUs idle). "extras" adds the gate's paired experiments, one job per
-planet; "nostore_seeds" adds knock-out histories with food storage turned off. A request may set "per_job" (1 restores
-the old packing). Prints a JSON matrix for the workflow; each entry has "kind" and "jobs" ("planet:seed,...").
+planet; "nostore_seeds" adds knock-out histories with food storage turned off; "arms" ({"name": "seeds"}) adds G4a's
+named arms, run as kind "run_<name>" (Codex review 034: the planner knew only the storage and institution arms). A
+request may set "per_job" (1 restores the old packing). Prints a JSON matrix for the workflow; each entry has "kind" and "jobs" ("planet:seed,...").
 """
 from __future__ import annotations
 
@@ -45,12 +46,14 @@ def plan(req: dict) -> dict:
 
 
 def _plan(req: dict) -> dict:
-    if "jobs" in req or "nostore_jobs" in req or "noinst_jobs" in req:          # rerun only the named histories ("planet:seed")
+    if "jobs" in req or "nostore_jobs" in req or "noinst_jobs" in req or "arm_jobs" in req:   # rerun only the named histories
         jobs = [{"kind": "run", "ws": int(j.split(":")[0]), "rs": int(j.split(":")[1])} for j in req.get("jobs", [])]
         jobs += [{"kind": "run_nostore", "ws": int(j.split(":")[0]), "rs": int(j.split(":")[1])}
                  for j in req.get("nostore_jobs", [])]
         jobs += [{"kind": "run_noinst", "ws": int(j.split(":")[0]), "rs": int(j.split(":")[1])}
                  for j in req.get("noinst_jobs", [])]
+        for arm, js in req.get("arm_jobs", {}).items():
+            jobs += [{"kind": f"run_{arm}", "ws": int(j.split(":")[0]), "rs": int(j.split(":")[1])} for j in js]
         for j in jobs:
             j["name"] = f"{j['kind']}-w{j['ws']}-s{j['rs']}"
         return {"include": jobs}
@@ -61,6 +64,8 @@ def _plan(req: dict) -> dict:
     if req.get("noinst_seeds"):
         jobs += [{"kind": "run_noinst", "ws": ws, "rs": rs}
                  for rs in _range(req["noinst_seeds"]) for ws in _range(req["planets"])]
+    for arm, seeds in req.get("arms", {}).items():
+        jobs += [{"kind": f"run_{arm}", "ws": ws, "rs": rs} for rs in _range(seeds) for ws in _range(req["planets"])]
     for extra in req.get("extras", []):
         jobs += [{"kind": extra, "ws": ws, "rs": 0} for ws in _range(req["planets"])]
     for j in jobs:

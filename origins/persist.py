@@ -26,6 +26,11 @@ from .worldgen import generate
 BACKUPS = 3
 
 
+def _tech_scribes(w):
+    from .sim import technology as _t
+    return _t._scribes(w) if getattr(w, "tech", None) is not None else np.zeros(0)
+
+
 def _jsonable(x):
     if isinstance(x, dict):
         return {str(k): _jsonable(v) for k, v in x.items()}
@@ -68,8 +73,10 @@ def to_file(w: World, f, fast: bool = False) -> None:
         "env": environment(),
         "language": language.to_json(w), "hazards": w.hazards,
         "farming": farming.to_json(w), "surplus": surplus.to_json(w), "polity": polity.to_json(w), "trade": __import__("origins.sim.trade", fromlist=["x"]).to_json(w),
-        "conflict": conflict.to_json(w), "timing": w.timing, "first_herders": getattr(w, "first_herders", None), "tech_firsts": getattr(w, "tech_firsts", {}), "goods_ledger": getattr(w, "goods_ledger", None), "log_strides": w.log_strides,
+        "conflict": conflict.to_json(w), "timing": w.timing, "first_herders": getattr(w, "first_herders", None), "tech_firsts": getattr(w, "tech_firsts", {}), "tech_writing_log": getattr(w, "tech_writing_log", []), "goods_ledger": getattr(w, "goods_ledger", None), "log_strides": w.log_strides,
         "disease": __import__("origins.sim.disease", fromlist=["x"]).to_json(w),
+        "places": __import__("origins.sim.places", fromlist=["x"]).to_json(w),
+        "dz_counts_split": True,      # named diseases count G1 exposure under their own keys (review 031; review 034)
     }
     arrays = {"stock": w.stock, "stock_broad": w.stock_broad, "known": w.known, "discovered_by": w.discovered_by,
               "discovered_at": w.discovered_at, "food_modifier": w.food_modifier,
@@ -80,10 +87,11 @@ def to_file(w: World, f, fast: bool = False) -> None:
               "still_years": w.still_years, "forage_rr": w.forage_rr, "spec": w.spec,
               "polity_of": w.polity_of, "polity_via": w.polity_via, "conquered_at": w.conquered_at,
               "herder_since": w.herder_since, "farm_rr_real": w.farm_rr_real, "farm_rr_cell": w.farm_rr_cell,
-              "farm_rr_lost": w.farm_rr_lost if getattr(w, "farm_rr_lost", None) is not None else np.zeros(0), "tech": w.tech, "tech_record": w.tech_record,
+              "farm_rr_lost": w.farm_rr_lost if getattr(w, "farm_rr_lost", None) is not None else np.zeros(0), "tech": w.tech, "tech_record": w.tech_record, "tech_scribes": _tech_scribes(w),
               "goods": w.goods, "partner_of": w.partner_of, "partner_since": w.partner_since,
               "goods_reached": w.goods_reached, "partner_gave": w.partner_gave, "treasury": w.treasury,
               "tech_prev_prac": w.tech_prev_prac if getattr(w, "tech_prev_prac", None) is not None else np.zeros((0, 0), bool),
+              "tech_prev_dep": w.tech_prev_dep if getattr(w, "tech_prev_dep", None) is not None else np.zeros((0, 0), bool),
               "tech_prev_mats": w.tech_prev_mats if getattr(w, "tech_prev_mats", None) is not None else np.zeros((0, 0), bool),
               "tech_prev_wood": w.tech_prev_wood if getattr(w, "tech_prev_wood", None) is not None else np.zeros(0, bool),
               "trade_in": w.trade_in if getattr(w, "trade_in", None) is not None else np.zeros(0)}
@@ -91,6 +99,8 @@ def to_file(w: World, f, fast: bool = False) -> None:
     arrays.update({"land_" + k: getattr(w, k) for k in _land.ARRAYS if getattr(w, k, None) is not None})
     from .sim import disease as _disease
     arrays.update({k: getattr(w, k) for k in _disease.ARRAYS if getattr(w, k, None) is not None})
+    if getattr(w, "dz_log", None) is not None:
+        arrays["dz_log"] = _disease.log_array(w)          # the per-cell disease record, as an array (review 037)
     arrays.update({"p_" + k: v for k, v in w.people.arrays().items()})
     arrays.update({"g_" + k: v for k, v in w.groups.arrays().items()})
     arrays.update({"b_" + k: v for k, v in w.bands.arrays().items()})
@@ -198,12 +208,17 @@ def from_bytes(data: bytes, planet=None) -> World:
     w.tech_record = np.zeros_like(w.tech)
     if rec is not None and rec.shape[1] == _tech.K:
         w.tech_record[:min(len(rec), len(w.tech))] = rec[:len(w.tech)]
+    sc = arrays.get("tech_scribes")                  # saves from before scribes (20 Nov 2026): today's specialists
+    w.tech_scribes = None
+    if sc is not None and np.asarray(sc).size:
+        w.tech_scribes = np.array(sc, dtype=float)
     if len(getattr(w, "herder_since", ())) < len(w.farm_share):    # saves from before pastoralism (M4a)
         h = np.full(len(w.farm_share), -1.0)
         h[:len(getattr(w, "herder_since", ()))] = getattr(w, "herder_since", np.zeros(0))
         w.herder_since = h
     w.first_herders = meta.get("first_herders")
     w.tech_firsts = dict(meta.get("tech_firsts", {}))
+    w.tech_writing_log = [list(r) for r in meta.get("tech_writing_log", [])]    # from review 032; older saves: none
     from .sim import trade as _trade                  # goods (M4a trade); saves from before have none
     g = arrays.get("goods")
     led = meta.get("goods_ledger")
@@ -230,14 +245,20 @@ def from_bytes(data: bytes, planet=None) -> World:
         _trade.grow(w, len(w.goods) - 1)             # older saves: what a band holds has reached it
     from .sim import disease as _disease                 # diseases from animals (M4a): older saves start with none
     _disease.from_json(w, meta.get("disease", {}))
+    from .sim import places as _places                   # place names (M4a): older saves start with none
+    _places.from_json(w, meta.get("places", {}))
+    if "dz_log" in arrays and np.asarray(arrays["dz_log"]).size:
+        w.dz_log = _disease.RowLog.from_array(arrays["dz_log"])
     for k in _disease.ARRAYS:
         if k in arrays and np.asarray(arrays[k]).size:
             setattr(w, k, np.array(arrays[k], dtype=getattr(w, k).dtype))
-    if w.diseases and any(k.startswith("ob_") for k in w.counts):
+    if w.diseases and not meta.get("dz_counts_split") and any(k.startswith("ob_") for k in w.counts):
         # a save made with named diseases before review 031 wrote their G1 counts under M1's keys: they cannot be
-        # told apart, so they are set aside, not reported as M1's (Codex review 031, finding 4)
+        # told apart, so they are set aside, not reported as M1's (Codex review 031, finding 4). Only such saves:
+        # a current save marks itself, so M1's own counts in it are kept (Codex review 034, finding 10), and any
+        # earlier set-aside counts are added to, never overwritten.
         for k in [k for k in w.counts if k.startswith("ob_")]:
-            w.counts["unattributed_" + k] = w.counts.pop(k)
+            w.counts["unattributed_" + k] = w.counts.get("unattributed_" + k, 0) + w.counts.pop(k)
     if "dz_seen" in arrays and "dz_last" not in arrays and np.asarray(arrays["dz_seen"]).size:
         seen = np.asarray(arrays["dz_seen"], dtype=bool)          # review-028 saves: met, date unknown (review 030)
         w.dz_last = np.where(seen, -2, -1).astype(np.int32)
@@ -253,6 +274,10 @@ def from_bytes(data: bytes, planet=None) -> World:
     for n_ in ("tech_prev_prac", "tech_prev_mats", "tech_prev_wood"):   # last year's practice, goods-held materials
         if n_ in arrays and np.asarray(arrays[n_]).size:                # (review 018) and wood work (review 022)
             setattr(w, n_, np.array(arrays[n_], dtype=bool))
+    if "tech_prev_dep" in arrays and np.asarray(arrays["tech_prev_dep"]).size:   # practised on imports (review 035)
+        w.tech_prev_dep = np.array(arrays["tech_prev_dep"], dtype=bool)
+    elif getattr(w, "tech_prev_prac", None) is not None:
+        w.tech_prev_dep = w.tech_prev_prac.copy()       # older saves: as before, any practice counts
     if getattr(w, "tech_prev_prac", None) is not None and getattr(w, "tech_prev_wood", None) is None:
         from .sim import technology as _tech                            # older saves: any wood technique practised
         w.tech_prev_wood = w.tech_prev_prac[:, _tech.WOOD_TECHS].any(axis=1)
@@ -316,6 +341,20 @@ def load(path, planet=None) -> World:
         return from_bytes(f.read(), planet)
 
 
+def _recent_events(w) -> str:
+    h = hashlib.sha256()
+    from . import params as P
+    since = w.t - P.PLACE_CHECK_YEARS * P.TICKS_PER_YEAR
+    i = len(w.events) - 1
+    while i >= 0:
+        e = w.events[i]
+        if e["t"] < since:
+            break
+        h.update(json.dumps(_jsonable(e), sort_keys=True).encode())
+        i -= 1
+    return h.hexdigest()
+
+
 def digest(w: World) -> str:
     """Fingerprint of the complete simulation state, for exact-replay checks."""
     h = hashlib.sha256()
@@ -326,17 +365,18 @@ def digest(w: World) -> str:
         h.update(k.encode())
         h.update(np.ascontiguousarray(v).tobytes())
     for arr in (w.stock, w.stock_broad, w.known, w.region_z, w.customs, w.neutral, w.hazard_food, w.immune, w.skill, w.farm_share,
-                w.crop_store, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since, w.farm_rr_real, w.farm_rr_cell,
+                w.crop_store, w.still_years, w.forage_rr, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since, w.farm_rr_real, w.farm_rr_cell,
                 getattr(w, "farm_rr_lost", None) if getattr(w, "farm_rr_lost", None) is not None else np.zeros(0), w.tech,
-                w.tech_record, w.goods, w.partner_of, w.partner_since, w.goods_reached, w.partner_gave, w.treasury,
+                w.tech_record, _tech_scribes(w), w.goods, w.partner_of, w.partner_since, w.goods_reached, w.partner_gave, w.treasury,
               *[getattr(w, n_, None) if getattr(w, n_, None) is not None else np.zeros((0, 0), bool)
-                for n_ in ("tech_prev_prac", "tech_prev_mats")],
+                for n_ in ("tech_prev_prac", "tech_prev_mats", "tech_prev_dep")],
               getattr(w, "tech_prev_wood", None) if getattr(w, "tech_prev_wood", None) is not None else np.zeros(0, bool),
               getattr(w, "trade_in", None) if getattr(w, "trade_in", None) is not None else np.zeros(0),
               *[getattr(w, k) for k in __import__("origins.sim.land", fromlist=["ARRAYS"]).ARRAYS
                 if getattr(w, k, None) is not None],
               *[getattr(w, k) for k in __import__("origins.sim.disease", fromlist=["ARRAYS"]).ARRAYS
-                if getattr(w, k, None) is not None]):
+                if getattr(w, k, None) is not None],
+              __import__("origins.sim.disease", fromlist=["x"]).log_array(w)):
         h.update(np.ascontiguousarray(arr).tobytes())
     for k, v in sorted(w.bands.arrays().items()):
         h.update(k.encode())
@@ -347,6 +387,12 @@ def digest(w: World) -> str:
              "last_event": w.events[-1] if w.events else None,
              "language": language.to_json(w), "hazards": w.hazards, "farming": farming.to_json(w),
              "disease": __import__("origins.sim.disease", fromlist=["x"]).to_json(w),
+             "places": __import__("origins.sim.places", fromlist=["x"]).to_json(w),
+             "tech_writing_log": getattr(w, "tech_writing_log", []),
+             "tech_firsts": getattr(w, "tech_firsts", {}),
+             # the events of the last PLACE_CHECK_YEARS, which the places pass reads (conquests and whom they moved),
+             # not only the count and the last event (Codex review 035, finding 2)
+             "recent_events": _recent_events(w),
              "polity": polity.to_json(w), "conflict": conflict.to_json(w),
              "partner_dropped": getattr(w, "partner_dropped", {}),
              "routes_seen": sorted(getattr(w, "routes_seen", set())),

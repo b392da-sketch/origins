@@ -327,8 +327,9 @@ def _fight(w, rng, s, mem, b, t, d, sc, cd, share, g, att, dfd, is_pol, pol, siz
         trade.move_share(w, t.id, b.id, P.RAID_TAKE)     # the same share of the loser's goods, as loot (Ben, 15 Nov)
         caps = _captives(w, t, b, P.CAPTIVE_SHARE, rng)
         if caps:
-            from . import technology
+            from . import technology, disease
             technology.combine(w, t, b, "capture", caps)   # captives bring what they know (M4 spec 3.4)
+            disease.combine(w, t, b, caps)                 # ... and their immunity and exposure (Codex review 035)
         # conquest: a polity or village of farmers may take a farming village (and with its seat, a polity)
         # (a conqueror without the capacity to rule more only plunders: annexing needs room under its capacity)
         room = _room_for(w, b, t, ts, is_pol, pol, cd, sizes)
@@ -408,7 +409,7 @@ def _conquer(w, b, t, s, ts, is_pol, pol, eid) -> int:
             w.polity_via[x.id] = b.id
         w.conquered_at[x.id] = w.t
     w.event("conquest", cell=t.cell, band=t.id, causes=[{"event": eid}], polity=pol.id, settlements=len(moved),
-            whole_polity=bool(seat_fell))
+            whole_polity=bool(seat_fell), moved=[int(x.id) for x in moved])     # who was conquered (review 033)
     return 3 if seat_fell else 2
 
 

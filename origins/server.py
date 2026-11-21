@@ -270,6 +270,114 @@ def wars_view(w, years: int = 30) -> list:
     return out
 
 
+def _local_speech(w):
+    """people per cell and language, from the living bands (for place names in the local language)."""
+    sizes = w.band_sizes()
+    out: dict = {}
+    for b in w.living_bands():
+        if b.language >= 0:
+            d = out.setdefault(int(b.cell), {})
+            d[b.language] = d.get(b.language, 0.0) + float(sizes[b.id])
+    return out
+
+
+def _place_cells(w, p) -> list:
+    """The cells a place is used from (its feature's cells; a settlement's own cell)."""
+    from .sim import places
+    if p["kind"] == "settlement":
+        return [int(p["cell"])]
+    feats, _near = places.features(w.planet)
+    idx = getattr(w.planet, "_place_feat_index", None)
+    if idx is None:
+        idx = w.planet._place_feat_index = {(f[0], f[1]): f[4] for f in feats}
+    return idx.get((p["kind"], int(p["key"])), [int(p["cell"])])
+
+
+def _local_name(w, p, speech) -> tuple:
+    """A place's name in the speech of most people living by it who have a name for it; else its latest name."""
+    from .sim import places
+    tally: dict = {}
+    for c in _place_cells(w, p):
+        for lid, n in speech.get(c, {}).items():
+            tally[lid] = tally.get(lid, 0.0) + n
+    for lid in sorted(tally, key=lambda x: (-tally[x], x)):
+        layer = places.name_in(w, p, lid)
+        if layer is not None:
+            return places.show(places.current(w, layer, lid)), lid, True
+    last = p["layers"][-1]
+    return places.show(places.current(w, last)), last[1], False
+
+
+def places_view(w) -> list:
+    """Every named place: where, what, and its name now in the local speech (M4 specification section 10)."""
+    g = w.planet.grid
+    speech = _local_speech(w)
+    out = []
+    for i, p in enumerate(getattr(w, "places", [])):
+        if not p["layers"]:
+            continue
+        name, lid, lived = _local_name(w, p, speech)
+        c = int(p["cell"])
+        out.append({"id": i, "kind": p["kind"], "size": round(float(p["size"]), 3), "name": name,
+                    "language": language.display(w, lid) if lid in w.languages else "?", "lived": lived,
+                    "layers": len(p["layers"]), "lon": round(float(g.lon[c]), 3), "lat": round(float(g.lat[c]), 3)})
+    return out
+
+
+def place_detail(w, i: int) -> dict:
+    """A place's page: its names now, by each living people that names it, and every layer with its cause."""
+    from .sim import places
+    p = w.places[i]
+    speech = _local_speech(w)
+    tally: dict = {}
+    for c in _place_cells(w, p):
+        for lid, n in speech.get(c, {}).items():
+            tally[lid] = tally.get(lid, 0.0) + n
+    now = []
+    for lid in sorted(tally, key=lambda x: (-tally[x], x)):
+        layer = places.name_in(w, p, lid)
+        if layer is not None:
+            now.append({"language": language.display(w, lid), "language_id": lid, "people": int(round(tally[lid])),
+                        "name": places.show(places.current(w, layer, lid))})
+    layers = []
+    for layer in p["layers"]:
+        lang = w.languages.get(layer[1])
+        src = w.languages.get(layer[4]) if layer[4] >= 0 else None
+        layers.append({"bp": _bp(layer[0]), "language": language.display(w, layer[1]) if lang else "?",
+                       "language_id": layer[1], "then": places.show(layer[2]), "now": places.show(places.current(w, layer)),
+                       "how": layer[3], "from": language.display(w, src.id) if src else None,
+                       "ref": f"event:{layer[6]}" if len(layer) > 6 and layer[6] >= 0 else None, "note": layer[5]})
+    name, _lid, _lived = _local_name(w, p, speech) if p["layers"] else ("?", -1, False)
+    return {"id": i, "kind": p["kind"], "size": round(float(p["size"]), 3), "name": name, "names_now": now,
+            "layers": layers}
+
+
+def cell_places(w, c: int) -> list:
+    """The named places used from a cell, with their names in the local speech."""
+    from .sim import places
+    feats, near = places.features(w.planet)
+    idx = places._index(w)
+    keys = [(feats[f][0], feats[f][1]) for f in near.get(int(c), ())] + [("settlement", int(c))]
+    speech = _local_speech(w)
+    here = speech.get(int(c), {})
+    out = []
+    for k in keys:
+        i = idx.get(k)
+        if i is None or not w.places[i]["layers"]:
+            continue
+        p = w.places[i]
+        name = None
+        for lid in sorted(here, key=lambda x: (-here[x], x)):   # in the speech of the people of this cell
+            layer = places.name_in(w, p, lid)                     # (Codex review 033, finding 4)
+            if layer is not None:
+                name = places.show(places.current(w, layer, lid))
+                break
+        if name is None:
+            name, _lid, _lived = _local_name(w, p, speech)
+        out.append({"id": i, "kind": k[0], "name": name})
+    return out
+
+
 def _bp(t: int) -> int:
     return P.START_YEARS_BP - int(t) // P.TICKS_PER_YEAR
 
@@ -666,7 +774,12 @@ class Handler(BaseHTTPRequestHandler):
                                             "coast": bool(pl.coast[c]), "capacity": float(pl.capacity[c]),
                                             "wild_food_days": round(float(w.stock[c]) / max(1.0, pl.capacity[c] * 0.8), 1),
                                             "discovered_bp": (P.START_YEARS_BP - int(w.discovered_at[c]) // P.TICKS_PER_YEAR)
-                                            if w.discovered_at[c] >= 0 else None})
+                                            if w.discovered_at[c] >= 0 else None,
+                                            "places": cell_places(w, c) if getattr(w, "places", None) else []})
+                if u.path == "/api/places":
+                    return self._send(200, places_view(w))
+                if u.path == "/api/place":
+                    return self._send(200, place_detail(w, int(q["id"])))
                 if u.path == "/api/language":
                     return self._send(200, language_detail(w, int(q["id"])))
                 if u.path == "/api/languages":

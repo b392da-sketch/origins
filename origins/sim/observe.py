@@ -34,9 +34,11 @@ def end_tick(w):
     from . import groups
     G = w.groups
     rows = G.rows()
-    if len(rows) and (G.F[rows].min() < 0 or G.M[rows].min() < 0 or
-                      np.abs(G.F[rows] - np.rint(G.F[rows])).max() > 1e-9):
-        w.invariant_failures.append(f"t={w.t}: group counts negative or fractional")
+    if len(rows) and (not np.isfinite(G.F[rows]).all() or not np.isfinite(G.M[rows]).all()
+                      or G.F[rows].min() < 0 or G.M[rows].min() < 0
+                      or np.abs(G.F[rows] - np.rint(G.F[rows])).max() > 1e-9
+                      or np.abs(G.M[rows] - np.rint(G.M[rows])).max() > 1e-9):   # men too (Codex review 036)
+        w.invariant_failures.append(f"t={w.t}: group counts negative, fractional or not finite")
     alive = int(p.alive[:p.n].sum()) + int(round(groups.sizes(w).sum()))
     expected = w.counts["founders"] + w.counts["births"] - w.counts["deaths"]
     rows_expected = w.counts["founders"] + w.counts["births_ind"] + w.counts["unfolded"]
@@ -48,7 +50,7 @@ def end_tick(w):
     flows = ((w.ledger["regrowth"] - c["regrowth"]) + (w.ledger.get("farmed", 0.0) - c["farmed"])
              - (w.ledger["eaten"] - c["eaten"])
              - (w.ledger["spoiled"] - c["spoiled"]))
-    if abs(d_food - flows) > 1e-6 * max(1.0, abs(c["food"])):
+    if not np.isfinite(d_food) or not np.isfinite(flows) or abs(d_food - flows) > 1e-6 * max(1.0, abs(c["food"])):
         w.invariant_failures.append(f"t={w.t}: food change {d_food:.3f} vs flows {flows:.3f}")
     if (w.stock < -1e-9).any() or (getattr(w, "stock_broad", None) is not None and (w.stock_broad < -1e-9).any()):
         w.invariant_failures.append(f"t={w.t}: negative wild food")

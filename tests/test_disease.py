@@ -447,10 +447,90 @@ class Review031(unittest.TestCase):
         b = w.living_bands()[0]
         add(w, b.cell, k=1e9, attack=0.9, cfr=0.0)
         w.counts["ob_contact_infections"] = 5
-        w2 = persist.from_bytes(persist.to_bytes(w), w.planet)
+        w2 = persist.from_bytes(_unmarked(persist.to_bytes(w)), w.planet)   # a save from before review 031
         self.assertNotIn("ob_contact_infections", w2.counts)
         self.assertEqual(w2.counts["unattributed_ob_contact_infections"], 5)
 
 
+
+def _unmarked(data: bytes) -> bytes:
+    """A save as written before review 034: without the mark that named diseases count under their own keys."""
+    import io, json, zipfile
+    src, out = zipfile.ZipFile(io.BytesIO(data)), io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        for name in src.namelist():
+            raw = src.read(name)
+            if name == "meta.json":
+                meta = json.loads(raw)
+                meta.pop("dz_counts_split", None)
+                raw = json.dumps(meta).encode()
+            z.writestr(name, raw)
+    return out.getvalue()
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class Review037(unittest.TestCase):
+    """Codex review 037: the 64th disease ended emergence (finding 4); the per-cell log grew as Python lists in the
+    save's metadata (finding 2)."""
+
+    def _full(self, gone_since):
+        w = world()
+        b = w.living_bands()[0]
+        for _ in range(disease.ND_CAP):
+            add(w, b.cell, k=1e9, attack=0.9, cfr=0.0)
+        w.dz_active[:] = False
+        for dz in w.diseases:
+            dz["year"] = 0
+        disease._last_rows(w)
+        w.dz_last[:] = gone_since
+        w.t = (gone_since + P.DZ_RETIRE_YEARS + 10) * P.TICKS_PER_YEAR
+        return w, b
+
+    def _wild(self, w):
+        pop = np.zeros(w.planet.n)
+        pop[w.living_bands()[0].cell] = 1e12                         # sure to draw a wild start
+        active = np.zeros((w.planet.n, disease.ND_CAP), dtype=bool)
+        disease._emerge(w, w.rng["disease"], [], np.array([], int), np.array([], int), np.zeros(0), pop, active, {},
+                        herders={})
+
+    def test_finding4_a_long_gone_disease_frees_its_slot(self):
+        w, b = self._full(gone_since=100)
+        w.dz_last[:, 5] = 50                                          # the longest gone
+        self._wild(w)
+        self.assertEqual(len(w.diseases), disease.ND_CAP)
+        self.assertEqual(w.counts.get("dz_retired"), 1)
+        self.assertEqual(w.diseases_retired[0]["id"], 5)
+        self.assertEqual(int(w.diseases[5]["year"]), int(w.year))     # a new disease in slot 5
+        self.assertNotEqual(w.diseases[5]["uid"], w.diseases_retired[0].get("uid", 5))
+        self.assertTrue(any(e["kind"] == "disease_retired" for e in w.events))
+
+    def test_finding4_starts_are_counted_when_every_slot_is_recent(self):
+        w, b = self._full(gone_since=100)
+        w.dz_last[:] = int(w.year) - 5                               # all circulated recently
+        self._wild(w)
+        self.assertEqual(w.counts.get("dz_blocked_starts"), 1)
+        self.assertFalse(w.counts.get("dz_retired"))
+
+    def test_finding2_the_log_is_an_array_saved_beside_the_others(self):
+        import io
+        import json
+        import zipfile
+        from origins import persist
+        w = world()
+        b = w.living_bands()[0]
+        add(w, b.cell, k=1e9, attack=0.9, cfr=0.0)
+        for i in range(1000):
+            w.dz_log.append([i, 0, b.cell, 3, -1, -1, 200, .45, 60, 1, 70, 1, 70, 0, 130, 790, 2])
+        data = persist.to_bytes(w)
+        z = zipfile.ZipFile(io.BytesIO(data))
+        self.assertNotIn("dz_log", json.dumps(json.loads(z.read("meta.json")))[:10 ** 7].split('"diseases"')[0])
+        w2 = persist.from_bytes(data, w.planet)
+        self.assertEqual(len(w2.dz_log), len(w.dz_log))
+        self.assertEqual(list(w2.dz_log[999]), list(w.dz_log[999]))
+        self.assertEqual(persist.digest(w2), persist.digest(w))
+        d0 = persist.digest(w)
+        w.dz_log.append([2000, 0, b.cell, 3, -1, -1, 200, .45, 60, 1, 70, 1, 70, 0, 130, 790, 2])
+        self.assertNotEqual(persist.digest(w), d0)                    # the log is in the digest

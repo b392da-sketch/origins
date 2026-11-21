@@ -179,9 +179,10 @@ def needs_and_work(w, pos=None, n=None):
     need_r = (F[:, ~child] @ NEED_F[~child] + M[:, ~child] @ NEED_M[~child] + extra) * P.SEASON_DAYS
     work = (F @ WORK + M @ WORK - 0.3 * infants) * P.SEASON_DAYS * P.FORAGE_RATE
     b = G.band[rows] if pos is None else pos[G.band[rows]]
-    nc[b] += need_c
-    nr[b] += need_r
-    ef[b] += np.maximum(work, 0)
+    ok = b >= 0                                          # a row of an ended band never counts (Codex review 035, finding 1)
+    np.add.at(nc, b[ok], need_c[ok])
+    np.add.at(nr, b[ok], need_r[ok])
+    np.add.at(ef, b[ok], np.maximum(work, 0)[ok])
     return nc, nr, ef
 
 
@@ -191,6 +192,7 @@ def update_condition(w, frac_child, frac_rest, pos=None):
     if len(rows) == 0:
         return
     b = G.band[rows] if pos is None else pos[G.band[rows]]
+    rows, b = rows[b >= 0], b[b >= 0]                    # rows of ended bands are left alone (review 035)
     for arr, frac in ((G.cond_child, frac_child[b]), (G.cond_rest, frac_rest[b])):
         c = arr[rows]
         arr[rows] = np.where(frac >= 1 - 1e-9, np.minimum(1.0, c + P.CONDITION_GAIN),
@@ -511,8 +513,14 @@ def unfold(w, b):
     p.unfolded[ids] = w.t
     _pair_and_parent(w, ids, rng)
     # pregnancies
-    women = [i for i in ids if p.sex[i] == 0 and 15 <= w.ages(i) < 45 and p.partner[i] >= 0]
-    rng.shuffle(women)
+    # every pending pregnancy goes to a woman of 15-49, partnered women first, so a pregnancy the group could carry is
+    # not lost by unfolding (Codex review 035, finding 7; the father is unknown where she has no partner)
+    fertile = [i for i in ids if p.sex[i] == 0 and 15 <= w.ages(i) < 50]
+    partnered = [i for i in fertile if p.partner[i] >= 0]
+    single = [i for i in fertile if p.partner[i] < 0]
+    rng.shuffle(partnered)
+    rng.shuffle(single)
+    women = single + partnered                           # popped from the end: partnered first
     for d, n in enumerate(np.rint(G.preg[g]).astype(int)):
         for _ in range(n):
             if not women:

@@ -392,6 +392,8 @@ def worker(jobs, years, budget, ckpt: Path):
         if cp.exists():
             w = persist.from_bytes(cp.read_bytes(), resume_planet(cp, ws))
             m = json.loads(meta.read_text())
+            if "t" in m and int(m["t"]) != int(w.t):        # a world and probes from different checkpoints (review 036)
+                raise RuntimeError(f"checkpoint {cp.name}: world at tick {w.t}, probes at tick {m['t']}")
             spent, pr, replay = m["seconds"], m["probe"], m.get("replay")
         else:
             w = World.new(ws, rs, _planet(ws))
@@ -401,18 +403,21 @@ def worker(jobs, years, budget, ckpt: Path):
             probe_year(w, pr)
             if rs == 1 and replay is None and len(w.yearly) == 2500:
                 twin = persist.from_bytes(persist.to_bytes(w), w.planet)
+                twin_pr = json.loads(json.dumps(pr))
                 for _ in range(10):                  # probed every year, as in the main loop (review 030)
                     engine.step(w, 4)
                     probe_year(w, pr)
-                engine.step(twin, 40)
-                replay = persist.digest(w) == persist.digest(twin)
-                del twin
+                    engine.step(twin, 4)             # the twin steps and is probed the same way (Codex review 036)
+                    probe_year(twin, twin_pr)
+                replay = (persist.digest(w) == persist.digest(twin)
+                          and json.dumps(pr, sort_keys=True, default=str) == json.dumps(twin_pr, sort_keys=True, default=str))
+                del twin, twin_pr
             if time.time() > t_end:
                 save_planet(cp, w.planet)
                 tmp = cp.with_suffix(".tmp")
                 persist.to_file(w, tmp, fast=True)
                 tmp.replace(cp)
-                meta.write_text(json.dumps({"seconds": spent + time.time() - start, "year": len(w.yearly),
+                meta.write_text(json.dumps({"t": int(w.t), "seconds": spent + time.time() - start, "year": len(w.yearly),
                                             "probe": pr, "replay": replay}))
                 print(f"w{ws} s{rs}: checkpoint at year {len(w.yearly)}", flush=True)
                 return

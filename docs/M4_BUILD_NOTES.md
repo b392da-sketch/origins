@@ -526,7 +526,7 @@ Ben's decisions (15 November 2026):
 `origins/sim/traders.py`, called in the yearly trade phase after neighbours' exchange and before wear.
 
 - **Traders:** `TRADER_SHARE` 0.2 of the specialists at a polity's seat, fed from surplus as specialists are.
-- **Routes by gravity:** each polity's traders serve up to `ROUTES_MAX` 3 other seats, chosen among the 12 nearest by polity size × size / cost².
+- **Routes by gravity:** each polity's traders serve up to `ROUTES_MAX` 3 other seats, chosen among the 12 nearest by polity size × size / cost². *(Superseded: 12 candidates by straight-line gravity, then costed; see the later trade entries.)*
 - **Travel cost:** A* over the cells, at most `TRADE_RANGE` 30:
   - a land cell on foot costs 1, divided by 1 + pack animals and carts;
   - climbing costs `MOUNTAIN_COST` 2 per 1,000 m, and high ground (above 2,000 m) adds `HIGH_COST` 0.5 per step;
@@ -537,7 +537,7 @@ Ben's decisions (15 November 2026):
 - **On the way:**
   - road loss is 1 − exp(−`ROAD_LOSS` 0.01 × cost);
   - each polity holding cells on the road takes `TOLL` 0.05, unless going round all its land loses less (recorded once per route and polity as `toll_evaded`);
-  - the destination's ruler takes `FIRST_PICK` 0.1;
+  - the destination's ruler takes `FIRST_PICK` 0.1; *(superseded: now `RULER_LEVY`)*
   - the traders keep `TRADER_KEEP` 0.25 of what is delivered and take it home.
 - **Rulers' stores** (`w.treasury`, per polity; saved, in the digest and in the goods ledger): they wear as everyone's goods do; they pass to the seat when a polity ends (lost if the seat has gone), and to the conqueror when it is conquered.
 - **Records:** `trade_route_opened` once per pair of polities; `good_arrived` with `route="trader"`; a thinned `route_log` (moved, lost, tolls, first picks, kept, tolls paid and gone round).
@@ -652,7 +652,7 @@ The specification (section 4.3) asks four things of trade: move goods to where t
 
 All seven of Ben's effects; `GOODS_EFFECTS` False switches all of them off. Values are starting values.
 
-1. **Materials held as goods** (`trade.goods_materials`, in `technology._possible`): a band holding `MATERIAL_HELD` 0.005 per person of fine stone, salt, copper, tin, iron or gold counts as having that material. Each year `technology._cut_off` notes which techniques a band practises only because of goods; when those goods run out and the material is not within reach, a `technique_cut_off` event says the trade's supply ran out. Saved as `w.tech_import`. Inventions name each material as "within reach" or "held, brought by trade".
+1. **Materials held as goods** (`trade.goods_materials`, in `technology._possible`): a band holding `MATERIAL_HELD` 0.005 per person of fine stone, salt, copper, tin, iron or gold counts as having that material. Each year `technology._cut_off` notes which techniques a band practises only because of goods; when those goods run out and the material is not within reach, a `technique_cut_off` event says the trade's supply ran out. Saved as `w.tech_import`. *(Superseded: now `tech_prev_prac`, `tech_prev_mats`, `tech_prev_wood` and `tech_prev_dep`.)* Inventions name each material as "within reach" or "held, brought by trade".
 2. **Metal tools need metal:** copper-working's food effects scale with metal held (copper + tin + iron), full at `METAL_NEED` 0.02 per person.
 3. **Salt:** spoiling of stored food × (1 − `SALT_SPOIL` 0.2 × s) and food from herds × (1 + `SALT_HERD` 0.1 × s), where s is salt held over `SALT_NEED` 0.05 per person, at most 1.
 4. **Prestige goods:** polity capacity × (1 + `PRESTIGE_HOLD` 0.1 × p), where p is gold and shell in the ruler's store per member over `PRESTIGE_NEED` 0.05, at most 1.
@@ -1034,3 +1034,279 @@ Records and gate code only; the simulation is unchanged.
 - finding 4 blocks mixed-version checkpoints for G1 check 9.
 
 **Codex's reading of the trials:** they give examples of short wild-origin circulation. Neither a comparison of persistence in dense herding areas nor a qualifying first-contact comparison exists yet. Both need the gate's histories with herds.
+
+### Writing and place names: literature check (Claude, 20 November 2026)
+
+Independent check, done before ChatGPT's (the four questions are in the Notion research questions). Writing already exists as a technique in the network (tallies, then writing, with records that let a lost technique come back). This check is for refining it, and for building place names (specification section 7).
+
+**Writing: the scale that comes first.**
+- **Seshat** (285 polities): growth in scale comes first. Information processing (writing, texts, money) outpaces scale only once a polity is past a "scale threshold", and that in turn allows further growth: "to make major improvements in information processing, a polity must first surpass a scalar threshold" (Shin et al. 2020).
+  - The threshold is on a composite measure, with no single population figure. Upper Egypt about 3600 BC sits near it.
+  - Few New World polities in the sample cross it.
+  - This fits the network's rule that writing needs tribute administration.
+- **What early writing was for** (Postgate, Wang & Wilkinson 1995):
+  - The Uruk tablets are "principally utilitarian": commodities, animals and people, with about 15% lexical lists for training scribes.
+  - Early Egyptian labels had "primarily … an accounting" purpose.
+  - The ceremonial look of early Chinese and Mesoamerican writing is likely survival bias: durable stone and bone for display, perishable media for records.
+- **The token theory is contested.** Zimansky's (1993) review finds the categories of tokens loose and many unique. The supposed commodity links are "virtually disprove[d]" by the counts: sheep tokens are rare against "nail" tokens. He reads simple clay shapes as counters made independently.
+  - So the build should keep tallies as one route to writing under administrative need, not a fixed token-to-sign sequence.
+- **Large states without writing:** Inka khipu recorded census and social categories. Six colonial khipus have been matched to a 1670 census of 132 tributaries, encoding moieties, clans and status (Medrano & Urton, *Ethnohistory*, read through Harvard's report). Records without a script are possible, and the network's tallies can stand for them.
+
+**Writing: who writes, and how it is lost.**
+- **Few writers:**
+  - Egypt: estimates run from 1–5% of the population, about 1% in the third millennium BC, rising to perhaps 7% by the fourth century BC (Baines 2007, via Zinn 2013).
+  - Mycenaean Pylos: about 1,000 tablets by "just over thirty" scribes. Literacy was "monopolized" by the palaces, with no private records. Linear B lasted "no more than c. 300 years" (Palaima 2004).
+  - Mesopotamia: functional literacy reached beyond professional scribes in some periods, among Old Assyrian merchants and some officials. A working syllabary could use as few as 68–82 signs (Charpin, via Altman's 2011 review).
+- **Loss:** scripts die when their users restrict them to narrow functions and groups (Houston, Baines & Cooper 2003, via report). Linear B ended with the palaces that kept it.
+  - For the build: writing kept by a few specialists tied to administration is fragile. When the polity that feeds them falls, the script can be lost. The network's keeping rule already ties loss to the number of skilled practitioners.
+- **Spread by idea:** a script can spread by its idea alone, without its signs, as with Sequoyah's Cherokee syllabary (1809–1821; Jordan, after Kroeber's "stimulus diffusion"). For the build: neighbours of a writing people can invent their own script more readily (a contact boost to invention), not only copy one.
+
+**Place names: survival when languages change.**
+- **Major places keep their names, minor places do not** (Hall 2012):
+  - in Anglo-Saxon England, about 31% of names attested to 731 are lost, against about 8% of Domesday names;
+  - eleventh-century Welsh names were lost far more often than English ones (about 55% against 9%, on small samples);
+  - Roman-British names survive at only about 17–20% in England;
+  - "the names of major places were more stable than those of minor places".
+- **Rivers:** pre-English river names such as *Thames* and *Humber* passed from older languages into Brittonic and then into English (Kitson 2011). The general claim that large rivers are the most conservative names is a textbook commonplace (Andresen & Carter 2015, via Wikipedia). I have not yet found a quantified cross-cultural test.
+- **Conquest and remoteness** (Guangxi, 1,427 names; Wang et al. 2011):
+  - the native Zhuang names survive more in remote, mountainous and less irrigated places, and less in higher administrative units (7% of prefectures, 25% of townships);
+  - the Zhuang share of population explains about a third of the variance in Zhuang names by county.
+  - For the build: newcomers rename most where they rule and farm, and least in remote uplands; units named by the state are renamed first.
+
+**Place names: how peoples name.**
+- **Foragers:**
+  - a person knows roughly 500 place names;
+  - place-name density rises with population density (r = 0.95 on logs, 12 communities; Hunn 1994);
+  - Sahaptin names are very often descriptive of biological and topographic features, and none are named after people (Hunn 1996);
+  - binomial names (generic plus specific) are rare in Sahaptin but common elsewhere.
+- **A typology for coding names** (Tent & Blair 2011): descriptive, associative, occurrent (events), evaluative, shift (transferred), indigenous (borrowed), eponymous, linguistic innovation. In European naming of the Australian coast, eponymous names were the most common.
+- **For the build:**
+  - each people names the features it uses most first (water, landform, resources), descriptively, in its own words from the M1 lexicon;
+  - names after people (founders, rulers) come with settlements and polities;
+  - the number of names grows with population density;
+  - newcomers keep or replace names by the kind of contact and by the feature (large rivers and major places kept most; minor places and administrative units replaced most), with the older names kept beneath as layers.
+
+**Not yet found:**
+- how long scribal training took (Old Babylonian schooling; Robson's study of House F at Nippur is cited, but I have not read it);
+- a quantified cross-cultural rate of adopting versus replacing names by kind of contact.
+
+#### Sources (added)
+
+- Andresen, J. T., & Carter, P. (2015). *Languages in the World*. Wiley. (Through Wikipedia's citation; not read.)
+- Altman, R. (2011). Review of D. Charpin, *Writing, Law, and Kingship in Old Babylonian Mesopotamia*. *Bryn Mawr Classical Review* 2011.06.55.
+- Baines, J. (1983). Literacy and ancient Egyptian society. *Man* (NS), 18(3), 572–599. (Abstract read.)
+- Hall, A. (2012). The instability of place-names in Anglo-Saxon England and early medieval Wales, and the loss of Roman toponymy. In R. Jones & S. Semple (eds), *Sense of Place in Anglo-Saxon England*, 101–129. Tyas.
+- Houston, S., Baines, J., & Cooper, J. (2003). Last writing: script obsolescence in Egypt, Mesopotamia, and Mesoamerica. *Comparative Studies in Society and History*, 45(3), 430–479. doi:10.1017/S0010417503000227. (Conclusion through a press report.)
+- Hunn, E. (1994). Place-names, population density, and the magic number 500. *Current Anthropology*, 35(1), 81–85.
+- Hunn, E. (1996). Columbia Plateau Indian place names: what can they teach us? *Journal of Linguistic Anthropology*, 6(1), from p. 3; doi:10.1525/jlin.1996.6.1.3. (Abstract read; end page not checked.)
+- Kitson, P. (2011). Notes on some interfaces between place-name material and linguistic theory. In D. Denison et al. (eds), *Analysing Older English*, 35–56. CUP. doi:10.1017/CBO9781139022170.006. (Summary read.)
+- Medrano, M., & Urton, G. (2018). Toward the decipherment of a set of mid-colonial khipus from the Santa Valley, coastal Peru. *Ethnohistory*, 65(1). (Through Harvard Gazette's report.)
+- Palaima, T. G. (2004). Mycenaean accounting methods and systems and their place within Mycenaean palatial civilization. In M. Hudson & C. Wunsch (eds), *Creating Economic Order*, 269–301. CDL Press.
+- Postgate, N., Wang, T., & Wilkinson, T. (1995). The evidence for early writing: utilitarian or ceremonial? *Antiquity*, 69, 459–480. doi:10.1017/S0003598X00081874.
+- Shin, J., Price, M. H., Wolpert, D. H., Shimao, H., Tracey, B., & Kohler, T. A. (2020). Scale and information-processing thresholds in Holocene social evolution. *Nature Communications*, 11, 2394. doi:10.1038/s41467-020-16035-9.
+- Tent, J., & Blair, D. (2011). Motivations for naming: the development of a toponymic typology for Australian placenames. *Names*, 59(2), 67–89. doi:10.1179/002777311X12976826704000.
+- Wang, F., Wang, G., Hartmann, J. F., & Luo, W. (2011). Sinification of Zhuang place names in Guangxi, China: a GIS-based spatial analysis approach. *Transactions of the Institute of British Geographers*. doi:10.1111/j.1475-5661.2011.00471.x.
+- Zimansky, P. (1993). Review of D. Schmandt-Besserat, *Before Writing*. *Journal of Field Archaeology*, 20(4), 513–517.
+- Zinn, K. (2013). Literacy, Pharaonic Egypt. In R. S. Bagnall et al. (eds), *The Encyclopedia of Ancient History*, 4100–4104. Wiley-Blackwell.
+
+### Writing and place names: comparing the two literature checks (20 November 2026)
+
+ChatGPT's independent check: 22 sources in Notion, all Suggested; its written summary is not yet in. Claude verified the ones the design would rest on:
+- **Tent 2017:** read in full. Indigenous-derived names are 28.2% of Australia's gazetteer, 42.3% of New Zealand's and 96.9% of Fiji's (Table 1, p. 206, not p. 207 as given).
+- **Kelley, Cartolano & Ferrara 2025:** read in full.
+- **Zair 2023:** chapter 1 read.
+- **Blair & Tent 2021:** abstract read.
+- **Tent & Blair 2011:** found by both checks.
+
+Several others could not be read here: the DOI links were blocked, or the page showed only a stub. These include Nissen 2016 on Uruk's size, Regulski 2016 on Egyptian literacy, Waal 2024 on the Aegean gap, Strandberg 2016 on river names, Urton 2017 on khipu, the Olmec Cascajal Block papers, and Veldhuis on Mesopotamian schools. They stay Suggested and are not used.
+
+**Both checks found:**
+- early writing grew from administration;
+- the token theory is contested: Zimansky 1993 (Claude), and Kelley et al. 2025 (ChatGPT), who find seal motifs as precursors of some signs and say "token-to-sign comparisons, numerical notations aside, are rarely demonstrable";
+- literacy in early writing societies was a few per cent;
+- khipu as records without a script;
+- Tent & Blair's typology of names;
+- river names as the most persistent layer, though neither check found a quantified cross-cultural test.
+
+**Only ChatGPT found:**
+- **Names under colonisation** (Tent 2017): where settlers came in numbers, few native names remain; where they did not, nearly all do. This is the contact-type effect the build needs, though the figures are modern gazetteer shares, not survival rates.
+- **Roman literacy:** Harris's estimates of at most 15% in Italy and 5–10% in the western provinces, called "guesstimates" (Zair 2023).
+- **Unverified:** Uruk at about 250 ha (perhaps 25,000–50,000 people) when proto-cuneiform appeared (Nissen 2016); the Olmec Cascajal Block, about 900 BC; Meroitic script adapted from Egyptian.
+
+**Only Claude found:**
+- the Seshat scale threshold (Shin et al. 2020);
+- the utilitarian origins and survival bias of early writing (Postgate et al. 1995);
+- about 30 scribes at Pylos, and a palace monopoly on writing (Palaima 2004);
+- scripts dying when restricted (Houston et al. 2003);
+- major places keeping their names more than minor ones (Hall 2012);
+- Zhuang names surviving in remote uplands (Wang et al. 2011);
+- the 500-name repertoire and the link between name density and population density (Hunn 1994), and Sahaptin's descriptive names with none after persons (Hunn 1996).
+
+**Disagreements:** none.
+
+**Corrections:**
+- Tent 2017's table page (206, not 207);
+- Veldhuis's article is dated 2010 on the publisher's page, not 2015;
+- ChatGPT itself flagged conflicting page ranges for Woods 2010.
+
+**Still open:**
+- how long scribal training took (neither check settled it);
+- a measured rate of keeping versus replacing names by kind of contact. The nearest evidence is Hall's major-versus-minor places, Wang's remoteness, and Tent's settler-versus-non-settler gazetteers.
+
+#### Sources (added, verified)
+
+- Kelley, K., Cartolano, M., & Ferrara, S. (2025). Seals and signs: tracing the origins of writing in ancient South-west Asia. *Antiquity*, 99(403), 64–82. doi:10.15184/aqy.2024.165.
+- Tent, J. (2017). Indigenous toponyms in the Antipodes: a gazetteer-based study. *Names*, 65(4), 204–214. doi:10.1080/00277738.2017.1369743.
+- Zair, N. (2023). Introduction. In *Orthographic Traditions and the Sub-elite in the Roman Empire*, 1–44. Cambridge University Press. doi:10.1017/9781009327633.002.
+- Blair, D., & Tent, J. (2021). A revised typology of place-naming. *Names*, 69(4), 30–47. doi:10.5195/names.2021.2260. (Abstract read.)
+
+**ChatGPT's written report** (20 November 2026, after the sources) adds:
+- **Emphasis:** the earliest surviving writing also includes royal ritual, divination and display. Postgate et al. (1995) argue this is largely survival bias. This is a difference of weight, not of fact.
+- **Writing as several technologies:** tallies, seals, material records, specialist accountants and writing are related but distinct. Growing scale creates pressure to adopt them, with no fixed threshold that guarantees writing. This agrees with Shin et al. (2020), whose thresholds are "elastic and porous".
+- **A palace collapse can take its script with it** without everyone losing the ability to write; the Aegean gap is disputed.
+- **Names come from people's dealings with places.** There is no secure universal order in which features are named. One place can gather several names, translations and adaptations. Name forms should follow each language: generic plus specific, compounds, possessives, single words, and borrowed names whose parts are no longer understood.
+
+ChatGPT lists Nissen 2016 and Regulski 2016 as read in full; I could not open either here, so their figures stay unverified (Uruk's size and population, and about 1% literacy in Old Kingdom Egypt).
+
+### Writing and place names: Ben's decisions (20 November 2026)
+
+1. **Names for used features.** Each people names the rivers, lakes, coasts, hills and mountains it lives among and uses, plus its own settlements, and later its polities and regions. Bigger rivers and landmarks are named by more peoples and kept longest. The number of names grows with population density (Hunn 1994).
+2. **Keep or replace by rule.**
+   - The chance that newcomers keep a name rises with the feature's size and fame and with remoteness, and falls with how many newcomers settle and with conquest (Hall 2012; Wang et al. 2011; Tent 2017).
+   - A kept name is borrowed and reshaped by the newcomers' sound changes (M1).
+   - Old names stay beneath as layers, with their cause recorded.
+3. **Writing, all three refinements:**
+   - **stimulus diffusion:** neighbours of a writing people invent a script more readily;
+   - **the script falls with the state:** scribes are specialists fed by the polity, so its collapse can take writing with it;
+   - **records without a script:** tallies and record-keepers give part of writing's boost to administration.
+
+All values will be starting values.
+
+### Writing and place names, as built (20 November 2026)
+
+All numbers are tunable starting values in `params.py`, not facts.
+
+**Writing (`origins/sim/technology.py`).**
+- **The script falls with the state** (`TECH_SCRIBES`). Writing's practitioners are the band's scribes only (`skilled_by_technique`), not a quarter of its adults.
+  - **Scribes** (`w.tech_scribes`, per band) are the specialists at the seat of a living complex chiefdom or state, averaged over about a generation: each year they move 1/25 of the way to this year's specialists there (`TECH_SCRIBE_YEARS`), or towards 0 for a band that is no seat. A village's leader, ritual specialists and craft workers do not keep a script.
+  - **A people writes only where it keeps scribes** (at least one, `TECH_SCRIBE_MIN`): inventing, learning and practising writing all need them, and a cause names the lack ("needs scribes"). A people that loses its scribes stops practising; its writing fades as any unpractised technique does. Specialists are fed from surplus and staff the polity's seat, so when a polity can no longer feed them for years, its scribes dwindle and the script decays and can be lost (Palaima 2004 on Linear B and the palaces). One poor harvest does not erase it.
+  - **Writing kept by scribes needs 30** within reach (`TECH_SCRIBES_KEEP`, about Pylos's thirty scribes), not the 60 it needs to be invented.
+  - **The array:** grows with the bands, starts at 0 in a daughter (scribes stay with the band that fed them), is added when whole peoples combine or a remnant merges, is saved and in the digest; older saves start from that year's specialists.
+  - Keeping, refining, the best practitioner within reach, teaching and lessons along traders' roads all count scribes for writing. Other techniques are unchanged.
+  - **Ben's decision (21 November 2026), after the first trial:** with this year's specialists and 60 needed, writing given to the ten largest seats died out everywhere within 100 years (217 losses); seats' specialists often fall to 0 for a year, and with none writing goes in about six years. With the old rule (a quarter of adults) it spread to 2,477 of 3,865 bands. Ben chose steady scribes (a generation's average) and 30.
+  - **Second and third trials (same save, 100 years, writing given to the ten largest seats):** with any band's specialists counted, writing spread to 1,969 bands, and with scribes required for practising, to 2,143 of 3,801. Specialists are common (about 12 a band, from M2's surplus), so a scribe has to be a polity's specialist, as Ben's decision says; scribes are now counted at seats only.
+  - **Fourth trial:** with scribes at every seat, writing still reached 1,804 of 3,780 bands: there were 1,464 polities, most of them one village whose leader counts as a specialist. **Ben's decision (21 November 2026):** scribes are kept only at seats of complex chiefdoms and states (tier 2 or above, `TECH_SCRIBE_TIER`); writing follows scale (Shin et al. 2020). A polity that falls below that tier loses its scribes over about a generation.
+  - **Fifth trial:** with tier-2 seats only, writing churned and died out (1,501 taken up, 1,440 lost, none left). It was being carried without scribes: daughters inherited it, and migrants, captives and spouses carried it into bands that could never practise it, where it faded. **Fix (no new design; follows the decision that scribes keep the script):** a daughter does not inherit writing (the scribes stay), and writing passes in `combine` only when whole peoples join (combined, merge), with their scribes. The trial script now also reports bands *practising* writing.
+  - **Sixth and seventh trials (after the fix):**
+    - given to the ten largest seats (none a complex chiefdom): 3 taken up, 5 lost, none left;
+    - given to all 28 complex-chiefdom seats (20–38 specialists each): 8 taken up, 23 lost, none left after 100 years. Complex chiefdoms fell from 28 to 1 over the century.
+  - **Why: complex chiefdoms do not last.** In the save's polity log (years 8,720–9,690), the 317 polities that ever reached tier 2 spent a median of 30 years there (90th percentile 160, longest 480). Scribes averaged over 25 years never build up at seats that fall within a generation. Writing now fails with the state, as decided, but the states here are too brief to carry it.
+  - **What happened, seat by seat** (rerun of the seventh trial, following the 28 seats yearly): every one of the 28 polities fell below tier 2 within 45 years (9 within 4 years; median about 14), but only 5 ended; the rest became simple chiefdoms or autonomous villages. Their scribes then fell 4% a year (median 19.7 at the start, 12.3 at year 20, 2.1 at year 50, 0 at 75). Writing held near 0.6 for about 30 years and then fell. All 23 losses were the Henrich kind ("too few scribes within reach"), none forgetting. Even at the start the median seat had about 20 scribes, below the 30 needed; specialist share kept it level until the scribes dwindled.
+  - **Ben's decision (21 November 2026): keep it as built; the gate decides.** Writing may be rare or absent; G4a reports writing and how long complex chiefdoms and states last, and Ben judges then.
+  - **Full suite:** 243 tests pass (29.5 minutes), on the code with the fix.
+- **Stimulus diffusion** (`TECH_STIMULUS`, writing x10). A people that could practise writing invents it ten times as readily when a people within two rings, or at the other end of a traders' road, writes well (`_stimulus`). The invention's cause names that people and says the idea, not the script, was borrowed. The new script is the inventor's own and starts crude, as any invention does.
+- **Records without a script** (`TECH_RECORDS_SHARE` 0.3, `TECH_RECORD_KEEPERS` 10). Tallies kept by record-keepers at the seat give part of writing's capacity effect: writing's effect x 0.3 x tallies' quality x (specialists at the seat / 10, at most 1), as the khipu and its keepers did (Medrano & Urton 2018). Writing and kept tallies are not added; the larger counts.
+
+**Place names (`origins/sim/places.py`, new; stream `places`, appended).**
+- **Features** come from the planet, with no random draws:
+  - rivers, split at each join (a stream continues up its larger branch, so tributaries are named apart); size from the flow at the stream's mouth (log scale);
+  - lakes (joined lake cells, used from the land around them);
+  - hills (local peaks of 800 m or more) and mountains (2,000 m or more), used from the peak and the cells around it;
+  - coasts (joined coastal cells within one climate region);
+  - settlements, made where a settled people or a polity's seat lives, sized by the most people seen there (log scale, full at 5,000); they outlast their people as named places.
+- **Naming.** Every 10 years, each language with speakers by a feature, and no name for it in its own lineage, names it with chance 1 − exp(−10 x 0.02 x speakers by it / 100). The larger community by a feature names first. So big features, near more peoples, get more names, and dense land names sooner (Hunn 1994).
+- **New names** are made from the people's own words: a descriptor from its lexicon (colours, size, age, animals, materials, by kind of feature) plus a generic word, or the generic word alone (river 25%), or, for settlements, a person's name plus "settlement" (30%). The generic words (river, lake, hill, settlement, sea) are PIE-inspired forms kept apart from the core vocabulary (`lang.proto.PLACE_PROTO`), so the vocabulary and its random draws are unchanged.
+- **Keep or replace.** When a people meets a feature that people already by it have a name for, it keeps the name of the largest such community with chance
+  (0.2 + 0.5 x size + 0.2 x remoteness) x (1 − 0.6 x the newcomers' share of the people by it), halved when those it hears it from were conquered by a polity of its own language within 100 years. Remoteness is 1 / (1 + people per cell of the feature / 200). Otherwise it gives its own name (Hall 2012; Wang et al. 2011).
+- **Layers.** Each place keeps every name as a layer: [tick, language, form then, how (new, kept, replaced), the language it was heard from, cause]. A layer's form now is its form then carried through every later sound change of its language's lineage (`places.current`, as `language.word_history`). Daughter languages inherit their parent's names. A kept name is reshaped by the newcomers' own sound changes from then on.
+- **Records.** Each name is an event `place_named` with its cause (resolvable). `w.places` is saved and in the digest; older saves start with none. `places.history(w, i)` lists a place's layers.
+
+**Not built:** names for polities and regions (polities keep their present names), renaming a place a people already names (for example after conquest), and the observatory's display of place names.
+
+### After Codex review 032 (21 November 2026)
+
+All six findings confirmed (`reviews/responses/032-writing-and-place-names-claude.md`; tests `tests/test_places.py::Review032`, all seven failing on `d7ddb9c`).
+
+**Ben's decisions (21 November 2026):**
+- **Finding 1, scope:** build both now. Region names and the observatory's place view are built.
+- **Finding 3, conquest:** conquered peoples may take their conquerors' names.
+
+**As built** (all values are starting values in `params.py`):
+- **Regions** are named features: each climate region's land (`planet.region`), anchored at the land cell nearest its centre, named by the peoples living in it. A new region name is "land of the people", from the namers' own word for themselves and their word for "earth" (`PLACE_REGION_PEOPLE` 0.5), or a described land ("cold land", "red land").
+- **Conquered peoples take conquerors' names.** At each places pass, for each band conquered since the last pass by a polity whose seat speaks another language, each feature it lives by that both peoples name differently takes the conquerors' name with chance `PLACE_ADOPT` 0.5 × (1 − `PLACE_ADOPT_SIZE` 0.8 × size). So settlements and small features change most, as state-named units did in Guangxi (Wang et al. 2011). The layer is `imposed` and cites the band, the conquerors' seat, the `conquest` event and the conquerors' own naming.
+- **Fixes:**
+  - a sound change on the naming tick is now in the name (finding 2);
+  - newcomers' keep chance sees a conquest of any band of the holders by it, not only the first (finding 3);
+  - each layer keeps its `place_named` event, and a kept or replaced name cites the naming it heard (finding 6);
+  - an invention by a people with a writer in reach records `stimulus_needed`, and names the stimulus as cause only where the draw would have failed without it (finding 5);
+  - every 10 years the record keeps each band holding writing or scribes, with its polity, tier, seat, scribes, writing's level and whether it practises it now (`w.tech_writing_log`, saved, in the digest and in the G3 record with `writing_inventions`; finding 4). The G3 record also lists places and their layers.
+- **Speed:** a place's latest layer per language is cached, so looking up names no longer grows with the square of the layers (900 lookups on a 900-layer place: 0.001 s).
+- **Observatory:**
+  - a "Place names" map layer: each name in the speech of most people living by it, larger and more prominent places first, names that would overlap left out (zoom in for more);
+  - a place's page: its names now, by each people living by it, and every layer, oldest first, with its form then and now and a link to its cause chain;
+  - a cell's panel lists the places used from it.
+
+### After Codex review 033 (21 November 2026)
+
+All five findings confirmed and fixed (`reviews/responses/033-review-032-fixes-claude.md`; tests `tests/test_places.py::Review033`, all failing on `1edee6e`). Ben was away; none needed a design decision.
+- **Conquest renaming** is driven by the conquest events since the last pass. Each event now names its conquered bands (`moved`). There is one draw per conquered language and feature in a pass, so one conquest imposes a name once, and each imposed name cites its own conquest.
+- **The G3 record** keeps the whole history of every polity that was ever a complex chiefdom or state, or had a band in the writing log, beside the sample (`gates.g3.kept_polities`).
+- **The observatory's cell panel** names places in the speech of the clicked cell's people.
+- **A writing neighbour whose stimulus was not needed** is recorded as exposure only, not as a cause.
+
+Review 033 was the last separate review of this step; anything further goes into the comprehensive pre-gate review.
+
+### After Codex reviews 034 and 035 (21 November 2026): the comprehensive pre-gate review, parts 1 and 2
+
+**Ben's decisions (21 November 2026):**
+- **Gate plan:** approved, with "falls clearly" below half, "most" two thirds, and 6,000 years after the first village.
+- **After review 034:**
+  - build trade's addition to invention's reach;
+  - run three small arms (no curation, no prestige goods, a fixed four partners: 10 histories each) and measure dependence inside the main histories;
+  - re-measure M1's carried-forward items beside check 1;
+  - check 10's numbers: 10-year spells; 100 herders and 5,000 people around;
+  - a check counts only if half the histories can measure it.
+
+**Built:**
+- **Trade raises invention's reach** (`technology.connected_people`, `TECH_TRADE_REACH` 0.5, a starting value): a traders' road travelled last year adds half the people within two rings of the far seat, unless they are already within reach. This changes invention in every history with traders.
+- **The gate code** (`gates/g4.py`, `gates/g4_report.py`, `gates/plan.py`, `gates/run_job.sh`), as set out in the answer to review 034:
+  - arms in the planner and runner;
+  - two observers that record values the simulation computes, without changing them;
+  - a census panel;
+  - provenance and transmission steps from the events;
+  - the readings of checks 1–13;
+  - a roster.
+- **State fixes from review 035**, set out in its answer:
+  - ended group rows end;
+  - the digest covers more;
+  - empty trade attempts are not contact;
+  - captives and spouses bring their immunity;
+  - import dependence is per band (`tech_prev_dep`);
+  - whole joins keep receipts and herding history;
+  - unfolding keeps pregnancies.
+
+All values are starting values.
+
+### After Codex reviews 036 and 037 (21 November 2026): the comprehensive pre-gate review, parts 3 and 4
+
+**Ben's decision (21 November 2026):** retire diseases long gone. When all 64 disease slots are taken, a new disease takes the slot of the disease longest gone from people, if it has not circulated for `DZ_RETIRE_YEARS` 2,000 years (a starting value). Its animal reservoir goes with it. Until then, the 64th disease ended emergence for the rest of a history.
+
+**Built after 036** (answer in `reviews/responses/036-...-claude.md`):
+- checkpoints pair the world and the probes by tick;
+- the cause-chain validator catches cycles and unknown references, and gives the same answer in any order;
+- conservation checks men's counts, rulers' stores and non-finite values;
+- return loads name their giver;
+- G1's replay steps both worlds alike;
+- the census changes nothing.
+
+**Built after 037** (answer in `reviews/responses/037-...-claude.md`):
+- **Disease slots are retired** as decided: a `disease_retired` event, `w.diseases_retired`, a `uid` per disease, and the counts `dz_retired` and `dz_blocked_starts`, all reported with check 10.
+- **The per-cell disease log** is an array (`disease.RowLog`), saved in `arrays.npz` and included in the digest.
+- **Spells are built in the gate record** from that array. Each spell counts its years where herds and dense populations met (100 herders, 5,000 around), in place of a pair per year.
+- **An unfinished history** in the last stage is recorded as incomplete and its checkpoint kept. The report checks the roster against the request and says "GATE INCOMPLETE", naming the missing histories, and the run is marked failed.
+- **The reports parse the records once.** G4's report passes its records to G3's, and G3's to G2's, in memory, without the G4-only fields.
+- **Large records** are compressed before publication.
+- **The polity log's cut** at 3 million rows is stated in the record and in the tenure line.
+- **Drift fixes:** docstrings, the `PARTNERS_CAP` comment, superseded statements marked in place, the workflow header, and the gate plan's title and pipeline note.
+
+All values are starting values.

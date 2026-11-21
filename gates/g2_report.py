@@ -13,8 +13,11 @@ def _load(out: Path, pattern: str):
     return [json.loads(f.read_text()) for f in sorted(out.glob(pattern))]
 
 
-def report(out: Path) -> str:
-    allr = [r for r in _load(out, "run_w*_s*.json") if r.get("status") == "completed"]
+def report(out: Path, records=None) -> str:
+    """records: already-parsed results (G3's report passes its own, so they are not written and parsed again; Codex
+    review 037, finding 3)."""
+    recs = records if records is not None else _load(out, "run_w*_s*.json")
+    allr = [r for r in recs if r.get("status") == "completed"]
     runs = [r for r in allr if r["storage"]]
     knock = [r for r in allr if not r["storage"]]
     L = []

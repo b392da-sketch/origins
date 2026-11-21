@@ -14,7 +14,7 @@ CKPT=${CKPT:-/tmp/ckpt}
 BUDGET=${BUDGET:-16200}          # 4.5 hours, leaving time to save a large world before the 5h50m limit
 rm -rf gates/results_$GATE          # keep only this job's own results (the repository holds earlier ones)
 mkdir -p "$CKPT"
-TAG=""; [ "$KIND" = run_nostore ] && TAG="_nostore"; [ "$KIND" = run_noinst ] && TAG="_noinst"
+TAG=""; case "$KIND" in run_*) TAG="_${KIND#run_}" ;; esac     # run_nostore -> _nostore; G4a arms: run_nopop -> _nopop
 if [ -n "$(ls -A "$CKPT" 2>/dev/null)" ]; then
   # a later stage: continue only the histories that still have a checkpoint (the others finished earlier)
   KEEP=""
@@ -26,8 +26,13 @@ if [ -n "$(ls -A "$CKPT" 2>/dev/null)" ]; then
   [ -n "$JOBS" ] || { echo "nothing to continue"; mkdir -p out; exit 0; }
 fi
 case "$KIND" in
-  run|run_nostore|run_noinst)
-    FLAG=""; [ "$KIND" = run_nostore ] && FLAG="--no-storage"; [ "$KIND" = run_noinst ] && FLAG="--no-institutions"
+  run|run_*)
+    case "$KIND" in
+      run) FLAG="" ;;
+      run_nostore) FLAG="--no-storage" ;;
+      run_noinst) FLAG="--no-institutions" ;;
+      *) FLAG="--arm ${KIND#run_}" ;;                  # G4a's named arms (gates/g4.py ARMS; Codex review 034)
+    esac
     PIDS=""
     for J in ${JOBS//,/ }; do
       python -m gates.$GATE run --jobs $J --years $YEARS --budget $BUDGET --workers 1 --ckpt "$CKPT" $FLAG > "log_$J.txt" 2>&1 &
@@ -50,7 +55,16 @@ for J in ${JOBS//,/ }; do
     rm -f "$CKPT"/w${W}_s${R}${TAG}.*
   else
     echo "history $J not finished within this job's time; checkpoint kept for the next job"
+    if [ "${FINAL_STAGE:-0}" = 1 ] && [ -f "$CKPT"/w${W}_s${R}${TAG}.json ]; then
+      # the last stage: no next job, so record the history as incomplete (the report names it and the gate is not
+      # decided) and keep the checkpoint as an artifact to continue by hand (Codex review 037, finding 1)
+      python3 -c "import json,sys;m=json.load(open(sys.argv[1]));print(json.dumps({'status':'incomplete','world_seed':int(sys.argv[2]),'run_seed':int(sys.argv[3]),'arm':sys.argv[4] or None,'year':m.get('year'),'seconds':m.get('seconds')}))" \
+        "$CKPT"/w${W}_s${R}${TAG}.json $W $R "${TAG#_}" > out/run_w${W}_s${R}${TAG}.json
+      echo "history $J INCOMPLETE after the last stage (year $(python3 -c "import json;print(json.load(open('$CKPT/w${W}_s${R}${TAG}.json'))['year'])"))"
+      INCOMPLETE=1
+    fi
   fi
 done
 case "$KIND" in run*) ;; *) rm -rf "$CKPT"/* ;; esac
+if [ "${INCOMPLETE:-0}" != 0 ]; then echo "a history did not finish in the last stage"; FAIL=1; fi
 if [ "${FAIL:-0}" != 0 ]; then echo "a history failed: see its log above"; exit 1; fi

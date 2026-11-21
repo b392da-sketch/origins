@@ -8,3 +8,5 @@ gates/g1_log.txt
 gates/ckpt_g2/
 gates/results_g2/
 local/bench/
+/log_*.txt
+/out/
