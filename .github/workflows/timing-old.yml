@@ -1,0 +1,24 @@
+name: timing-old
+# Profile a gate checkpoint (a measuring tool; G4a pilot, 21 November 2026). Runs on a push to the branch "profile".
+on:
+  push:
+    branches: [timing-old]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  profile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements.txt
+      - name: fetch checkpoint
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 44849021720 -n ckpt2-run-w4s1 -D /tmp/ck
+      - name: profile
+        run: PYTHONPATH=. python tools/timing.py /tmp/ck/w4_s1.zip 4
