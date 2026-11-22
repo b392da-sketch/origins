@@ -100,3 +100,70 @@ class CompactLog(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Review039(unittest.TestCase):
+    """Codex review 039."""
+
+    def _two(self):
+        w = World.new(1, 1, generate(1))
+        a, b = w.living_bands()[:2]
+        return w, a, b
+
+    def test_finding1_counts_join_old_events_and_rows(self):
+        import inspect
+        from gates import g0, g0_slice, g1, g2, g4
+        w, a, b = self._two()
+        w.event("land_move", cell=a.cell, band=a.id, causes=[{"note": "an old-format move"}])   # as an older save
+        minorlog.land_move(w, a.id, a.cell, 1.0, 2.0, 1.5, [])
+        self.assertEqual(minorlog.count_all(w)["land_move"], 2)
+        for m in (g0, g0_slice, g1, g2):
+            self.assertIn("count_all(w, rec[\"events\"])", inspect.getsource(m))
+        self.assertIn('rec["land_events"]["land_move"] += minorlog.size(w, "land_move")', inspect.getsource(g4))
+
+    def test_finding2_names_are_kept_as_written(self):
+        w, a, b = self._two()
+        before = (w.band_name(a), w.band_name(b))
+        minorlog.formed(w, a.id, b.id, a.cell, minorlog.FORMED_NEAR, closeness=0.5)
+        note0 = minorlog.as_event(w, "partnership_formed", 0)["causes"][-1]["note"]
+        self.assertIn(before[0], note0)
+        self.assertIn(before[1], note0)
+        w.band_name = lambda band: "Renamed"                 # names change later (sound change, a new leader)
+        self.assertEqual(minorlog.as_event(w, "partnership_formed", 0)["causes"][-1]["note"], note0)
+        del w.band_name
+        w2 = persist.from_bytes(persist.to_bytes(w), w.planet)
+        self.assertEqual(minorlog.as_event(w2, "partnership_formed", 0)["causes"][-1]["note"], note0)
+
+    def test_finding3_a_gift_rounded_to_zero_keeps_its_key(self):
+        w, a, b = self._two()
+        minorlog.first_gifts(w, a.id, b.id, a.cell, {str(a.id): {"gold": 0.0}, str(b.id): {}})
+        g = minorlog.as_event(w, "gift_exchange", 0)["data"]["goods"]
+        self.assertEqual(g, {str(a.id): {"gold": 0.0}, str(b.id): {}})
+        minorlog.lapsed(w, a.id, b.id, a.cell, minorlog.LAPSED_REACH, {"years": 1, str(a.id): {"gold": 0.0},
+                                                                       str(b.id): {"shell": 2.5}})
+        self.assertEqual(minorlog.as_event(w, "partnership_lapsed", 0)["data"]["gifts"],
+                         {"years": 1, str(a.id): {"gold": 0.0}, str(b.id): {"shell": 2.5}})
+
+    def test_finding4_feeds_show_rows_in_recorded_order(self):
+        from origins import server
+        w, a, b = self._two()
+        minorlog.lapsed(w, a.id, b.id, a.cell, minorlog.LAPSED_SWAP, {"years": 0})
+        minorlog.formed(w, a.id, b.id, a.cell, minorlog.FORMED_SWAP, dropped=b.id)
+        w.event("land_hunger", cell=a.cell, band=a.id, causes=[{"note": "after"}])
+        hist = [e["title"] for e in server.band_detail(w, a.id)["events"]][-3:]
+        kinds = [x for x in hist]
+        self.assertEqual(len(kinds), 3)
+        order = [e["ref"] for e in server.band_detail(w, a.id)["events"]][-3:]
+        self.assertEqual(order[0], "log:partnership_lapsed:0")
+        self.assertEqual(order[1], "log:partnership_formed:0")
+        self.assertTrue(order[2].startswith("event:"))
+        recent = server.recent_events(w)
+        refs = [r.get("ref") for r in (recent if isinstance(recent, list) else recent.get("events", []))]
+        self.assertIn("log:partnership_formed:0", refs)
+
+    def test_finding5_negative_rows_do_not_read(self):
+        from origins import server
+        w, a, b = self._two()
+        minorlog.formed(w, a.id, b.id, a.cell, minorlog.FORMED_NEAR, closeness=0.5)
+        with self.assertRaises((KeyError, IndexError)):
+            explain.describe(w, server.parse_ref("log:partnership_formed:-1"))

@@ -79,6 +79,7 @@ def run_one(ws: int, rs: int, years: int) -> dict:
     rec["events"] = {}
     for e in w.events:
         rec["events"][e["kind"]] = rec["events"].get(e["kind"], 0) + 1
+    __import__("origins.sim.minorlog", fromlist=["x"]).count_all(w, rec["events"])   # rows too (review 039)
     # explainability sample
     rng = np.random.default_rng([ws, rs, 99])
     p = w.people
