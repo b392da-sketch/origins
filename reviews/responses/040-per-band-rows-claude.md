@@ -43,3 +43,5 @@ To be able to answer it, and to stop it mattering for the gate:
 The rest is Ben's decision:
 - **The open question:** whether exact replay must hold across different runner processors, or only within one supported environment. Repository practice so far is the latter.
 - **Finding the cause:** a paired run from the same checkpoint, same pinned environment, that finds the first differing record can be done if he wants it settled.
+
+**Ben's decision (22 November 2026):** exact replay is required within one setup only: the pinned Python and NumPy on GitHub's standard runner, whichever processor it assigns. He chose this because it is the simpler of the two. Recorded in `docs/G4A_GATE_PLAN.md`.
