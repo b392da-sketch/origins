@@ -567,10 +567,21 @@ def band_detail(w, bid: int) -> dict:
     out["farming"] = band_farming(w, b, out["size"])
     pid = _pol_of(w, b.id)
     out["polity"] = {"id": pid, "name": w.polities[pid].name, "seat": w.polities[pid].seat == b.id} if pid >= 0 else None
-    out["events"] = [{"id": e["id"], "title": explain.describe(w, {"event": e["id"]})["title"],
-                      "bp": P.START_YEARS_BP - e["t"] // P.TICKS_PER_YEAR}
-                     for e in w.events if e["band"] == bid or e["data"].get("new_band") == bid
-                     or e["data"].get("into") == bid][-30:]
+    from .sim import minorlog
+    # events naming the band (as its band, a new band, the band it went into, or, for the compact log's kinds in
+    # older saves, as the partner), and the compact log's rows naming it, in the order they happened (review 039)
+    evs = [(minorlog.key_of_event(e["id"]), {"event": e["id"]}) for e in w.events
+           if e["band"] == bid or e["data"].get("new_band") == bid or e["data"].get("into") == bid
+           or (e["kind"] in minorlog.KINDS and e["data"].get("partner") == bid)][-30:]
+    evs += [(key, {"log": [k, i]}) for key, k, i in minorlog.latest(w, 30, bid)]
+    evs.sort(key=lambda x: x[0])
+    out["events"] = []
+    for _, ref in evs[-30:]:
+        d = explain.describe(w, ref)
+        e = w.events[ref["event"]] if "event" in ref else minorlog.as_event(w, *ref["log"])
+        out["events"].append({"id": ref.get("event", -1), "t": e["t"], "title": d["title"],
+                              "ref": f"event:{ref['event']}" if "event" in ref else f"log:{ref['log'][0]}:{ref['log'][1]}",
+                              "bp": P.START_YEARS_BP - e["t"] // P.TICKS_PER_YEAR})
     return out
 
 
@@ -648,9 +659,14 @@ def person_detail(w, i: int) -> dict:
 def recent_events(w, limit=60) -> list:
     p = w.people
     out = []
+    from .sim import minorlog
     for e in w.events[-limit:]:
         out.append({"ref": f"event:{e['id']}", "t": e["t"], "kind": e["kind"], "cell": e["cell"],
                     "title": explain.describe(w, {"event": e["id"]})["title"]})
+    for _, k, i in minorlog.latest(w, limit):            # the compact log's latest rows too (review 039, finding 4)
+        e = minorlog.as_event(w, k, i)
+        out.append({"ref": f"log:{k}:{i}", "t": e["t"], "kind": k, "cell": e["cell"],
+                    "title": explain.describe(w, e["id"])["title"]})
     n = p.n
     dead = np.nonzero(p.death[:n] >= max(0, w.t - 8))[0]
     for i in dead[np.argsort(-p.death[dead])][:limit]:
@@ -669,6 +685,9 @@ def recent_events(w, limit=60) -> list:
 
 def parse_ref(s: str) -> dict:
     kind, _, val = s.partition(":")
+    if kind == "log":                                  # log:<kind>:<row>, a row of the compact log
+        k, _, i = val.partition(":")
+        return {"log": [k, int(i)]}
     return {kind: int(val)}
 
 

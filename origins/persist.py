@@ -88,8 +88,8 @@ def to_file(w: World, f, fast: bool = False) -> None:
               "polity_of": w.polity_of, "polity_via": w.polity_via, "conquered_at": w.conquered_at,
               "herder_since": w.herder_since, "farm_rr_real": w.farm_rr_real, "farm_rr_cell": w.farm_rr_cell,
               "farm_rr_lost": w.farm_rr_lost if getattr(w, "farm_rr_lost", None) is not None else np.zeros(0), "tech": w.tech, "tech_record": w.tech_record, "tech_scribes": _tech_scribes(w),
-              "goods": w.goods, "partner_of": w.partner_of, "partner_since": w.partner_since,
-              "goods_reached": w.goods_reached, "partner_gave": w.partner_gave, "treasury": w.treasury,
+              "goods": w.goods,
+              "goods_reached": w.goods_reached, "treasury": w.treasury,
               "tech_prev_prac": w.tech_prev_prac if getattr(w, "tech_prev_prac", None) is not None else np.zeros((0, 0), bool),
               "tech_prev_dep": w.tech_prev_dep if getattr(w, "tech_prev_dep", None) is not None else np.zeros((0, 0), bool),
               "tech_prev_mats": w.tech_prev_mats if getattr(w, "tech_prev_mats", None) is not None else np.zeros((0, 0), bool),
@@ -99,8 +99,14 @@ def to_file(w: World, f, fast: bool = False) -> None:
     arrays.update({"land_" + k: getattr(w, k) for k in _land.ARRAYS if getattr(w, k, None) is not None})
     from .sim import disease as _disease
     arrays.update({k: getattr(w, k) for k in _disease.ARRAYS if getattr(w, k, None) is not None})
+    from .sim import trade as _trade_s
+    arrays.update(_trade_s.partner_state(w))             # partner rows, for bands holding one (22 November 2026)
+    if getattr(w, "dz_slots", None) is not None:
+        arrays.update(_disease.save_rows(w))              # per-band rows, for bands holding one (22 November 2026)
     if getattr(w, "dz_log", None) is not None:
         arrays["dz_log"] = _disease.log_array(w)          # the per-cell disease record, as an array (review 037)
+    from .sim import minorlog as _minor
+    arrays.update(_minor.arrays(w))                       # the compact log (Ben, 22 November 2026)
     arrays.update({"p_" + k: v for k, v in w.people.arrays().items()})
     arrays.update({"g_" + k: v for k, v in w.groups.arrays().items()})
     arrays.update({"b_" + k: v for k, v in w.bands.arrays().items()})
@@ -227,17 +233,18 @@ def from_bytes(data: bytes, planet=None) -> World:
         w.goods = np.array(g, dtype=np.float64)        # exactly as saved (replay digest)
     else:
         _trade.grow(w, len(w.farm_share) - 1)
-    if "partner_of" in arrays:                          # gift partnerships (trade stage 2); older saves have none
-        w.partner_of = np.array(arrays["partner_of"], dtype=np.int64)
-        w.partner_since = np.array(arrays["partner_since"], dtype=np.int64)
-        if "partner_gave" in arrays:                   # running gift totals (15 November 2026)
-            w.partner_gave = np.array(arrays["partner_gave"], dtype=np.float64)
-        else:
-            from . import params as _P
-            w.partner_gave = np.zeros(w.partner_of.shape + (len(_P.GIFT_GOODS),))
-    elif len(w.partner_of) < len(w.goods):
-        _trade.grow(w, len(w.goods) - 1)             # keeps every goods row (Codex review 013)
-    _trade.grow(w, len(w.goods) - 1)                 # widens partner links to PARTNERS_CAP for older saves (stage 4a)
+    alive_ids = [b.id for b in w.bands.live.values() if b.alive]
+    if "partner_slots_slot" in arrays:                  # partner rows for bands holding one (22 November 2026)
+        _trade.partner_load(w, arrays)
+    elif "partner_of" in arrays:                        # gift partnerships (trade stage 2), a row for every band id
+        of = np.asarray(arrays["partner_of"], dtype=np.int64)
+        gave = np.asarray(arrays["partner_gave"], dtype=np.float64) if "partner_gave" in arrays else None
+        _trade.partner_rows_from_dense(w, of, np.asarray(arrays["partner_since"], dtype=np.int64), gave, alive_ids)
+    else:                                               # older saves have none: every living band starts without
+        for i in alive_ids:
+            w.partner_slots.assign(i)
+        _trade.mark_partner_ended(w, alive_ids)
+    _trade.grow(w, len(w.goods) - 1)                 # keeps every goods row (Codex review 013)
     if "goods_reached" in arrays:                       # trade stage 3, after review 014
         w.goods_reached = np.array(arrays["goods_reached"], dtype=bool)
     else:
@@ -249,6 +256,8 @@ def from_bytes(data: bytes, planet=None) -> World:
     _places.from_json(w, meta.get("places", {}))
     if "dz_log" in arrays and np.asarray(arrays["dz_log"]).size:
         w.dz_log = _disease.RowLog.from_array(arrays["dz_log"])
+    from .sim import minorlog as _minor                  # the compact log: older saves start with it empty
+    _minor.load(w, {k: v for k, v in arrays.items() if k.startswith("minor_")})
     for k in _disease.ARRAYS:
         if k in arrays and np.asarray(arrays[k]).size:
             setattr(w, k, np.array(arrays[k], dtype=getattr(w, k).dtype))
@@ -259,9 +268,7 @@ def from_bytes(data: bytes, planet=None) -> World:
         # earlier set-aside counts are added to, never overwritten.
         for k in [k for k in w.counts if k.startswith("ob_")]:
             w.counts["unattributed_" + k] = w.counts.get("unattributed_" + k, 0) + w.counts.pop(k)
-    if "dz_seen" in arrays and "dz_last" not in arrays and np.asarray(arrays["dz_seen"]).size:
-        seen = np.asarray(arrays["dz_seen"], dtype=bool)          # review-028 saves: met, date unknown (review 030)
-        w.dz_last = np.where(seen, -2, -1).astype(np.int32)
+    _disease.load_rows(w, arrays, [b.id for b in w.bands.live.values() if b.alive])   # per-band rows (22 Nov 2026)
     from .sim import customs as _customs
     _customs.widen(w)                                    # "response to epidemics" (M4a) for older saves
     from .sim import land as _land                       # the land answers back (M4a): older saves start untouched
@@ -367,7 +374,7 @@ def digest(w: World) -> str:
     for arr in (w.stock, w.stock_broad, w.known, w.region_z, w.customs, w.neutral, w.hazard_food, w.immune, w.skill, w.farm_share,
                 w.crop_store, w.still_years, w.forage_rr, w.spec, w.polity_of, w.polity_via, w.conquered_at, w.herder_since, w.farm_rr_real, w.farm_rr_cell,
                 getattr(w, "farm_rr_lost", None) if getattr(w, "farm_rr_lost", None) is not None else np.zeros(0), w.tech,
-                w.tech_record, _tech_scribes(w), w.goods, w.partner_of, w.partner_since, w.goods_reached, w.partner_gave, w.treasury,
+                w.tech_record, _tech_scribes(w), w.goods, *__import__("origins.sim.trade", fromlist=["x"]).partner_state(w).values(), w.goods_reached, w.treasury,
               *[getattr(w, n_, None) if getattr(w, n_, None) is not None else np.zeros((0, 0), bool)
                 for n_ in ("tech_prev_prac", "tech_prev_mats", "tech_prev_dep")],
               getattr(w, "tech_prev_wood", None) if getattr(w, "tech_prev_wood", None) is not None else np.zeros(0, bool),
@@ -376,8 +383,13 @@ def digest(w: World) -> str:
                 if getattr(w, k, None) is not None],
               *[getattr(w, k) for k in __import__("origins.sim.disease", fromlist=["ARRAYS"]).ARRAYS
                 if getattr(w, k, None) is not None],
+              *(__import__("origins.sim.disease", fromlist=["x"]).save_rows(w).values()
+                if getattr(w, "dz_slots", None) is not None else ()),
               __import__("origins.sim.disease", fromlist=["x"]).log_array(w)):
         h.update(np.ascontiguousarray(arr).tobytes())
+    for k, v in sorted(__import__("origins.sim.minorlog", fromlist=["x"]).arrays(w).items()):   # the compact log
+        h.update(k.encode())
+        h.update(np.ascontiguousarray(v).tobytes())
     for k, v in sorted(w.bands.arrays().items()):
         h.update(k.encode())
         h.update(np.ascontiguousarray(v).tobytes())

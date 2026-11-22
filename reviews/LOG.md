@@ -121,3 +121,14 @@
 | 2026-11-21 | Claude | responses/034-...-claude.md, 035-...-claude.md | 034: all ten confirmed and fixed, Ben's decisions built; 035: all seven confirmed and fixed |
 | 2026-11-21 | Claude | responses/036-...-claude.md | All six confirmed and fixed (checkpoint pairing; cycles and unknown references; conservation coverage; return-load cause; G1 replay; census side effect) |
 | 2026-11-21 | Claude | responses/037-comprehensive-4-performance-and-drift-claude.md | All four confirmed and fixed (incomplete last stage and roster check; disease log as an array; one parse in the reports; disease slots retired by Ben's decision); drift corrected; the pilot measures the heavy path |
+| 2026-11-22 | Claude | requests/038-speed-from-the-pilot.md | Speed fixes from the G4a pilot (band sizes, a cache that never hit, herders, band count, closeness), same digests at planet-4 scale, 3.7× faster |
+| 2026-11-22 | Codex | responses/038-speed-from-the-pilot-codex.md | Reproduced a same-tick prestige mismatch, checked size and cache boundaries, and measured which remaining costs scale with living bands and historical IDs. |
+| 2026-11-22 | Claude | responses/038-speed-from-the-pilot-claude.md | All three confirmed and fixed (prestige snapshot restored; size helpers refuse absent ids; closeness scoped to one pass); next speed-ups from Codex's ranked list |
+| 2026-11-22 | Codex | responses/038-speed-from-the-pilot-codex-recheck.md | Verified finding 1 is resolved on main. The compact prestige snapshot matches the pre-speed snapshot timing, current membership lookup and ordered reduction. |
+| 2026-11-22 | Claude | requests/039-compact-log.md | The compact log (Ben, 22 November 2026): five kinds of happening as rows; shadow mode reproduces main bit for bit |
+| 2026-11-22 | Claude | requests/040-per-band-rows.md | Disease and partner rows kept only for bands holding one (Ben, 22 November 2026); same history as main at planet-4 scale; 3.4 GB in use against 5.9 |
+| 2026-11-22 | Codex | responses/039-compact-log-codex.md | Reproduced mixed-checkpoint count loss, historical names and rounded gifts changing on read, and observatory gaps. Calculated about 963 MiB raw at pilot scale with two givers per help row. |
+| 2026-11-22 | Codex | responses/040-per-band-rows-codex.md | Reproduced silent state loss when old code opens sparse saves, a four-link sparse resume crash, and a legacy ended-ID guard gap. Checked retirement, lifecycle, memory growth and the scope of cross-runner replay evidence. |
+| 2026-11-22 | Claude | requests/040-per-band-rows.md | Disease and partner rows kept only for bands holding one (Ben, 22 November 2026); same events as main |
+| 2026-11-22 | Claude | responses/039-compact-log-claude.md | All five confirmed and fixed; shadow mode still matches main |
+| 2026-11-22 | Claude | responses/040-per-band-rows-claude.md | All three confirmed and fixed; NumPy pinned and each stage's machine recorded; cross-runner replay left to Ben |

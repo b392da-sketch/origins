@@ -320,9 +320,11 @@ def extras(w, pr, rec, rng):
                          round(hu[0] / hu[1], 4) if hu[1] else None, hu[1], int(rain[c])])
         rec["land_cells"] = rows
         rec["land_exposure"] = {k: v for k, v in w.counts.items() if k.startswith("land_exp")}
+        from origins.sim import minorlog
         rec["land_events"] = {k: int(sum(1 for e in w.events if e["kind"] == k))
                               for k in ("land_hunger", "land_move", "land_abandoned", "land_game", "land_forest",
                                         "land_soil", "land_salt")}
+        rec["land_events"]["land_move"] += minorlog.size(w, "land_move")   # older events and rows (review 039)
     # M1's carried-forward items, re-measured (Ben, 21 November 2026): language pairs across the sea and on the
     # same land (G1 check 5), and the share of deaths from disease after the first village
     from gates import g1
@@ -331,18 +333,33 @@ def extras(w, pr, rec, rng):
     except Exception as ex:                          # noqa: BLE001 (recorded, never silent)
         rec["g1_language_pairs_error"] = repr(ex)
     # check 11: sampled cause chains by kind, and which kinds never happened
-    by_kind: dict = {}
+    from origins.sim import minorlog
+    by_kind: dict = {}                                # label -> event ids; the compact log's rows follow them
     for e in w.events:
         k = CHAIN_KINDS.get(e["kind"])
         if k is not None:
-            by_kind.setdefault(k, []).append(e["id"])
+            by_kind.setdefault(k, []).append(int(e["id"]))
+    rows_of = {k: [(kind, minorlog.size(w, kind)) for kind in minorlog.KINDS if CHAIN_KINDS.get(kind) == k]
+               for k in set(CHAIN_KINDS.values())}    # (Ben, 22 November 2026: millions of rows, not listed one by one)
+
+    def ref_at(k, j):
+        evs = by_kind.get(k, [])
+        if j < len(evs):
+            return {"event": evs[j]}
+        j -= len(evs)
+        for kind, n in rows_of[k]:
+            if j < n:
+                return {"log": [kind, j]}
+            j -= n
+        raise IndexError(j)
     chains = {}
     good = w.__dict__.setdefault("_gate_good", set())
     for k in sorted(set(CHAIN_KINDS.values())):
-        evs = by_kind.get(k, [])
-        smp = evs if len(evs) <= SAMPLE_CHAINS else [evs[i] for i in sorted(rng.choice(len(evs), SAMPLE_CHAINS, replace=False))]
-        chains[k] = [len(evs), len(smp), int(sum(explain.resolvable(w, {"event": int(i)}, good=good) for i in smp))]
-    rec["chains_fields"] = ["events of this kind", "sampled", "resolved"]
+        total = len(by_kind.get(k, [])) + sum(n for _, n in rows_of[k])
+        pos = range(total) if total <= SAMPLE_CHAINS else sorted(rng.choice(total, SAMPLE_CHAINS, replace=False))
+        smp = [ref_at(k, int(j)) for j in pos]
+        chains[k] = [total, len(smp), int(sum(explain.resolvable(w, r, good=good) for r in smp))]
+    rec["chains_fields"] = ["events or compact-log rows of this kind", "sampled", "resolved"]
     rec["chains"] = chains
     rec["arm"] = pr.get("arm", "")
     rec["arm_params"] = ARMS.get(rec["arm"], {})
@@ -355,6 +372,7 @@ def finish(w, ws, rs, seconds, pr, tag):
     rec = g3.finish(w, ws, rs, seconds, pr, True, write=False)
     extras(w, pr, rec, np.random.default_rng([ws, rs, 41]))
     rec["record_seconds"] = round(time.time() - t0, 1)        # building the record (check 13; finding in review 034)
+    rec["stage_envs"] = pr.get("stage_envs", [])               # the machine of each stage (review 040)
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / f"run_w{ws}_s{rs}{tag}.json").write_text(json.dumps(rec))
 
@@ -392,6 +410,8 @@ def worker(jobs, budget, ckpt: Path, arm: str):
             w = World.new(ws, rs, _planet(ws))
             spent, pr = 0.0, g2.new_probe()
             pr["arm"] = arm
+        from gates.g0 import _env
+        pr.setdefault("stage_envs", []).append({**_env(), "from_year": int(w.year)})   # each stage's machine (review 040)
         _PR["pr"] = pr
         import resource
         while not g3.done(w):

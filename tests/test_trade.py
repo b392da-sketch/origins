@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 
 from origins import engine, persist, params as P
-from origins.sim import technology as T, trade
+from origins.sim import minorlog, technology as T, trade
 from origins.state import World
 from origins.worldgen import generate
 
@@ -149,7 +149,8 @@ class Review013(unittest.TestCase):
                 blob = zin.read(n)
                 if n == "arrays.npz":
                     arrs = dict(np.load(io.BytesIO(blob)))
-                    arrs.pop("partner_of"); arrs.pop("partner_since")
+                    for k_ in [k_ for k_ in arrs if k_.startswith("partner_")]:   # a save without partner rows
+                        arrs.pop(k_)
                     buf = io.BytesIO(); np.savez(buf, **arrs); blob = buf.getvalue()
                 zo.writestr(n, blob)
         w2 = persist.from_bytes(out.getvalue(), w.planet)
@@ -176,12 +177,12 @@ class Review013(unittest.TestCase):
         w.goods[a.id, trade.GI["shell"]] = 100.0
         old = P.PARTNER_FORM
         P.PARTNER_FORM = 0.0
-        n0 = len(w.events)
+        n0 = minorlog.size(w, "gift_exchange")
         try:
             trade.partnerships_yearly(w, w.living_bands())
         finally:
             P.PARTNER_FORM = old
-        ev = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "gift_exchange"]
+        ev = minorlog.since(w, "gift_exchange", n0)
         self.assertEqual(len(ev), 1)
         self.assertAlmostEqual(ev[0]["data"]["goods"][str(a.id)]["shell"], 5.0)
 
@@ -337,6 +338,7 @@ class PartnersTrade(unittest.TestCase):
         for b, n in zip(bs, (10, 30, 120, 3000)):
             sizes[b.id] = n
         w.band_sizes = lambda: sizes
+        w.sizes_of = lambda ids, w=w: w.band_sizes()[np.asarray(ids, dtype=int)]   # stubbed alike (sizes_of: G4a pilot)
         self.assertEqual(trade.allowance(w, [b.id for b in bs]).tolist(), [4, 4, 8, 16])
 
     def test_a_settled_band_trades_up_to_a_better_supplied_partner(self):
@@ -369,9 +371,24 @@ class PartnersTrade(unittest.TestCase):
         w, (a, b) = self._bands_on(c)
         trade._link(w, a.id, b.id)
         w.goods[a.id, trade.GI["salt"]] = 7.0
-        w.partner_of = w.partner_of[:, :4].copy()
-        w.partner_since = w.partner_since[:, :4].copy()
-        w2 = persist.from_bytes(persist.to_bytes(w), planet=w.planet)
+        import io
+        import zipfile
+        data = persist.to_bytes(w)                        # rewritten as a save from before stage 4a: dense, four links
+        zin, out = zipfile.ZipFile(io.BytesIO(data)), io.BytesIO()
+        with zipfile.ZipFile(out, "w") as zo:
+            for n in zin.namelist():
+                blob = zin.read(n)
+                if n == "arrays.npz":
+                    arrs = dict(np.load(io.BytesIO(blob)))
+                    for k_ in [k_ for k_ in arrs if k_.startswith("partner_")]:
+                        arrs.pop(k_)
+                    arrs["partner_of"] = w.partner_of.dense()[:, :4].copy()
+                    arrs["partner_since"] = w.partner_since.dense()[:, :4].copy()
+                    buf = io.BytesIO()
+                    np.savez(buf, **arrs)
+                    blob = buf.getvalue()
+                zo.writestr(n, blob)
+        w2 = persist.from_bytes(out.getvalue(), planet=w.planet)
         self.assertEqual(w2.partner_of.shape[1], P.PARTNERS_CAP)
         self.assertEqual(trade.partners(w2, a.id), [b.id])
         self.assertEqual(w2.goods[a.id, trade.GI["salt"]], 7.0)
@@ -402,9 +419,9 @@ class GiftTotals(unittest.TestCase):
 
     def test_totals_add_up_and_only_the_first_exchange_is_an_event(self):
         w, a, b = self._pair()
-        n0 = len(w.events)
+        n0 = minorlog.size(w, "gift_exchange")
         self._years(w, 3)
-        ev = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "gift_exchange"]
+        ev = minorlog.since(w, "gift_exchange", n0)
         self.assertEqual(len(ev), 1)
         tot = trade.gift_totals(w, a.id, b.id)
         self.assertEqual(tot["years"], 3)
@@ -423,9 +440,9 @@ class GiftTotals(unittest.TestCase):
                and c not in set(int(x) for x in __import__("origins.sim.language", fromlist=["ring2"]).ring2(w)[a.cell])]
         b.cell = far[0]
         w.bands_changed()
-        n0 = len(w.events)
+        n0 = minorlog.size(w, "partnership_lapsed")
         self._years(w, 1)
-        lap = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "partnership_lapsed"]
+        lap = minorlog.since(w, "partnership_lapsed", n0)
         self.assertEqual(len(lap), 1)
         self.assertEqual(lap[0]["data"]["gifts"], tot)
         self.assertFalse(w.partner_gave[a.id].any())
@@ -504,17 +521,17 @@ class Review015(unittest.TestCase):
 
     def test_a_band_that_ends_keeps_its_gift_record(self):
         w, a, b, tot = self._gifts()
-        n0 = len(w.events)
+        n0 = minorlog.size(w, "partnership_lapsed")
         trade.band_ended(w, b.id)
-        lap = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "partnership_lapsed"]
+        lap = minorlog.since(w, "partnership_lapsed", n0)
         self.assertEqual(len(lap), 1)
         self.assertEqual(lap[0]["data"]["gifts"], tot)
 
     def test_consolidation_keeps_the_gift_record(self):
         w, a, b, tot = self._gifts()
-        n0 = len(w.events)
-        trade._unlink_all(w, b.id, why="joined another band")
-        lap = [w.events[i] for i in range(n0, len(w.events)) if w.events[i]["kind"] == "partnership_lapsed"]
+        n0 = minorlog.size(w, "partnership_lapsed")
+        trade._unlink_all(w, b.id, joined=a.id)
+        lap = minorlog.since(w, "partnership_lapsed", n0)
         self.assertEqual(len(lap), 1)
         self.assertEqual(lap[0]["data"]["gifts"], tot)
 
@@ -598,11 +615,12 @@ class Traders(unittest.TestCase):
         sizes = np.zeros(len(w.band_sizes()) + 64, dtype=int)
         sizes[bs[0].id] = sizes[bs[1].id] = 200
         w.band_sizes = lambda: sizes[:len(w.bands)] if len(w.bands) <= len(sizes) else np.resize(sizes, len(w.bands))
+        w.sizes_of = lambda ids, w=w: w.band_sizes()[np.asarray(ids, dtype=int)]   # stubbed alike (sizes_of: G4a pilot)
         w.spec[bs[0].id] = 10.0                                  # two traders at A's seat
         return w, bs, A, B, c, sizes
 
     def _year(self, w):
-        from origins.sim import trade, traders
+        from origins.sim import minorlog, trade, traders
         trade.check_begin(w)
         traders.yearly(w, w.living_bands())
         w.invariant_failures = getattr(w, "invariant_failures", [])
@@ -762,6 +780,7 @@ class Review016(unittest.TestCase):
             others.append(Q)
         w.bands_changed()
         w.band_sizes = lambda: np.resize(sizes, len(w.bands))
+        w.sizes_of = lambda ids, w=w: w.band_sizes()[np.asarray(ids, dtype=int)]   # stubbed alike (sizes_of: G4a pilot)
         w.spec[a.id] = 10.0
         F = trade.GI["fine_stone"]
         w.goods[a.id, F] = 100.0
@@ -818,6 +837,7 @@ class Decisions16Nov(unittest.TestCase):
         for b in bs[2:]:
             sizes[b.id] = 5
         w.band_sizes = lambda: np.resize(sizes, len(w.bands))
+        w.sizes_of = lambda ids, w=w: w.band_sizes()[np.asarray(ids, dtype=int)]   # stubbed alike (sizes_of: G4a pilot)
         w.spec[bs[0].id] = 10.0
         w.goods[bs[0].id, trade.GI["salt"]] = 50.0
         old = P.ROUTES_MAX
@@ -841,6 +861,7 @@ class Curation(unittest.TestCase):
         sizes = np.zeros(len(w.bands) + 64, dtype=int)
         sizes[rich.id] = sizes[poor.id] = 100
         w.band_sizes = lambda: np.resize(sizes, len(w.bands))
+        w.sizes_of = lambda ids, w=w: w.band_sizes()[np.asarray(ids, dtype=int)]   # stubbed alike (sizes_of: G4a pilot)
         F, S = trade.GI["fine_stone"], trade.GI["salt"]
         w.goods[rich.id, F], w.goods[poor.id, F] = 100.0, 0.1     # 1 and 0.001 per person
         w.goods[rich.id, S], w.goods[poor.id, S] = 100.0, 0.1
@@ -948,6 +969,7 @@ class GoodsEffects(unittest.TestCase):
         sizes = np.zeros(len(w.bands) + 64, dtype=int)
         sizes[b.id] = size
         w.band_sizes = lambda: np.resize(sizes, len(w.bands))
+        w.sizes_of = lambda ids, w=w: w.band_sizes()[np.asarray(ids, dtype=int)]   # stubbed alike (sizes_of: G4a pilot)
         return w, b, T
 
     def test_imported_copper_lets_a_band_work_it_and_its_loss_is_recorded(self):
@@ -1043,6 +1065,7 @@ class GoodsEffects(unittest.TestCase):
         sizes = np.zeros(len(w.bands) + 64, dtype=int)
         sizes[a.id] = sizes[b.id] = 100
         w.band_sizes = lambda: np.resize(sizes, len(w.bands))
+        w.sizes_of = lambda ids, w=w: w.band_sizes()[np.asarray(ids, dtype=int)]   # stubbed alike (sizes_of: G4a pilot)
         ids, cells = np.array([a.id, b.id]), np.array([a.cell, b.cell])
         self.assertEqual(trade.trade_need(w, ids, cells).tolist(), [0.0, 0.0])
         w.goods[a.id, trade.GI["pottery"]] = 100.0                 # pottery counts too
@@ -1289,3 +1312,58 @@ class Review019(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Review038(unittest.TestCase):
+    """Codex review 038: the speed fixes from the G4a pilot must not change what any routine returns."""
+
+    def test_finding1_prestige_keeps_its_size_snapshot_within_a_tick(self):
+        from origins.sim import demography, polity, traders
+        w = World.new(1, 1, generate(1))
+        b = w.living_bands()[0]
+        trade.ensure(w, w.next_band - 1, -1)
+        p = polity._new_polity(w, b, [{"note": "t"}], why="t")
+        traders.grow(w, p.id)
+        n = w.band_size(b.id)
+        w.treasury[p.id, trade.GI["gold"]] = 0.5 * n * P.PRESTIGE_NEED     # half the need per member
+        first = trade.prestige_factor(w, p.id)
+        self.assertAlmostEqual(first, 0.5, places=9)
+        mem = w.members(b.id)
+        demography.kill(w, mem[:len(mem) // 2], np.zeros(len(mem) // 2, dtype=int))   # deaths within the tick
+        self.assertEqual(trade.prestige_factor(w, p.id), first)          # not seen until the next tick (as before)
+        w.t += 1
+        self.assertGreater(trade.prestige_factor(w, p.id), first)
+
+    def test_finding2_size_helpers_refuse_absent_and_non_integer_ids(self):
+        w = World.new(1, 1, generate(1))
+        for bad in (-1, w.next_band):
+            with self.assertRaises(IndexError):
+                w.band_size(bad)
+            with self.assertRaises(IndexError):
+                w.sizes_of([bad])
+        with self.assertRaises(TypeError):
+            w.sizes_of([1.9])
+        with self.assertRaises(TypeError):
+            w.band_size(1.9)
+        ids = [b.id for b in w.living_bands()]
+        self.assertEqual(w.sizes_of(ids + ids[:1]).tolist(), w.band_sizes()[ids + ids[:1]].tolist())
+        self.assertEqual([w.band_size(i) for i in ids], w.band_sizes()[ids].tolist())
+
+    def test_finding3_closeness_is_kept_only_within_one_pass(self):
+        import copy
+        w = World.new(1, 1, generate(1))
+        a = w.living_bands()[0]
+        la = w.languages[a.language]
+        lb = copy.deepcopy(la)
+        lb.id = 10 ** 6
+        w.languages[lb.id] = lb
+        b = copy.copy(a)
+        b.language = lb.id
+        cache = {}
+        self.assertEqual(trade._closeness(w, a, b, cache), 1.0)
+        m = next(iter(lb.lexicon))
+        lb.lexicon[m] = [lb.lexicon[m][0], -12345] + list(lb.lexicon[m][2:])   # a root changed in place
+        self.assertEqual(trade._closeness(w, a, b, cache), 1.0)          # within one pass: kept
+        self.assertLess(trade._closeness(w, a, b), 1.0)                  # a new pass sees the change
+        src = __import__("inspect").getsource(trade.partnerships_yearly)
+        self.assertIn("close_cache: dict = {}", src)

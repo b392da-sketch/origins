@@ -245,7 +245,7 @@ def inherit(w, dead_ids):
 
 def work_share(w, ids, sizes=None):
     """Share of each band's people who work at producing food (specialists do not)."""
-    sizes = w.band_sizes()[ids] if sizes is None else sizes
+    sizes = w.sizes_of(ids) if sizes is None else sizes
     return np.where(sizes > 0, 1 - np.minimum(w.spec[ids], sizes) / np.maximum(sizes, 1e-9), 1.0)
 
 

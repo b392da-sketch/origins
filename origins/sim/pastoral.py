@@ -27,6 +27,18 @@ def _animal_value(w, b, c, wild, suit):
     return float(val[farming.ANIMALS].max()), float(val[farming.PLANTS].max())
 
 
+def _animal_values(w, b, cells, wild, suit):
+    """_animal_value at several cells at once: the same numbers (elementwise the same operations), with the
+    quality of the band's skills worked out once (G4a pilot, 21 November 2026: 4.8 million single calls in 20
+    years at planet-4 scale)."""
+    sk = w.skill[b.id]
+    q = farming.quality(sk)
+    cells = np.asarray(cells, dtype=np.int64)
+    usable = (sk >= 3)[None, :] | wild[cells]
+    val = np.where(usable, q[None, :] * suit[cells], 0.0)
+    return val[:, farming.ANIMALS].max(axis=1), val[:, farming.PLANTS].max(axis=1)
+
+
 def is_herder(w, b, wild=None, suit=None, cell=None) -> bool:
     """A herding people now: farming at least half its work, with at least PASTORAL_SHARE of its farming value in
     animals at its current cell, or at `cell` if given (where it would be after a move). herder_since only records
@@ -39,14 +51,15 @@ def is_herder(w, b, wild=None, suit=None, cell=None) -> bool:
     if cache is None or cache[0] != w.t:
         cache = (w.t, {})
         w._herder_cache = cache
-    hit = cache[1].get((b.id, c))
+    mine = cache[1].setdefault(b.id, {})         # by band, then cell, so one band's entries can be dropped at once
+    hit = mine.get(c)
     if hit is not None:
         return hit
     if wild is None:
         wild, suit = farming.land_tables(w)
     va, vp = _animal_value(w, b, c, wild, suit)
     out = bool(va > 0 and va >= P.PASTORAL_SHARE * (va + vp))
-    cache[1][(b.id, c)] = out
+    mine[c] = out
     return out
 
 
@@ -81,11 +94,9 @@ def move(w):
             continue
         here = va * P.FARM_CAPACITY / max(farmers.get(b.cell, 0.0), 1.0)
         best, best_v, best_va = None, here * P.PASTORAL_MOVE, 0.0
-        for c in nb[b.cell]:
-            c = int(c)
-            if c < 0 or not land[c]:
-                continue
-            vc, _ = _animal_value(w, b, c, wild, suit)
+        cand = [int(c) for c in nb[b.cell] if c >= 0 and land[int(c)]]
+        vals = _animal_values(w, b, cand, wild, suit)[0].tolist() if cand else []
+        for c, vc in zip(cand, vals):
             if vc <= 0:
                 continue
             v = vc * P.FARM_CAPACITY / (farmers.get(c, 0.0) + n)

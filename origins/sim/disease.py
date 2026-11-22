@@ -38,6 +38,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from ..rows import SlotMap, SparseRows
+
 from .. import params as P
 from ..state import C
 
@@ -48,10 +50,14 @@ ADULT = 1
 
 def init(w):
     w.diseases = []                                                   # list of dicts (traits, origin, events)
-    w.dz_imm = np.zeros((64, ND_CAP, 2), dtype=np.float32)           # band x disease x (child, adult): immune share
+    # Per band, rows only for bands that hold one (origins/rows.py; Ben, 22 November 2026): a band's row is released
+    # when it ends, its last-circulation years folded into dz_gone_last first.
+    w.dz_slots = SlotMap()
+    w.dz_imm = SparseRows(w.dz_slots, (ND_CAP, 2), np.float32, 0.0)  # band x disease x (child, adult): immune share
     w.dz_active = np.zeros((w.planet.n, ND_CAP), dtype=bool)         # circulating on the cell this year
     # band x disease: the last year it circulated among them; -1 never; -2 met at an unknown time (older saves)
-    w.dz_last = -np.ones((64, ND_CAP), dtype=np.int32)
+    w.dz_last = SparseRows(w.dz_slots, (ND_CAP,), np.int32, -1)
+    w.dz_gone_last = np.full(ND_CAP, -1, dtype=np.int64)            # the same, the latest among bands since ended
     w.dz_since = -np.ones((w.planet.n, ND_CAP), dtype=np.int32)    # year it began circulating unbroken on the cell
     w.dz_log = RowLog()             # one row per cell and disease each year it circulates there: LOG_FIELDS
 
@@ -152,28 +158,32 @@ def upgrade_log(rows):
 def ensure(w, band_id: int, parent: int):
     if getattr(w, "dz_imm", None) is None:
         init(w)
-    if band_id >= len(w.dz_imm):
-        cap = len(w.dz_imm)
-        while cap <= band_id:
-            cap *= 2
-        a = np.zeros((cap, ND_CAP, 2), dtype=np.float32)
-        a[:len(w.dz_imm)] = w.dz_imm
-        w.dz_imm = a
-    _last_rows(w)
+    w.dz_slots.assign(band_id)
     if parent >= 0:
         w.dz_imm[band_id] = w.dz_imm[parent]                         # a daughter band shares its mother's history
         w.dz_last[band_id] = w.dz_last[parent]
 
 
+def release(w, band_id: int):
+    """A band has ended: its last-circulation years count on in dz_gone_last (the longest-gone test reads them, as
+    it read every band's row when rows were kept for every id), and its row is freed."""
+    if getattr(w, "dz_slots", None) is None:
+        return
+    if band_id < len(w.dz_slots) and w.dz_slots.slot[band_id] >= 0:
+        w.dz_gone_last = np.maximum(w.dz_gone_last, w.dz_last[band_id].astype(np.int64))
+    w.dz_slots.release(band_id)                    # marked ended even without a row (review 040, finding 3)
+
+
+def last_any(w) -> np.ndarray:
+    """Per disease, the last year it circulated among any band, living or ended (-1 never, -2 unknown)."""
+    rows = w.dz_last.rows()
+    live = rows.max(axis=0).astype(np.int64) if len(rows) else np.full(ND_CAP, -1, dtype=np.int64)
+    return np.maximum(live, w.dz_gone_last)
+
+
 def _last_rows(w):
-    s = getattr(w, "dz_last", None)
-    if s is None or len(s) < len(w.dz_imm):
-        out = -np.ones((len(w.dz_imm), ND_CAP), dtype=np.int32)
-        if s is not None and len(s):
-            out[:len(s)] = s
-        elif w.diseases:
-            out[(w.dz_imm > 0).any(axis=2)] = -2                       # older saves: immunity shows past contact
-        w.dz_last = out
+    """Kept for callers: rows are always aligned since 22 November 2026 (older saves are converted on loading)."""
+    return
 
 
 def combine(w, src, dst, carriers: float):
@@ -182,12 +192,14 @@ def combine(w, src, dst, carriers: float):
     bands are modelled with a fixed share of children (DZ_CHILD_SHARE), not their actual ages."""
     if getattr(w, "dz_imm", None) is None or not w.diseases:
         return
-    sizes = w.band_sizes()
-    n_after = float(sizes[dst.id]) if dst.id < len(sizes) else 0.0
+    n_after = w.band_size(dst.id) if dst.id < w.next_band else 0.0
     c = max(float(carriers), 0.0)
     if c <= 0:
         return
     wt = min(1.0, c / max(n_after, c, 1.0))
+    for x in (src.id, dst.id):                            # as in yearly: a living band holds a row
+        if x >= len(w.dz_slots) or w.dz_slots.slot[x] == -1:
+            w.dz_slots.assign(x)                          # (an ended band's row raises: nothing may read it)
     w.dz_imm[dst.id] = (1 - wt) * w.dz_imm[dst.id] + wt * w.dz_imm[src.id]
     _last_rows(w)
     a, b = w.dz_last[dst.id], w.dz_last[src.id]
@@ -207,13 +219,13 @@ def yearly(w):
     bands = w.living_bands()
     if not bands:
         return
-    if len(w.dz_imm) <= max(b.id for b in bands):
-        ensure(w, max(b.id for b in bands), -1)
-    _last_rows(w)
+    for b in bands:                          # a living band without a row (one made before diseases existed) gets
+        if b.id >= len(w.dz_slots) or w.dz_slots.slot[b.id] == -1:   # the rows a band id always had: none yet
+            w.dz_slots.assign(b.id)
     nd = len(w.diseases)
     ids = np.array([b.id for b in bands])
     cells = np.array([b.cell for b in bands])
-    sizes = w.band_sizes()[ids].astype(float)
+    sizes = w.sizes_of(ids).astype(float)
     _age_and_wane(w, ids)
     n = w.planet.n
     # people who can still catch each disease, per cell
@@ -423,7 +435,7 @@ def _free_slot(w):
     if getattr(w, "_dz_slot_year", None) == w.year:
         return w._dz_slot_cache
     _last_rows(w)
-    last = w.dz_last.max(axis=0) if len(w.dz_last) else np.full(ND_CAP, -1)
+    last = last_any(w)
     born = np.array([dz.get("year", 0) for dz in w.diseases])
     gone = (~w.dz_active.any(axis=0)) & (np.maximum(last, born) < w.year - P.DZ_RETIRE_YEARS)
     slot = int(np.argmin(np.where(gone, np.maximum(last, born), np.iinfo(np.int64).max))) if gone.any() else None
@@ -435,9 +447,8 @@ def _retire(w, d):
     """Free slot d: its disease is recorded as retired and its immunity, exposure and circulation cleared."""
     old = dict(w.diseases[d])
     _last_rows(w)
-    col = w.dz_last[:, d]
     old["retired"] = int(w.year)
-    old["last_circulated"] = int(max(int(col.max()) if len(col) else -1, -1))
+    old["last_circulated"] = int(max(int(last_any(w)[d]), -1))
     w.event("disease_retired", cell=int(old.get("cell", 0)), disease=old.get("name"),
             causes=([{"event": int(old["event"])}] if old.get("event") is not None else [])
             + [{"note": f"{old.get('name')} had not circulated among people for {P.DZ_RETIRE_YEARS:,} years and is "
@@ -447,6 +458,7 @@ def _retire(w, d):
     w.diseases_retired.append(old)
     w.dz_imm[:, d] = 0.0
     w.dz_last[:, d] = -1
+    w.dz_gone_last[d] = -1
     w.dz_active[:, d] = False
     w.dz_since[:, d] = -1
     w.counts["dz_retired"] = w.counts.get("dz_retired", 0) + 1
@@ -670,7 +682,50 @@ def from_json(w, d):
     w.diseases = d.get("diseases", [])
     w.diseases_retired = d.get("retired", [])
     w.dz_log = RowLog(upgrade_log(d.get("log", [])))   # older saves kept it in JSON; newer ones in the arrays
-    w.dz_last = -np.ones((0, ND_CAP), dtype=np.int32)  # restored from the arrays, or derived from immunity
 
 
-ARRAYS = ("dz_imm", "dz_active", "dz_last", "dz_since")
+ARRAYS = ("dz_active", "dz_since")             # per cell; the per-band rows are saved by save_rows
+
+
+def save_rows(w) -> dict:
+    """The per-band rows for the save and the digest: the slot map, the rows in use, and dz_gone_last."""
+    out = w.dz_slots.state("dz_slots")
+    out["dz_imm_rows"] = w.dz_imm.rows()
+    out["dz_last_rows"] = w.dz_last.rows()
+    out["dz_gone_last"] = w.dz_gone_last
+    return out
+
+
+def load_rows(w, arrs: dict, alive_ids):
+    """Rows from a save: the slot map itself, or, from saves with a row for every band id (before 22 November
+    2026), the living bands' rows, the ended bands' last-circulation years folded into dz_gone_last."""
+    if "dz_slots_slot" in arrs:
+        w.dz_slots.load("dz_slots", arrs)
+        for a, k in ((w.dz_imm, "dz_imm_rows"), (w.dz_last, "dz_last_rows")):
+            r = np.asarray(arrs[k], dtype=a.dtype)
+            a._grow_rows(max(len(r), 1))
+            a.data[:len(r)] = r
+        w.dz_gone_last = np.array(arrs["dz_gone_last"], dtype=np.int64)
+        return
+    imm = np.asarray(arrs.get("dz_imm", np.zeros((0, ND_CAP, 2))), dtype=np.float32)
+    if "dz_last" in arrs and np.asarray(arrs["dz_last"]).size:
+        last = np.asarray(arrs["dz_last"], dtype=np.int32)
+    elif "dz_seen" in arrs and np.asarray(arrs["dz_seen"]).size:
+        last = np.where(np.asarray(arrs["dz_seen"], dtype=bool), -2, -1).astype(np.int32)   # review-028 saves
+    elif w.diseases and len(imm):
+        last = np.where((imm > 0).any(axis=2), -2, -1).astype(np.int32)                # older: immunity shows contact
+    else:
+        last = -np.ones((len(imm), ND_CAP), dtype=np.int32)
+    n = min(max(len(imm), len(last)), w.next_band)      # ids issued so far (the arrays ran ahead by doubling)
+    alive = sorted(int(i) for i in alive_ids)
+    for i in alive:
+        w.dz_slots.assign(i)
+        if i < len(imm):
+            w.dz_imm[i] = imm[i]
+        if i < len(last):
+            w.dz_last[i] = last[i]
+    dead = np.setdiff1d(np.arange(min(n, len(last))), np.asarray(alive, dtype=np.int64))
+    for j in range(0, len(dead), 65536):            # in pieces: no gather of every ended row at once (review 040)
+        w.dz_gone_last = np.maximum(w.dz_gone_last, last[dead[j:j + 65536]].max(axis=0).astype(np.int64))
+    # every issued id not alive has ended, whether or not the old arrays reached it (review 040, finding 3)
+    w.dz_slots.mark_ended(np.setdiff1d(np.arange(w.next_band), np.asarray(alive, dtype=np.int64)))

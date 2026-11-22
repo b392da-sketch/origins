@@ -239,7 +239,7 @@ def carry(w, src, dst, route, carriers):
     already does without an event per band; Ben, 14 November 2026, decision 6: until then merges dropped them)."""
     from . import technology, disease
     technology.combine(w, src, dst, route, carriers)
-    disease.combine(w, src, dst, carriers if carriers is not None else float(w.band_sizes()[src.id]))
+    disease.combine(w, src, dst, carriers if carriers is not None else w.band_size(src.id))
     if route in ("combined", "merge"):
         # a whole people joining is a change of record, not of history: last year's receipts from trade and any
         # past herding go with it (Codex review 035, finding 6)
@@ -254,8 +254,7 @@ def carry(w, src, dst, route, carriers):
         w.skill[dst.id] = np.maximum(w.skill[dst.id], w.skill[src.id])
         cache = getattr(w, "_herder_cache", None)       # dst's way of life may have changed (Codex review 009, finding 2)
         if cache is not None:
-            for key in [k for k in cache[1] if k[0] == dst.id]:
-                del cache[1][key]
+            cache[1].pop(dst.id, None)
 
 
 def consolidate_groups(w):
@@ -277,7 +276,7 @@ def consolidate_groups(w):
         groups.merge_into(w, b, o)
         carry(w, b, o, "combined", n)                # one people now: it keeps what either part knew
         trade.move_share(w, b.id, o.id, 1.0)
-        trade._unlink_all(w, b.id, why=f"joined {w.band_name(o)}")   # partnerships end, record kept (reviews 013, 015)
+        trade._unlink_all(w, b.id, joined=o.id)   # partnerships end, record kept (reviews 013, 015)
         o.store += b.store
         b.store = 0.0
         w.crop_store[o.id] += w.crop_store[b.id]     # the standing crop goes with the people
@@ -285,6 +284,8 @@ def consolidate_groups(w):
         land.move_crop_loss(w, b.id, o.id, 1.0)
         b.alive = False
         b.ended = w.t
+        from . import disease
+        disease.release(w, b.id)                     # its disease rows are freed (origins/rows.py)
         del b.trail[:-3]
         b.last_move = f"combined with {w.band_name(o)} (same land)"
         w.counts["consolidated"] = w.counts.get("consolidated", 0) + 1
@@ -338,6 +339,8 @@ def end_band(w, b, why, log=True):
     w.bands_changed()
     b.ended = w.t
     trade.band_ended(w, b.id)
+    from . import disease
+    disease.release(w, b.id)                           # its disease rows are freed (origins/rows.py)
     if getattr(w, "crop_store", None) is not None and b.id < len(w.crop_store):
         w.crop_store[b.id] = 0.0                       # fields nobody is left to harvest (not yet counted as food)
     land.drop_crop_loss(w, b.id)

@@ -63,20 +63,35 @@ def init(w):
     traders.init(w)
     w.goods = np.zeros((64, G), dtype=np.float64)
     w.goods_ledger = {g: {f: 0.0 for f in FLOWS} for g in GOODS}
-    k = int(getattr(P, "PARTNERS_CAP", 16))
-    w.partner_of = -np.ones((64, k), dtype=np.int64)
-    w.partner_gave = np.zeros((64, k, len(P.GIFT_GOODS)))    # running totals of gifts given to each partner (Ben, 15 Nov 2026)
+    _partner_rows(w)
     w.gift_log = []              # thinned: [year, band, partner, {good: given}, {good: received}]
     w.partner_dropped = {}       # "a,b" (a < b) -> tick a swap parted them (PARTNER_REFORM_WAIT; Ben, 15 Nov 2026)
-    w.partner_since = -np.ones((64, k), dtype=np.int64)
     w.exchange_log = []          # [year, band, units received, units given, goods that first arrived]
     w.goods_reached = np.zeros((64, G), dtype=bool)   # a good has reached this band (Codex review 014)
+
+
+def _partner_rows(w, k: int | None = None):
+    """Partner links, their start and running gift totals, per band, kept only for bands that hold a row
+    (origins/rows.py; Ben, 22 November 2026): a band's row is released when its partnerships end with it."""
+    from ..rows import SlotMap, SparseRows
+    k = int(getattr(P, "PARTNERS_CAP", 16)) if k is None else k
+    w.partner_slots = SlotMap()
+    w.partner_of = SparseRows(w.partner_slots, (k,), np.int64, -1)
+    w.partner_since = SparseRows(w.partner_slots, (k,), np.int64, -1)
+    # running totals of gifts given to each partner (Ben, 15 Nov 2026)
+    w.partner_gave = SparseRows(w.partner_slots, (k, len(P.GIFT_GOODS)), np.float64, 0.0)
+
+
+def _has_row(w, band_id: int) -> bool:
+    s = getattr(w, "partner_slots", None)
+    return s is not None and 0 <= band_id < len(s) and s.slot[band_id] >= 0
 
 
 def ensure(w, band_id: int, parent: int):
     """A new band starts with no goods and no partners; whoever creates it moves a share across with move_share."""
     grow(w, band_id)
     w.goods[band_id] = 0.0
+    w.partner_slots.assign(band_id)
     w.partner_of[band_id] = -1                 # a new band starts without partners of its own
     w.partner_since[band_id] = -1
     w.partner_gave[band_id] = 0.0
@@ -102,35 +117,58 @@ def grow(w, band_id: int):
         out[:len(w.goods_reached)] = w.goods_reached
         w.goods_reached = out
     if getattr(w, "partner_of", None) is None:
-        k = int(P.PARTNERS_CAP)
-        w.partner_of = -np.ones((len(w.goods), k), dtype=np.int64)
-        w.partner_since = -np.ones((len(w.goods), k), dtype=np.int64)
-    if getattr(w, "partner_gave", None) is None:                # saves from before running totals: start at zero
-        w.partner_gave = np.zeros(w.partner_of.shape + (len(P.GIFT_GOODS),))
+        _partner_rows(w)
     if not hasattr(w, "gift_log"):
         w.gift_log = []
     if not hasattr(w, "partner_dropped"):
         w.partner_dropped = {}
-    if w.partner_of.shape[1] < int(P.PARTNERS_CAP):            # saves from before stage 4a held four links per band
-        for name in ("partner_of", "partner_since"):
-            a = getattr(w, name)
-            out = -np.ones((len(a), int(P.PARTNERS_CAP)), dtype=np.int64)
-            out[:, :a.shape[1]] = a
-            setattr(w, name, out)
-        out = np.zeros((len(w.partner_of), int(P.PARTNERS_CAP), len(P.GIFT_GOODS)))
-        out[:, :w.partner_gave.shape[1]] = w.partner_gave
-        w.partner_gave = out
-    if band_id >= len(w.partner_of):
-        cap = len(w.goods)
-        for name in ("partner_of", "partner_since"):
-            a = getattr(w, name)
-            out = -np.ones((cap, a.shape[1]), dtype=np.int64)
-            out[:len(a)] = a
-            setattr(w, name, out)
-    if len(w.partner_gave) < len(w.partner_of):
-        out = np.zeros((len(w.partner_of),) + w.partner_gave.shape[1:])
-        out[:len(w.partner_gave)] = w.partner_gave
-        w.partner_gave = out
+    w.partner_slots.grow_ids(band_id)
+
+
+def partner_rows_from_dense(w, of, since, gave, alive_ids):
+    """Saves from before 22 November 2026 held a partner row for every band id: the living bands' rows are kept
+    (widened to PARTNERS_CAP if the save held fewer links), the others are ended (their rows were cleared when their
+    partnerships ended)."""
+    k = max(int(P.PARTNERS_CAP), of.shape[1] if of.ndim == 2 else 0)
+    _partner_rows(w, k)
+    w.partner_slots.grow_ids(max(w.next_band, len(w.goods)) - 1)
+    alive = sorted(int(x) for x in alive_ids)
+    for i in alive:
+        w.partner_slots.assign(i)
+        if i < len(of):
+            w.partner_of[i, :of.shape[1]] = of[i]
+            w.partner_since[i, :since.shape[1]] = since[i]
+            if gave is not None and i < len(gave):
+                w.partner_gave[i, :gave.shape[1]] = gave[i]
+    mark_partner_ended(w, alive)
+
+
+def mark_partner_ended(w, alive):
+    """Every issued id not alive has ended (review 040, finding 3)."""
+    w.partner_slots.mark_ended(np.setdiff1d(np.arange(w.next_band), np.asarray(sorted(alive), dtype=np.int64)))
+
+
+def partner_state(w) -> dict:
+    """The partner rows for the save and the digest."""
+    out = w.partner_slots.state("partner_slots")
+    out["partner_of_rows"] = w.partner_of.rows()
+    out["partner_since_rows"] = w.partner_since.rows()
+    out["partner_gave_rows"] = w.partner_gave.rows()
+    return out
+
+
+def partner_load(w, arrs: dict):
+    """Partner rows from a save, widened to PARTNERS_CAP if the save held fewer links, keeping every link in its
+    place (review 040, finding 2: a four-link save resumed at the default cap had free places it could not fill)."""
+    of = np.asarray(arrs["partner_of_rows"])
+    saved = of.shape[1] if of.ndim == 2 else 0
+    _partner_rows(w, max(int(P.PARTNERS_CAP), saved))
+    w.partner_slots.load("partner_slots", arrs)
+    for a, key in ((w.partner_of, "partner_of_rows"), (w.partner_since, "partner_since_rows"),
+                   (w.partner_gave, "partner_gave_rows")):
+        r = np.asarray(arrs[key], dtype=a.dtype)
+        a._grow_rows(max(len(r), 1))
+        a.data[:len(r), :r.shape[1] if r.ndim > 1 else None] = r
 
 
 def move_share(w, src_id: int, dst_id: int, frac: float):
@@ -152,7 +190,7 @@ def band_ended(w, band_id: int):
     """An ended band's goods are lost (scattered, buried, taken up by no one we follow); its partnerships end."""
     if getattr(w, "goods", None) is None or band_id >= len(w.goods):
         return
-    _unlink_all(w, band_id, why="ended")
+    _unlink_all(w, band_id)
     for i, g in enumerate(GOODS):
         if w.goods[band_id, i]:
             w.goods_ledger[g]["lost"] += float(w.goods[band_id, i])
@@ -217,7 +255,7 @@ def yearly(w):
     if getattr(P, "CURATION", False):
         # scarce tools are used sparingly (Ben, 16 November 2026): wear x max(CURATION_MIN, h / (h + CURATION_HALF)),
         # h = holdings per person
-        n = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
+        n = np.maximum(w.sizes_of(ids).astype(float), 1.0)
         for g in P.CURATED_GOODS:
             i = GI[g]
             h = w.goods[ids, i] / n
@@ -233,8 +271,8 @@ def yearly(w):
 # --- stage 2: gift partnerships -------------------------------------------------------------------------------------
 
 def partners(w, band_id: int) -> list:
-    if getattr(w, "partner_of", None) is None or band_id >= len(w.partner_of):
-        return []
+    if getattr(w, "partner_of", None) is None or not _has_row(w, band_id):
+        return []                              # (an ended band's row was cleared before it was released)
     return [int(x) for x in w.partner_of[band_id] if x >= 0]
 
 
@@ -249,6 +287,8 @@ def _link(w, a: int, b: int):
 
 def _unlink(w, a: int, b: int):
     for x, y in ((a, b), (b, a)):
+        if not _has_row(w, x):
+            continue                           # an ended band: its row was cleared and released
         hit = w.partner_of[x] == y
         w.partner_of[x, hit] = -1
         w.partner_since[x, hit] = -1
@@ -260,6 +300,8 @@ def gift_totals(w, a: int, b: int) -> dict:
     "<b>": {...}} (running totals; Ben, 15 November 2026)."""
     out = {"years": 0, str(a): {}, str(b): {}}
     for x, y in ((a, b), (b, a)):
+        if not _has_row(w, x):
+            continue
         hit = np.nonzero(w.partner_of[x] == y)[0]
         if not len(hit):
             continue
@@ -269,18 +311,22 @@ def gift_totals(w, a: int, b: int) -> dict:
     return out
 
 
-def _unlink_all(w, a: int, why: str = "ended"):
+def _unlink_all(w, a: int, joined: int | None = None):
     """End all of a band's partnerships, each with a lapse event carrying its gift totals (Codex review 015: ending,
     merging and consolidation used to erase them)."""
-    if getattr(w, "partner_of", None) is None or a >= len(w.partner_of):
+    if getattr(w, "partner_of", None) is None:
+        return
+    if a >= len(w.partner_of):
+        w.partner_slots.release(a)              # an ended band without a row is marked too (review 040)
         return
     ba = w.bands[a] if a < len(w.bands) else None
     for b in partners(w, a):
         tot = gift_totals(w, a, b)
         _unlink(w, a, b)
-        name = w.band_name(ba) if ba is not None else f"band {a}"
-        w.event("partnership_lapsed", cell=ba.cell if ba is not None else -1, band=a, partner=b, gifts=tot,
-                causes=[{"band": a}, {"note": f"the partnership ended when {name} {why}"}])
+        minorlog.lapsed(w, a, b, ba.cell if ba is not None else -1,
+                        minorlog.LAPSED_ENDED if joined is None else minorlog.LAPSED_JOINED, tot,
+                        other=-1 if joined is None else joined)
+    w.partner_slots.release(a)                 # called only as a band ends (band_ended, consolidation): row freed
 
 
 def move_good(w, src_id: int, dst_id: int, i: int, amount: float):
@@ -298,7 +344,7 @@ def move_good(w, src_id: int, dst_id: int, i: int, amount: float):
 def allowance(w, ids) -> np.ndarray:
     """How many partner links each band can hold: PARTNERS_MAX at PARTNER_SIZE_REF people, growing with the square
     root of size, at most PARTNERS_CAP (stage 4a; starting values)."""
-    n = np.maximum(w.band_sizes()[np.asarray(ids)].astype(float), 1.0)
+    n = np.maximum(w.sizes_of(np.asarray(ids)).astype(float), 1.0)
     k = np.floor(P.PARTNERS_MAX * np.sqrt(np.maximum(n / P.PARTNER_SIZE_REF, 1.0)))
     return np.minimum(k, P.PARTNERS_CAP).astype(int)
 
@@ -308,7 +354,7 @@ def supply(w, ids) -> np.ndarray:
     the bands given, summed."""
     ids = np.asarray(ids)
     cols = [GI[g] for g in P.PARTNER_TRADE_GOODS]
-    n = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
+    n = np.maximum(w.sizes_of(ids).astype(float), 1.0)
     per = w.goods[ids][:, cols] / n[:, None]
     mean = per.mean(axis=0)
     return (per / np.where(mean > 0, mean, 1.0)).sum(axis=1)
@@ -320,17 +366,27 @@ def _parted(w, a: int, b: int) -> bool:
     return t is not None and w.t - t < 4 * P.PARTNER_REFORM_WAIT
 
 
-def _closeness(w, a, b) -> float:
+def _closeness(w, a, b, cache=None) -> float:
+    """Closeness of speech between two bands' languages. `cache`, a dict for one partnerships pass (no language
+    changes within it), keeps each language pair's value (G4a pilot; scoped to the pass after Codex review 038,
+    finding 3)."""
     from .language import shared_roots
+    key = (a.language, b.language)
+    if cache is not None and key in cache:
+        return cache[key]
     la, lb = w.languages.get(a.language), w.languages.get(b.language)
     same = shared_roots(la, lb) if (la is not None and lb is not None) else 1.0
-    return P.TECH_FOREIGN + (1.0 - P.TECH_FOREIGN) * same
+    v = P.TECH_FOREIGN + (1.0 - P.TECH_FOREIGN) * same
+    if cache is not None:
+        cache[key] = v
+    return v
 
 
 def partnerships_yearly(w, live):
     """Lapse, gifts, then new links. Draws from the 'trade' stream only."""
     from .language import ring2
     rng = w.rng["trade"]
+    close_cache: dict = {}                         # language pairs' closeness for this pass only (review 038)
     if w.partner_dropped:                          # forget partings older than the wait
         w.partner_dropped = {k: t for k, t in w.partner_dropped.items() if w.t - t < 4 * P.PARTNER_REFORM_WAIT}
     r2 = ring2(w)
@@ -344,9 +400,7 @@ def partnerships_yearly(w, live):
             elif alive[o].cell not in reach[b.id] and o > b.id:
                 tot = gift_totals(w, b.id, o)
                 _unlink(w, b.id, o)
-                w.event("partnership_lapsed", cell=b.cell, band=b.id, partner=o, gifts=tot,
-                        causes=[{"band": o}, {"note": f"{w.band_name(b)} and {w.band_name(alive[o])} were no longer "
-                                                          f"within reach of each other"}])
+                minorlog.lapsed(w, b.id, o, b.cell, minorlog.LAPSED_REACH, tot)
     # gifts: lasting goods pass both ways each year, keeping the link alive and carrying goods along chains
     for b in live:
         for o in partners(w, b.id):
@@ -376,9 +430,7 @@ def partnerships_yearly(w, live):
                     from ..state import log_row
                     log_row(w, "gift_log", [w.t, b.id, o, given[str(b.id)], given[str(o)]], P.EXCHANGE_LOG_CAP)
                     if first:
-                        w.event("gift_exchange", cell=b.cell, band=b.id, partner=o, goods=given,
-                                causes=[{"band": o}, {"note": f"{w.band_name(b)} and {w.band_name(alive[o])} "
-                                                              f"exchanged their first gifts as partners"}])
+                        minorlog.first_gifts(w, b.id, o, b.cell, given)
     # new links: pairs within reach with room, drawn in band order, likelier between peoples who share words
     by_cell: dict = {}
     for b in live:
@@ -401,15 +453,12 @@ def partnerships_yearly(w, live):
                 break
             if free[o.id] <= 0:
                 continue
-            close = _closeness(w, b, o)
+            close = _closeness(w, b, o, close_cache)
             if u < P.PARTNER_FORM * close:
                 _link(w, b.id, o.id)
                 free[b.id] -= 1
                 free[o.id] -= 1
-                w.event("partnership_formed", cell=b.cell, band=b.id, partner=o.id,
-                        causes=[{"band": o.id}, {"note": f"{w.band_name(b)} and {w.band_name(o)} lived within reach "
-                                                          f"of each other ({close:.0%} closeness of speech) and began "
-                                                          f"to exchange gifts"}])
+                minorlog.formed(w, b.id, o.id, b.cell, minorlog.FORMED_NEAR, closeness=close)
 
 
 def _switch(w, live, reach, by_cell, free, rng):
@@ -446,14 +495,8 @@ def _switch(w, live, reach, by_cell, free, rng):
         free[worst] = free.get(worst, 0) + 1
         _link(w, b.id, best.id)
         free[best.id] -= 1
-        ow = w.bands[worst]
-        w.event("partnership_lapsed", cell=b.cell, band=b.id, partner=worst, gifts=tot,
-                causes=[{"band": worst}, {"note": f"{w.band_name(b)} gave up its partnership with {w.band_name(ow)}, "
-                                                  f"its worst-supplied partner, for a better-supplied one"}])
-        w.event("partnership_formed", cell=b.cell, band=b.id, partner=best.id,
-                causes=[{"band": best.id}, {"note": f"{w.band_name(b)}, settled and with no room for more partners, "
-                                                    f"took up {w.band_name(best)}, better supplied with tools, salt "
-                                                    f"and metal than {w.band_name(ow)}"}])
+        minorlog.lapsed(w, b.id, worst, b.cell, minorlog.LAPSED_SWAP, tot)
+        minorlog.formed(w, b.id, best.id, b.cell, minorlog.FORMED_SWAP, dropped=worst)
 
 
 def share_in_need(w, bands, ids, avail, need_now, keep_need):
@@ -490,10 +533,7 @@ def share_in_need(w, bands, ids, avail, need_now, keep_need):
         if got > 0:
             avail[k] += got
             b = bands[k]
-            w.event("helped_by_partners", cell=b.cell, band=bid, amount=round(got, 3), givers=givers,
-                    causes=[{"band": g} for g in givers] + [{"note": f"{w.band_name(b)} could not meet its needs this "
-                                                                    f"season; its gift partners gave food they could "
-                                                                    f"spare"}])
+            minorlog.helped(w, bid, b.cell, round(got, 3), givers)   # a row of the compact log (Ben, 22 Nov 2026)
     return avail
 
 
@@ -572,7 +612,7 @@ def down_the_line(w, live, ids, cells):
     I, J, KIND = _partner_pairs(w, live, ids, cells, I, J, KIND)
     if not len(I):
         return
-    sizes = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
+    sizes = np.maximum(w.sizes_of(ids).astype(float), 1.0)
     q = technology.practised_quality(w)
     def best(key):
         v = q[ids, technology.INDEX[key]].astype(float)
@@ -702,6 +742,7 @@ def check_end(w):
 
 
 from .. import params as P  # noqa: E402
+from . import minorlog  # noqa: E402
 
 
 # --------------------------------------------------------------------------- stage 5: what goods change
@@ -717,7 +758,7 @@ def per_person(w, ids, names) -> np.ndarray:
     ids = np.asarray(ids)
     if getattr(w, "goods", None) is None or not len(ids):
         return np.zeros(len(ids))
-    n = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
+    n = np.maximum(w.sizes_of(ids).astype(float), 1.0)
     rows = np.minimum(ids, len(w.goods) - 1)
     held = w.goods[rows][:, [GI[g] for g in names]].sum(axis=1)
     return np.where(ids < len(w.goods), held, 0.0) / n
@@ -757,13 +798,30 @@ def prestige_factor(w, polity_id: int) -> float:
     if held <= 0:
         return 0.0
     # Members are looked up fresh each call, so a band changing polity within a tick counts at once (Codex review
-    # 018); only band sizes are kept for the tick (speed), so births and deaths within a tick are not seen here.
+    # 018); only band sizes are kept for the tick (speed), so births and deaths within a tick are not seen here. The
+    # snapshot is taken at the tick's first call and again when a band is created (the record grows). (Kept as it was
+    # after Codex review 038, finding 1: a fresh lookup changed results within a tick. len(w.bands) is now cheap.)
+    # The snapshot holds the living bands' sizes only (ended bands have none): the same values as the full array,
+    # read back into a vector of the same length and order, so the sum is the same to the last bit (G4a pilot).
     c = getattr(w, "_sizes_tick", None)
-    if c is None or c[0] != w.t or len(c[1]) != len(w.bands):
-        c = (w.t, w.band_sizes().astype(float))
+    if c is None or c[0] != w.t or c[1] != len(w.bands):
+        G = w.groups
+        live = np.unique(np.concatenate([w.people.band[w.alive_idx()].astype(np.int64),
+                                         G.band[G.rows()].astype(np.int64)]))   # every band holding anyone
+        # c[1] is the length the full array had (next_band), compared with len(w.bands) as before
+        c = (w.t, w.next_band, live, w.sizes_of(live).astype(float))
         w._sizes_tick = c
-    members = np.nonzero(w.polity_of[:len(c[1])] == polity_id)[0]
-    n = float(c[1][members].sum()) if len(members) else 0.0
+    members = np.nonzero(w.polity_of[:c[1]] == polity_id)[0]
+    if len(members):
+        vals = np.zeros(len(members))
+        live, sz = c[2], c[3]
+        if len(live):
+            k = np.minimum(np.searchsorted(live, members), len(live) - 1)
+            ok = live[k] == members
+            vals[ok] = sz[k[ok]]
+        n = float(vals.sum())
+    else:
+        n = 0.0
     return float(np.clip(held / max(n, 1.0) / P.PRESTIGE_NEED, 0.0, 1.0))
 
 
@@ -816,5 +874,5 @@ def trade_need(w, ids, cells) -> np.ndarray:
     if getattr(w, "goods", None) is None or not len(ids):
         return np.zeros(len(ids))
     _trade_in_size(w)
-    n = np.maximum(w.band_sizes()[ids].astype(float), 1.0)
+    n = np.maximum(w.sizes_of(ids).astype(float), 1.0)
     return np.clip(w.trade_in[ids] / n / P.TRADE_NEED_REF, 0.0, 1.0)
