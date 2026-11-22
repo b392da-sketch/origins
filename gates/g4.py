@@ -372,6 +372,7 @@ def finish(w, ws, rs, seconds, pr, tag):
     rec = g3.finish(w, ws, rs, seconds, pr, True, write=False)
     extras(w, pr, rec, np.random.default_rng([ws, rs, 41]))
     rec["record_seconds"] = round(time.time() - t0, 1)        # building the record (check 13; finding in review 034)
+    rec["stage_envs"] = pr.get("stage_envs", [])               # the machine of each stage (review 040)
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / f"run_w{ws}_s{rs}{tag}.json").write_text(json.dumps(rec))
 
@@ -409,6 +410,8 @@ def worker(jobs, budget, ckpt: Path, arm: str):
             w = World.new(ws, rs, _planet(ws))
             spent, pr = 0.0, g2.new_probe()
             pr["arm"] = arm
+        from gates.g0 import _env
+        pr.setdefault("stage_envs", []).append({**_env(), "from_year": int(w.year)})   # each stage's machine (review 040)
         _PR["pr"] = pr
         import resource
         while not g3.done(w):

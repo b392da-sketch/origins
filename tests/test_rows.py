@@ -85,3 +85,79 @@ class Rows(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Review040(unittest.TestCase):
+    """Codex review 040."""
+
+    def test_finding1_sparse_saves_carry_a_schema_older_readers_refuse(self):
+        import io
+        import json
+        import zipfile
+        from origins import state
+        w = World.new(1, 1, generate(1))
+        meta = json.loads(zipfile.ZipFile(io.BytesIO(persist.to_bytes(w))).read("meta.json"))
+        self.assertEqual(meta["schema"], 4)
+        self.assertNotIn(4, (1, 2, 3))                     # the schema-3 reader's READABLE_SCHEMAS
+        self.assertIn(4, state.READABLE_SCHEMAS)
+
+    def test_finding2_a_narrow_sparse_save_widens_to_the_cap(self):
+        from origins import params as P
+        old = P.PARTNERS_CAP
+        try:
+            P.PARTNERS_CAP = 4
+            w = World.new(1, 1, generate(1))
+            a = w.living_bands()[0]
+            others = [w.new_band(a.cell, parent=a.id) for _ in range(5)]
+            for o in others[:4]:
+                trade._link(w, a.id, o.id)
+            self.assertEqual(w.partner_of.shape[1], 4)
+            data = persist.to_bytes(w)
+            P.PARTNERS_CAP = 16
+            w2 = persist.from_bytes(data, w.planet)
+        finally:
+            P.PARTNERS_CAP = old
+        self.assertEqual(w2.partner_of.shape[1], max(16, old))
+        self.assertEqual(sorted(trade.partners(w2, a.id)), sorted(o.id for o in others[:4]))
+        trade._link(w2, a.id, others[4].id)                # a fifth link has room
+        self.assertIn(others[4].id, trade.partners(w2, a.id))
+
+    def test_finding3_an_ended_band_without_rows_cannot_get_one(self):
+        import io
+        import zipfile
+        from origins.sim import bands
+        w = World.new(1, 1, generate(1))
+        a = w.living_bands()[0]
+        b = w.new_band(a.cell, parent=a.id)
+        bands.end_band(w, b, "test", log=False)
+        data = persist.to_bytes(w)                            # rewritten as a save from before the arrays
+        zin, out = zipfile.ZipFile(io.BytesIO(data)), io.BytesIO()
+        with zipfile.ZipFile(out, "w") as zo:
+            for n in zin.namelist():
+                blob = zin.read(n)
+                if n == "arrays.npz":
+                    arrs = dict(np.load(io.BytesIO(blob)))
+                    for k in [k for k in arrs if k.startswith(("dz_slots", "partner_slots", "dz_imm", "dz_last",
+                                                                 "partner_")) or k == "dz_gone_last"]:
+                        arrs.pop(k)
+                    buf = io.BytesIO()
+                    np.savez(buf, **arrs)
+                    blob = buf.getvalue()
+                zo.writestr(n, blob)
+        w2 = persist.from_bytes(out.getvalue(), w.planet)
+        for m in (w2.dz_slots, w2.partner_slots):
+            self.assertEqual(int(m.slot[b.id]), -2)
+            with self.assertRaises(KeyError):
+                m.assign(b.id)
+        m = SlotMap()
+        m.release(7)                                          # released without ever holding a row
+        with self.assertRaises(KeyError):
+            m.assign(7)
+
+    def test_owner_slots_grow_by_doubling(self):
+        m = SlotMap()
+        for i in range(5000):
+            m.assign(i)
+        self.assertEqual(m.n, 5000)
+        self.assertGreaterEqual(len(m._owner), 5000)
+        self.assertEqual(m.owner[4999], 4999)

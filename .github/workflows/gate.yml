@@ -58,7 +58,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements-gate.txt
       - name: run
         run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} "${{ matrix.jobs }}"
       - uses: actions/upload-artifact@v4
@@ -102,7 +102,7 @@ jobs:
         with:
           python-version: "3.13"
       - if: steps.need.outputs.go == '1'
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-gate.txt
       - name: continue
         if: steps.need.outputs.go == '1'
         run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} "${{ matrix.jobs }}"
@@ -147,7 +147,7 @@ jobs:
         with:
           python-version: "3.13"
       - if: steps.need.outputs.go == '1'
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-gate.txt
       - name: continue
         if: steps.need.outputs.go == '1'
         run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} "${{ matrix.jobs }}"
@@ -192,7 +192,7 @@ jobs:
         with:
           python-version: "3.13"
       - if: steps.need.outputs.go == '1'
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-gate.txt
       - name: continue
         if: steps.need.outputs.go == '1'
         run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} "${{ matrix.jobs }}"
@@ -237,7 +237,7 @@ jobs:
         with:
           python-version: "3.13"
       - if: steps.need.outputs.go == '1'
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-gate.txt
       - name: continue
         if: steps.need.outputs.go == '1'
         run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} "${{ matrix.jobs }}"
@@ -282,7 +282,7 @@ jobs:
         with:
           python-version: "3.13"
       - if: steps.need.outputs.go == '1'
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-gate.txt
       - name: continue
         if: steps.need.outputs.go == '1'
         run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} "${{ matrix.jobs }}"
@@ -327,7 +327,7 @@ jobs:
         with:
           python-version: "3.13"
       - if: steps.need.outputs.go == '1'
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-gate.txt
       - name: continue
         if: steps.need.outputs.go == '1'
         run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} "${{ matrix.jobs }}"
@@ -372,7 +372,7 @@ jobs:
         with:
           python-version: "3.13"
       - if: steps.need.outputs.go == '1'
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-gate.txt
       - name: continue
         if: steps.need.outputs.go == '1'
         run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} "${{ matrix.jobs }}"
@@ -417,7 +417,7 @@ jobs:
         with:
           python-version: "3.13"
       - if: steps.need.outputs.go == '1'
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-gate.txt
       - name: continue
         if: steps.need.outputs.go == '1'
         run: gates/run_job.sh "${{ needs.plan.outputs.request }}" ${{ matrix.kind }} "${{ matrix.jobs }}"
@@ -462,7 +462,7 @@ jobs:
         with:
           python-version: "3.13"
       - if: steps.need.outputs.go == '1'
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-gate.txt
       - name: continue
         if: steps.need.outputs.go == '1'
         env:
@@ -492,7 +492,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements-gate.txt
       - uses: actions/download-artifact@v4
         with:
           path: artifacts

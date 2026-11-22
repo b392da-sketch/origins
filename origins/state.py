@@ -17,8 +17,8 @@ from . import names as N
 from . import params as P
 from .worldgen import Planet, generate
 
-SCHEMA = 3
-READABLE_SCHEMAS = (1, 2, 3)
+SCHEMA = 4                       # 4: per-band rows only for bands holding one, and the compact log (22 Nov 2026)
+READABLE_SCHEMAS = (1, 2, 3, 4)  # (review 040, finding 1: a reader of schema 3 must refuse these saves)
 VERSION = "0.2.0-M1"
 
 CAUSES = ["", "infancy and early childhood", "hunger", "accident or illness",

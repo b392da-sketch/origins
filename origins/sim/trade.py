@@ -131,17 +131,21 @@ def partner_rows_from_dense(w, of, since, gave, alive_ids):
     partnerships ended)."""
     k = max(int(P.PARTNERS_CAP), of.shape[1] if of.ndim == 2 else 0)
     _partner_rows(w, k)
-    n = min(len(of), w.next_band)
-    w.partner_slots.grow_ids(max(n, len(w.goods)) - 1)
-    w.partner_slots.slot[:n] = -2
-    for i in sorted(int(x) for x in alive_ids):
-        w.partner_slots.slot[i] = -1
+    w.partner_slots.grow_ids(max(w.next_band, len(w.goods)) - 1)
+    alive = sorted(int(x) for x in alive_ids)
+    for i in alive:
         w.partner_slots.assign(i)
         if i < len(of):
             w.partner_of[i, :of.shape[1]] = of[i]
             w.partner_since[i, :since.shape[1]] = since[i]
             if gave is not None and i < len(gave):
                 w.partner_gave[i, :gave.shape[1]] = gave[i]
+    mark_partner_ended(w, alive)
+
+
+def mark_partner_ended(w, alive):
+    """Every issued id not alive has ended (review 040, finding 3)."""
+    w.partner_slots.mark_ended(np.setdiff1d(np.arange(w.next_band), np.asarray(sorted(alive), dtype=np.int64)))
 
 
 def partner_state(w) -> dict:
@@ -154,14 +158,17 @@ def partner_state(w) -> dict:
 
 
 def partner_load(w, arrs: dict):
-    k = np.asarray(arrs["partner_of_rows"]).shape[1] if np.asarray(arrs["partner_of_rows"]).ndim == 2 else int(P.PARTNERS_CAP)
-    _partner_rows(w, k)
+    """Partner rows from a save, widened to PARTNERS_CAP if the save held fewer links, keeping every link in its
+    place (review 040, finding 2: a four-link save resumed at the default cap had free places it could not fill)."""
+    of = np.asarray(arrs["partner_of_rows"])
+    saved = of.shape[1] if of.ndim == 2 else 0
+    _partner_rows(w, max(int(P.PARTNERS_CAP), saved))
     w.partner_slots.load("partner_slots", arrs)
     for a, key in ((w.partner_of, "partner_of_rows"), (w.partner_since, "partner_since_rows"),
                    (w.partner_gave, "partner_gave_rows")):
         r = np.asarray(arrs[key], dtype=a.dtype)
         a._grow_rows(max(len(r), 1))
-        a.data[:len(r)] = r
+        a.data[:len(r), :r.shape[1] if r.ndim > 1 else None] = r
 
 
 def move_share(w, src_id: int, dst_id: int, frac: float):
@@ -307,7 +314,10 @@ def gift_totals(w, a: int, b: int) -> dict:
 def _unlink_all(w, a: int, joined: int | None = None):
     """End all of a band's partnerships, each with a lapse event carrying its gift totals (Codex review 015: ending,
     merging and consolidation used to erase them)."""
-    if getattr(w, "partner_of", None) is None or a >= len(w.partner_of):
+    if getattr(w, "partner_of", None) is None:
+        return
+    if a >= len(w.partner_of):
+        w.partner_slots.release(a)              # an ended band without a row is marked too (review 040)
         return
     ba = w.bands[a] if a < len(w.bands) else None
     for b in partners(w, a):

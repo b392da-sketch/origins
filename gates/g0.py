@@ -35,9 +35,20 @@ def _planet(ws):
     return _planets[ws]
 
 
+def _cpu() -> str:
+    try:
+        for line in open("/proc/cpuinfo"):
+            if line.startswith("model name"):
+                return line.split(":", 1)[1].strip()
+    except OSError:
+        pass
+    return platform.processor()
+
+
 def _env():
+    # the processor too: staged histories can cross machines (Codex review 040)
     return {"python": sys.version.split()[0], "numpy": np.__version__, "platform": platform.platform(),
-            "machine": platform.machine()}
+            "machine": platform.machine(), "cpu": _cpu()}
 
 
 def run_one(ws: int, rs: int, years: int) -> dict:

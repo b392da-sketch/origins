@@ -167,10 +167,11 @@ def ensure(w, band_id: int, parent: int):
 def release(w, band_id: int):
     """A band has ended: its last-circulation years count on in dz_gone_last (the longest-gone test reads them, as
     it read every band's row when rows were kept for every id), and its row is freed."""
-    if getattr(w, "dz_slots", None) is None or band_id >= len(w.dz_slots) or w.dz_slots.slot[band_id] < 0:
+    if getattr(w, "dz_slots", None) is None:
         return
-    w.dz_gone_last = np.maximum(w.dz_gone_last, w.dz_last[band_id].astype(np.int64))
-    w.dz_slots.release(band_id)
+    if band_id < len(w.dz_slots) and w.dz_slots.slot[band_id] >= 0:
+        w.dz_gone_last = np.maximum(w.dz_gone_last, w.dz_last[band_id].astype(np.int64))
+    w.dz_slots.release(band_id)                    # marked ended even without a row (review 040, finding 3)
 
 
 def last_any(w) -> np.ndarray:
@@ -717,17 +718,14 @@ def load_rows(w, arrs: dict, alive_ids):
         last = -np.ones((len(imm), ND_CAP), dtype=np.int32)
     n = min(max(len(imm), len(last)), w.next_band)      # ids issued so far (the arrays ran ahead by doubling)
     alive = sorted(int(i) for i in alive_ids)
-    if n:
-        w.dz_slots.grow_ids(n - 1)
-        w.dz_slots.slot[:n] = -2                     # every id with a row: ended unless alive (assigned below)
     for i in alive:
-        w.dz_slots.grow_ids(i)
-        w.dz_slots.slot[i] = -1
         w.dz_slots.assign(i)
         if i < len(imm):
             w.dz_imm[i] = imm[i]
         if i < len(last):
             w.dz_last[i] = last[i]
     dead = np.setdiff1d(np.arange(min(n, len(last))), np.asarray(alive, dtype=np.int64))
-    if len(dead):
-        w.dz_gone_last = np.maximum(w.dz_gone_last, last[dead].max(axis=0).astype(np.int64))
+    for j in range(0, len(dead), 65536):            # in pieces: no gather of every ended row at once (review 040)
+        w.dz_gone_last = np.maximum(w.dz_gone_last, last[dead[j:j + 65536]].max(axis=0).astype(np.int64))
+    # every issued id not alive has ended, whether or not the old arrays reached it (review 040, finding 3)
+    w.dz_slots.mark_ended(np.setdiff1d(np.arange(w.next_band), np.asarray(alive, dtype=np.int64)))

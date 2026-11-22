@@ -242,8 +242,8 @@ def from_bytes(data: bytes, planet=None) -> World:
         _trade.partner_rows_from_dense(w, of, np.asarray(arrays["partner_since"], dtype=np.int64), gave, alive_ids)
     else:                                               # older saves have none: every living band starts without
         for i in alive_ids:
-            w.partner_slots.grow_ids(i)
             w.partner_slots.assign(i)
+        _trade.mark_partner_ended(w, alive_ids)
     _trade.grow(w, len(w.goods) - 1)                 # keeps every goods row (Codex review 013)
     if "goods_reached" in arrays:                       # trade stage 3, after review 014
         w.goods_reached = np.array(arrays["goods_reached"], dtype=bool)

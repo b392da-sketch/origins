@@ -14,9 +14,14 @@ import numpy as np
 class SlotMap:
     def __init__(self, cap_ids: int = 64):
         self.slot = np.full(cap_ids, -1, dtype=np.int64)     # band id -> slot; -1 none yet; -2 released
-        self.owner = np.zeros(0, dtype=np.int64)              # slot -> band id, -1 if free
+        self._owner = np.zeros(64, dtype=np.int64)            # slot -> band id, -1 if free (capacity)
+        self.n = 0                                            # slots made so far (review 040: grown by doubling)
         self.free: list[int] = []
         self.arrays: list["SparseRows"] = []
+
+    @property
+    def owner(self) -> np.ndarray:
+        return self._owner[:self.n]
 
     def __len__(self):                                          # ids covered (as the dense array's length)
         return len(self.slot)
@@ -39,24 +44,40 @@ class SlotMap:
         if self.free:
             s = self.free.pop()
         else:
-            s = len(self.owner)
-            self.owner = np.append(self.owner, -1)
+            s = self.n
+            if s == len(self._owner):
+                o = np.full(2 * len(self._owner), -1, dtype=np.int64)
+                o[:s] = self._owner[:s]
+                self._owner = o
+            self.n += 1
             for a in self.arrays:
                 a._grow_rows(s + 1)
         self.slot[band_id] = s
-        self.owner[s] = band_id
+        self._owner[s] = band_id
         for a in self.arrays:
             a.data[s] = a.fill
         return s
 
     def release(self, band_id: int):
-        if band_id < len(self.slot) and self.slot[band_id] >= 0:
+        """The band has ended: its slot (if any) is freed, and the id can never hold a row again (review 040,
+        finding 3: an ended band without a row is marked too)."""
+        self.grow_ids(band_id)
+        if self.slot[band_id] >= 0:
             s = int(self.slot[band_id])
-            self.slot[band_id] = -2
-            self.owner[s] = -1
+            self._owner[s] = -1
             for a in self.arrays:
                 a.data[s] = a.fill
             self.free.append(s)
+        self.slot[band_id] = -2
+
+    def mark_ended(self, ids):
+        """Ids of bands that have ended, with or without rows (loading older saves)."""
+        ids = np.asarray(ids, dtype=np.int64)
+        if ids.size:
+            self.grow_ids(int(ids.max()))
+            for i in ids[self.slot[ids] >= 0].tolist():
+                self.release(int(i))
+            self.slot[ids] = -2
 
     def slots_of(self, ids) -> np.ndarray | int:
         if isinstance(ids, (int, np.integer)):
@@ -86,7 +107,10 @@ class SlotMap:
 
     def load(self, prefix: str, arrs: dict):
         self.slot = np.array(arrs[f"{prefix}_slot"], dtype=np.int64)
-        self.owner = np.array(arrs[f"{prefix}_owner"], dtype=np.int64)
+        o = np.array(arrs[f"{prefix}_owner"], dtype=np.int64)
+        self.n = len(o)
+        self._owner = np.full(max(64, 2 * len(o)), -1, dtype=np.int64)
+        self._owner[:len(o)] = o
         self.free = [int(x) for x in arrs[f"{prefix}_free"]]
 
 
