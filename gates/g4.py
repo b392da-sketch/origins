@@ -322,9 +322,9 @@ def extras(w, pr, rec, rng):
         rec["land_exposure"] = {k: v for k, v in w.counts.items() if k.startswith("land_exp")}
         from origins.sim import minorlog
         rec["land_events"] = {k: int(sum(1 for e in w.events if e["kind"] == k))
-                              for k in ("land_hunger", "land_abandoned", "land_game", "land_forest",
+                              for k in ("land_hunger", "land_move", "land_abandoned", "land_game", "land_forest",
                                         "land_soil", "land_salt")}
-        rec["land_events"]["land_move"] = minorlog.size(w, "land_move")   # rows of the compact log (Ben, 22 Nov)
+        rec["land_events"]["land_move"] += minorlog.size(w, "land_move")   # older events and rows (review 039)
     # M1's carried-forward items, re-measured (Ben, 21 November 2026): language pairs across the sea and on the
     # same land (G1 check 5), and the share of deaths from disease after the first village
     from gates import g1

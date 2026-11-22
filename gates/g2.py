@@ -88,6 +88,7 @@ def finish(w, ws, rs, seconds, pr, storage, status="completed", write=True):
     rec["events"] = {}
     for e in w.events:
         rec["events"][e["kind"]] = rec["events"].get(e["kind"], 0) + 1
+    __import__("origins.sim.minorlog", fromlist=["x"]).count_all(w, rec["events"])   # rows too (review 039)
     fv = w.first_village
     rec["first_village_year"] = w.events[fv]["data"]["year"] if fv is not None else None
     rec["firsts"] = {sp: {st: w.events[e]["t"] // 4 for st, e in v.items()} for sp, v in w.farm_firsts.items()}

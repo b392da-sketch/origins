@@ -235,6 +235,7 @@ def finish(w, ws, rs, years, seconds, pr, replay=None):
     rec["events"] = {}
     for e in w.events:
         rec["events"][e["kind"]] = rec["events"].get(e["kind"], 0) + 1
+    __import__("origins.sim.minorlog", fromlist=["x"]).count_all(w, rec["events"])   # rows too (review 039)
     # hazards: every logged hazard in a possible place?
     wrong = {k: 0 for k in HAZARD_KINDS}
     for e in w.events:
