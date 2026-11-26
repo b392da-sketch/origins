@@ -67,7 +67,7 @@ def worker(jobs, years, budget, ckpt: Path):
         cp, meta = ckpt / f"w{ws}_s{rs}.zip", ckpt / f"w{ws}_s{rs}.json"
         start = time.time()
         if cp.exists():
-            w = persist.from_bytes(cp.read_bytes(), _planet(ws))
+            w = persist.from_file(cp, _planet(ws))
             spent = json.loads(meta.read_text())["seconds"]
         else:
             w = World.new(ws, rs, _planet(ws))

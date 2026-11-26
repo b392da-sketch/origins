@@ -129,9 +129,23 @@ def to_file(w: World, f, fast: bool = False) -> None:
 
 
 def from_bytes(data: bytes, planet=None) -> World:
-    with zipfile.ZipFile(io.BytesIO(data)) as z:
+    return from_file(io.BytesIO(data), planet)
+
+
+def from_file(src, planet=None) -> World:
+    """A world from a save given as a path or a file object. From a path, the save is read from disk as it is
+    parsed, and its arrays are unpacked to a temporary file and read one by one, not held as bytes beside the
+    arrays (G4a pilot 2, 22 November 2026: loading a 1.1 GB checkpoint from bytes peaked at 13 GB)."""
+    import shutil
+    import tempfile
+    with zipfile.ZipFile(src) as z:
         meta = json.loads(z.read("meta.json"))
-        arrays = dict(np.load(io.BytesIO(z.read("arrays.npz"))))
+        with tempfile.TemporaryFile() as tmp:
+            with z.open("arrays.npz") as f:
+                shutil.copyfileobj(f, tmp, 16 << 20)
+            tmp.seek(0)
+            with np.load(tmp) as npz:
+                arrays = {k: npz[k] for k in npz.files}
         if "events.jsonl" in z.namelist():
             with z.open("events.jsonl") as f:
                 meta["events"] = EventStore(json.loads(line) for line in io.TextIOWrapper(f, encoding="utf-8") if line.strip())
