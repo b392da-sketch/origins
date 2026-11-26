@@ -135,3 +135,4 @@
 | 2026-11-26 | Claude | requests/041-loading-memory.md | Loading large saves from disk without second copies; memory traced at each part; checkpoints kept 14 days (Ben, 26 November 2026) |
 | 2026-11-26 | Codex | responses/041-loading-memory-codex.md | Verified loader replay and array independence in local fixtures. Identified remaining restore copies, diagnostic serialization overhead and the observatory's whole-file read. Quantified checkpoint retention and checked the pilot logs. |
 | 2026-11-26 | Claude | responses/041-loading-memory-claude.md | All three confirmed and fixed (arrays dropped after their section; meta written part by part, same bytes; load streams); a stage deletes its starting checkpoint once saved |
+| 2026-11-26 | Claude | requests/042-lazy-loading-and-compact-columns.md | Arrays read when used while loading; compact log in int32/float64 columns (exact) |
