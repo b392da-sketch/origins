@@ -199,3 +199,30 @@ class LoadFromFile(unittest.TestCase):
             del os.environ["ORIGINS_MEM_TRACE"]
         self.assertIn("[mem] load: world built", out.getvalue())
         self.assertIn("[mem] save, largest arrays", out.getvalue())
+
+
+class Review041(unittest.TestCase):
+    """Codex review 041."""
+
+    def test_finding1_decoded_arrays_are_dropped_after_their_section(self):
+        import inspect
+        src = inspect.getsource(persist.from_file)
+        for k in ('_drop(arrays, prefix="b_")', '_drop(arrays, "tech_record")', '_drop(arrays, "dz_log")',
+                  '_drop(arrays, prefix="minor_")', '_drop(arrays, prefix="p_")', '_drop(arrays, prefix="g_")',
+                  '_drop(arrays, "goods", prefix="partner_")'):
+            self.assertIn(k, src)
+
+    def test_finding2_meta_is_written_part_by_part_with_the_same_bytes(self):
+        import io
+        import json
+        import zipfile
+        w = World.new(1, 1, generate(1))
+        engine.step(w, 4 * 10)
+        m = zipfile.ZipFile(io.BytesIO(persist.to_bytes(w))).read("meta.json")
+        self.assertEqual(m, json.dumps(persist._jsonable(json.loads(m)), separators=(",", ":")).encode())
+        import inspect
+        self.assertNotIn("json.dumps(v, default=str)", inspect.getsource(persist))   # no second serialisation
+
+    def test_finding3_load_from_a_path_streams(self):
+        import inspect
+        self.assertIn("return from_file(path, planet)", inspect.getsource(persist.load))

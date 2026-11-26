@@ -57,6 +57,16 @@ def to_bytes(w: World, fast: bool = False) -> bytes:
     return buf.getvalue()
 
 
+def _drop(arrays: dict, *names, prefix: str | None = None):
+    """Forget decoded arrays a section has finished with, so the next section's copies do not sit beside them
+    (Codex review 041, finding 1). Only lifetimes change: every value is read exactly as before."""
+    for k in names:
+        arrays.pop(k, None)
+    if prefix is not None:
+        for k in [k for k in arrays if k.startswith(prefix)]:
+            del arrays[k]
+
+
 def _trace(label: str):
     """With ORIGINS_MEM_TRACE set, print memory in use and the peak so far (G4a pilot 3: what fills memory when a
     large save is loaded). A measuring aid only."""
@@ -75,14 +85,34 @@ def _trace(label: str):
           flush=True)
 
 
-def _trace_sizes(meta: dict, arrays: dict):
+def _trace_sizes(w, arrays: dict):
+    """The save's largest arrays by size in memory, and the row counts of the largest metadata (no second
+    serialisation: Codex review 041, finding 2). The members' sizes as written follow from _trace_members."""
     import os
     if not os.environ.get("ORIGINS_MEM_TRACE"):
         return
-    js = sorted(((len(json.dumps(v, default=str)), k) for k, v in meta.items() if k != "events"), reverse=True)[:12]
-    print("[mem] save, largest parts of meta.json (MB): " + ", ".join(f"{k} {n / 1e6:.0f}" for n, k in js), flush=True)
     ar = sorted(((np.asarray(v).nbytes, k) for k, v in arrays.items()), reverse=True)[:15]
     print("[mem] save, largest arrays (MB): " + ", ".join(f"{k} {n / 1e6:.0f}" for n, k in ar), flush=True)
+    rows = {"polity_log": len(getattr(w, "polity_log", []) or []), "band records": len(w.bands.live),
+            "band strings": len(w.bands.strings), "events": len(w.events),
+            "places": len(getattr(w, "places", {}) or {}), "languages": len(getattr(w, "languages", {}) or {})}
+    print("[mem] save, metadata rows: " + ", ".join(f"{k} {n:,}" for k, n in rows.items()), flush=True)
+
+
+def _trace_meta(parts):
+    import os
+    if not os.environ.get("ORIGINS_MEM_TRACE"):
+        return
+    print("[mem] save, largest parts of meta.json as written (MB): " + ", ".join(
+        f"{k} {n / 1e6:.0f}" for n, k in sorted(parts, reverse=True)[:12]), flush=True)
+
+
+def _trace_members(z):
+    import os
+    if not os.environ.get("ORIGINS_MEM_TRACE"):
+        return
+    print("[mem] save, members as written (MB, unpacked/packed): " + ", ".join(
+        f"{i.filename} {i.file_size / 1e6:.0f}/{i.compress_size / 1e6:.0f}" for i in z.infolist()), flush=True)
 
 
 def to_file(w: World, f, fast: bool = False) -> None:
@@ -139,7 +169,17 @@ def to_file(w: World, f, fast: bool = False) -> None:
     arrays.update({"g_" + k: v for k, v in w.groups.arrays().items()})
     arrays.update({"b_" + k: v for k, v in w.bands.arrays().items()})
     with zipfile.ZipFile(f, "w", zipfile.ZIP_DEFLATED, compresslevel=1 if fast else None) as z:
-        z.writestr("meta.json", json.dumps(_jsonable(meta), separators=(",", ":")))
+        # meta.json is written part by part: the same bytes as one json.dumps, without the whole string in memory
+        # at once, and each part's size known as written (Codex review 041, finding 2)
+        parts = []
+        with z.open("meta.json", "w", force_zip64=True) as out:
+            out.write(b"{")
+            for j, (k, v) in enumerate(_jsonable(meta).items()):
+                b = (("," if j else "") + json.dumps(k) + ":" + json.dumps(v, separators=(",", ":"))).encode()
+                out.write(b)
+                parts.append((len(b), k))
+            out.write(b"}")
+        _trace_meta(parts)
         # events are written one per line, streamed, so a history of millions of events never becomes one huge string
         for name, rows in (("events.jsonl", w.events),
                            ("custom_log.jsonl", ([int(k), v] for k, v in w.custom_log.items()))):
@@ -152,9 +192,10 @@ def to_file(w: World, f, fast: bool = False) -> None:
                         chunk = []
                 if chunk:
                     out.write(("\n".join(chunk) + "\n").encode())
-        _trace_sizes(meta, arrays)
+        _trace_sizes(w, arrays)
         with z.open("arrays.npz", "w", force_zip64=True) as out:
             (np.savez if fast else np.savez_compressed)(out, **arrays)
+        _trace_members(z)
 
 
 def from_bytes(data: bytes, planet=None) -> World:
@@ -231,6 +272,7 @@ def from_file(src, planet=None) -> World:
         b = Band(**d)
         w.bands[b.id] = b
     w.bands.load_arrays({k[2:]: v for k, v in arrays.items() if k.startswith("b_")}, meta.get("band_strings", []))
+    _drop(arrays, prefix="b_")
     _trace("load: bands built")
     w.reveal_pending = set(meta["reveal_pending"])
     w.pending_restore = [(a, list(b), c) for a, b, c in meta.get("pending_restore", [])]
@@ -263,6 +305,8 @@ def from_file(src, planet=None) -> World:
     w.tech_record = np.zeros_like(w.tech)
     if rec is not None and rec.shape[1] == _tech.K:
         w.tech_record[:min(len(rec), len(w.tech))] = rec[:len(w.tech)]
+    rec = None
+    _drop(arrays, "tech_record")
     sc = arrays.get("tech_scribes")                  # saves from before scribes (20 Nov 2026): today's specialists
     w.tech_scribes = None
     if sc is not None and np.asarray(sc).size:
@@ -290,11 +334,14 @@ def from_file(src, planet=None) -> World:
         of = np.asarray(arrays["partner_of"], dtype=np.int64)
         gave = np.asarray(arrays["partner_gave"], dtype=np.float64) if "partner_gave" in arrays else None
         _trade.partner_rows_from_dense(w, of, np.asarray(arrays["partner_since"], dtype=np.int64), gave, alive_ids)
+        of = gave = None
     else:                                               # older saves have none: every living band starts without
         for i in alive_ids:
             w.partner_slots.assign(i)
         _trade.mark_partner_ended(w, alive_ids)
     _trade.grow(w, len(w.goods) - 1)                 # keeps every goods row (Codex review 013)
+    g = None
+    _drop(arrays, "goods", prefix="partner_")
     if "goods_reached" in arrays:                       # trade stage 3, after review 014
         w.goods_reached = np.asarray(arrays["goods_reached"], dtype=bool)
     else:
@@ -307,9 +354,12 @@ def from_file(src, planet=None) -> World:
     _places.from_json(w, meta.get("places", {}))
     if "dz_log" in arrays and np.asarray(arrays["dz_log"]).size:
         w.dz_log = _disease.RowLog.from_array(arrays["dz_log"])
+    _drop(arrays, "dz_log")
     _trace("load: disease and places built")
     from .sim import minorlog as _minor                  # the compact log: older saves start with it empty
     _minor.load(w, {k: v for k, v in arrays.items() if k.startswith("minor_")})
+    _drop(arrays, prefix="minor_")
+    _trace("load: compact log built")
     for k in _disease.ARRAYS:
         if k in arrays and np.asarray(arrays[k]).size:
             setattr(w, k, np.asarray(arrays[k], dtype=getattr(w, k).dtype))
@@ -350,7 +400,11 @@ def from_file(src, planet=None) -> World:
         c[:, :w.customs.shape[1]] = w.customs
         w.customs = c
     w.people = People.from_arrays({k[2:]: v for k, v in arrays.items() if k.startswith("p_")})
+    _drop(arrays, prefix="p_")
+    _trace("load: people built")
     w.groups = Groups.from_arrays({k[2:]: v for k, v in arrays.items() if k.startswith("g_")})
+    _drop(arrays, prefix="g_")
+    _trace("load: groups built")
     if "language" in meta:                   # schema 1 (M0) saves: everyone speaks the proto-language
         language.from_json(w, meta["language"])
         w.custom_log = ({int(k): v for k, v in meta["custom_log"].items()} if "custom_log" in meta
@@ -397,8 +451,7 @@ def save(w: World, path) -> Path:
 
 
 def load(path, planet=None) -> World:
-    with open(path, "rb") as f:
-        return from_bytes(f.read(), planet)
+    return from_file(path, planet)       # read from disk as it is parsed (Codex review 041, finding 3)
 
 
 def _recent_events(w) -> str:
