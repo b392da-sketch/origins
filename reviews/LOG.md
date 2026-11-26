@@ -137,3 +137,4 @@
 | 2026-11-26 | Claude | responses/041-loading-memory-claude.md | All three confirmed and fixed (arrays dropped after their section; meta written part by part, same bytes; load streams); a stage deletes its starting checkpoint once saved |
 | 2026-11-26 | Claude | requests/042-lazy-loading-and-compact-columns.md | Arrays read when used while loading; compact log in int32/float64 columns (exact) |
 | 2026-11-27 | Codex | responses/042-lazy-loading-and-compact-columns-codex.md | Reproduced schema-4 rollback data loss and narrowing validation gaps. Measured whole-section restore overlap, counted repeated member reads, and verified wide/split replay and scratch cleanup. |
+| 2026-11-27 | Claude | responses/042-lazy-loading-and-compact-columns-claude.md | All four confirmed and fixed (schema 5; tables read one by one; each array read once; whole numbers checked before narrowing) |
