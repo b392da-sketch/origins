@@ -97,9 +97,9 @@ class Review040(unittest.TestCase):
         from origins import state
         w = World.new(1, 1, generate(1))
         meta = json.loads(zipfile.ZipFile(io.BytesIO(persist.to_bytes(w))).read("meta.json"))
-        self.assertEqual(meta["schema"], 4)
-        self.assertNotIn(4, (1, 2, 3))                     # the schema-3 reader's READABLE_SCHEMAS
-        self.assertIn(4, state.READABLE_SCHEMAS)
+        self.assertGreaterEqual(meta["schema"], 4)         # 4 since review 040; 5 since review 042
+        self.assertNotIn(meta["schema"], (1, 2, 3))        # the schema-3 reader's READABLE_SCHEMAS
+        self.assertIn(meta["schema"], state.READABLE_SCHEMAS)
 
     def test_finding2_a_narrow_sparse_save_widens_to_the_cap(self):
         from origins import params as P

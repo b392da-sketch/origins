@@ -66,6 +66,7 @@ class _LazyArrays:
         self._npz = npz
         self._keys = list(npz.files)
         self._gone: set = set()
+        self._last = (None, None)        # the array last read, returned again if asked for next (review 042, 3)
 
     def __contains__(self, k):
         return k in self._npz.files and k not in self._gone
@@ -73,7 +74,12 @@ class _LazyArrays:
     def __getitem__(self, k):
         if k not in self:
             raise KeyError(k)
-        return self._npz[k]
+        if self._last[0] == k:
+            return self._last[1]
+        self._last = (None, None)        # the previous array is released before the next is read
+        a = self._npz[k]
+        self._last = (k, a)
+        return a
 
     def get(self, k, default=None):
         return self[k] if k in self else default
@@ -86,14 +92,16 @@ class _LazyArrays:
 
     def items(self):
         for k in self.keys():
-            yield k, self._npz[k]
+            yield k, self[k]
 
     def pop(self, k, default=None):
-        self._gone.add(k)
+        self.__delitem__(k)
         return default
 
     def __delitem__(self, k):
         self._gone.add(k)
+        if self._last[0] == k:
+            self._last = (None, None)
 
     @property
     def files(self):
@@ -408,7 +416,7 @@ def from_file(src, planet=None) -> World:
         _drop(arrays, "dz_log")
         _trace("load: disease and places built")
         from .sim import minorlog as _minor                  # the compact log: older saves start with it empty
-        _minor.load(w, _prefixed(arrays, "minor_", strip=False))
+        _minor.load(w, arrays)          # table by table, each read and released in turn (review 042, finding 2)
         _drop(arrays, prefix="minor_")
         _trace("load: compact log built")
         for k in _disease.ARRAYS:

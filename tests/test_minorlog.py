@@ -193,3 +193,58 @@ class CompactColumns(unittest.TestCase):
         a = w.living_bands()[0]
         with self.assertRaises(OverflowError):
             minorlog.formed(w, a.id, 2 ** 31, a.cell, minorlog.FORMED_NEAR, closeness=0.5)
+
+
+class Review042(unittest.TestCase):
+    """Codex review 042."""
+
+    def test_finding1_split_column_saves_carry_a_schema_older_readers_refuse(self):
+        import io
+        import zipfile
+        from origins import state
+        w = World.new(1, 1, generate(1))
+        meta = json.loads(zipfile.ZipFile(io.BytesIO(persist.to_bytes(w))).read("meta.json"))
+        self.assertEqual(meta["schema"], 5)
+        self.assertNotIn(5, (1, 2, 3, 4))                   # the schema-4 reader's READABLE_SCHEMAS
+        self.assertIn(5, state.READABLE_SCHEMAS)
+
+    def test_findings2_3_each_array_is_read_once_and_tables_one_by_one(self):
+        import inspect
+        self.assertIn("_minor.load(w, arrays)", inspect.getsource(persist.from_file))
+        w = _world(30)
+        data = persist.to_bytes(w)
+        reads = {}
+        orig = persist._LazyArrays.__init__
+
+        def spy(self, npz):
+            orig(self, npz)
+            real = npz.__class__.__getitem__
+
+            class Counting(npz.__class__):
+                def __getitem__(s2, k):
+                    reads[k] = reads.get(k, 0) + 1
+                    return real(s2, k)
+            npz.__class__ = Counting
+        persist._LazyArrays.__init__ = spy
+        try:
+            w2 = persist.from_bytes(data, w.planet)
+        finally:
+            persist._LazyArrays.__init__ = orig
+        self.assertEqual(persist.digest(w2), persist.digest(w))
+        twice = {k: n for k, n in reads.items() if n > 1}
+        self.assertEqual(twice, {})
+
+    def test_finding4_whole_numbers_are_checked_before_narrowing(self):
+        w, a, b = Review039()._two()
+        with self.assertRaises(ValueError):
+            minorlog.Table("land_move").append([1.75, a.id, 0, 1.0, 1.0, 1.0, -1, -1, 0, 0, 0])
+        wide = np.zeros((1, len(minorlog.COLUMNS["land_move"])))
+        wide[0, minorlog.COL["land_move"]["after"]] = 2.0 ** 63
+        with self.assertRaises(OverflowError):
+            minorlog.Table.from_wide("land_move", wide)
+        wide[0, minorlog.COL["land_move"]["after"]] = 1.75
+        with self.assertRaises(ValueError):
+            minorlog.Table.from_wide("land_move", wide)
+        t = minorlog.Table("land_move")
+        t.append([-2 ** 31, a.id, 0, 1.0, 1.0, 1.0, -1, -1, 0, 0, 0])   # the int32 minimum is valid
+        self.assertEqual(int(t.col("t")[0]), -2 ** 31)

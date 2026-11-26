@@ -166,9 +166,11 @@ def partner_load(w, arrs: dict):
     w.partner_slots.load("partner_slots", arrs)
     for a, key in ((w.partner_of, "partner_of_rows"), (w.partner_since, "partner_since_rows"),
                    (w.partner_gave, "partner_gave_rows")):
-        r = np.asarray(arrs[key], dtype=a.dtype)
+        r = np.asarray(of if key == "partner_of_rows" else arrs[key], dtype=a.dtype)   # read once (review 042)
         a._grow_rows(max(len(r), 1))
         a.data[:len(r), :r.shape[1] if r.ndim > 1 else None] = r
+        r = None
+    of = None
 
 
 def move_share(w, src_id: int, dst_id: int, frac: float):

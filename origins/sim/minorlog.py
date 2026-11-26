@@ -52,6 +52,28 @@ FLOATS = {"amount", "closeness", "here", "there", "here_natural", "band_gave_she
           "partner_gave_shell", "partner_gave_gold"}
 
 
+I32 = (-2 ** 31, 2 ** 31 - 1)
+
+
+def _whole(a, kind: str) -> np.ndarray:
+    """Whole numbers as int32, checked before narrowing: finite, integral and inside int32 (review 042, finding 4)."""
+    a = np.asarray(a)
+    if a.size == 0:
+        return a.astype(np.int32)
+    if np.issubdtype(a.dtype, np.integer):
+        if a.min() < I32[0] or a.max() > I32[1]:
+            raise OverflowError(f"compact log {kind}: a whole number beyond int32")
+        return a.astype(np.int32)
+    f = np.asarray(a, dtype=np.float64)
+    if not np.isfinite(f).all():
+        raise ValueError(f"compact log {kind}: a whole-number column holds a non-finite value")
+    if (f != np.floor(f)).any():
+        raise ValueError(f"compact log {kind}: a whole-number column holds a fraction")
+    if f.min() < I32[0] or f.max() > I32[1]:
+        raise OverflowError(f"compact log {kind}: a whole number beyond int32")
+    return f.astype(np.int32)
+
+
 class Table:
     """A growing table of rows: whole-number columns as int32, amounts as float64 (G4a pilot 3, 26 November 2026:
     every column was float64, 1.4 GB by year 5,733 on planet 4). Every value reads back exactly as recorded: ids,
@@ -71,9 +93,7 @@ class Table:
         cap = max(1024, n + n // 4)
         self._i = np.zeros((cap, len(self.icol)), dtype=np.int32)
         self._f = np.zeros((cap, len(self.fcol)))
-        if n and (np.abs(ints).max() > np.iinfo(np.int32).max):
-            raise OverflowError(f"compact log {kind}: a whole number beyond int32")
-        self._i[:n] = ints
+        self._i[:n] = _whole(ints, kind)
         self._f[:n] = floats
         self.n = n
 
@@ -85,7 +105,7 @@ class Table:
         t = cls(kind)
         ii = [cols.index(c) for c in t.icol]
         fi = [cols.index(c) for c in t.fcol]
-        return cls(kind, a[:, ii].astype(np.int64), a[:, fi])
+        return cls(kind, _whole(a[:, ii], kind), a[:, fi])
 
     def append(self, row) -> int:
         if self.n == len(self._i):
@@ -95,10 +115,7 @@ class Table:
             self._i, self._f = i, f
         cols = COLUMNS[self.kind]
         vals = dict(zip(cols, row))
-        iv = [int(vals[c]) for c in self.icol]
-        if any(abs(x) > 2147483647 for x in iv):
-            raise OverflowError(f"compact log {self.kind}: a whole number beyond int32")
-        self._i[self.n] = iv
+        self._i[self.n] = _whole(np.array([vals[c] for c in self.icol]), self.kind)
         self._f[self.n] = [float(vals[c]) for c in self.fcol]
         self.n += 1
         return self.n - 1
@@ -399,6 +416,7 @@ def load(w, arrs: dict):
             if a.ndim == 2 and a.shape[1] != len(c):
                 raise ValueError(f"compact log {k}: {a.shape[1]} columns saved, {len(c)} expected")
             w.minor[k] = Table.from_wide(k, a)
+            a = None                                     # released before the next table is read (review 042)
         else:
             w.minor[k] = Table(k)
     w.minor_givers = Ints(arrs.get("minor_givers"))
