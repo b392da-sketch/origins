@@ -52,14 +52,15 @@ class CompactLog(unittest.TestCase):
         w2 = persist.from_bytes(persist.to_bytes(w), w.planet)
         self.assertEqual(persist.digest(w2), persist.digest(w))
         for k in minorlog.KINDS:
-            self.assertTrue(np.array_equal(w2.minor[k].array(), w.minor[k].array()))
+            self.assertTrue(np.array_equal(w2.minor[k].ints(), w.minor[k].ints()))
+            self.assertTrue(np.array_equal(w2.minor[k].floats(), w.minor[k].floats()))
         d0 = persist.digest(w)
         k = next(k for k in minorlog.KINDS if minorlog.size(w, k))
-        w.minor[k]._a[0, 0] += 1                                       # a changed row changes the digest
+        w.minor[k]._i[0, 0] += 1                                       # a changed row changes the digest
         try:
             self.assertNotEqual(persist.digest(w), d0)
         finally:
-            w.minor[k]._a[0, 0] -= 1
+            w.minor[k]._i[0, 0] -= 1
 
     def test_a_fresh_world_and_a_reloaded_one_digest_alike(self):
         w = World.new(1, 1, generate(1))
@@ -167,3 +168,28 @@ class Review039(unittest.TestCase):
         minorlog.formed(w, a.id, b.id, a.cell, minorlog.FORMED_NEAR, closeness=0.5)
         with self.assertRaises((KeyError, IndexError)):
             explain.describe(w, server.parse_ref("log:partnership_formed:-1"))
+
+
+class CompactColumns(unittest.TestCase):
+    """G4a pilot 3 (26 November 2026): whole numbers in int32 columns, amounts in float64, read back exactly; saves
+    with one float64 array per kind still load."""
+
+    def test_rows_read_back_exactly_and_wide_saves_load(self):
+        w = _world(40)
+        for k in minorlog.KINDS:
+            t = w.minor[k]
+            if not len(t):
+                continue
+            self.assertEqual(t.ints().dtype, np.int32)
+            wide = np.stack([t.row(i) for i in range(len(t))])
+            t2 = minorlog.Table.from_wide(k, wide)
+            self.assertTrue(np.array_equal(t2.ints(), t.ints()))
+            self.assertTrue(np.array_equal(t2.floats(), t.floats()))
+            for i in range(min(len(t), 20)):
+                self.assertTrue(np.array_equal(t2.row(i), t.row(i)))
+
+    def test_a_number_beyond_int32_is_refused(self):
+        w = World.new(1, 1, generate(1))
+        a = w.living_bands()[0]
+        with self.assertRaises(OverflowError):
+            minorlog.formed(w, a.id, 2 ** 31, a.cell, minorlog.FORMED_NEAR, closeness=0.5)

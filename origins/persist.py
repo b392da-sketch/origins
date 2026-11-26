@@ -57,6 +57,55 @@ def to_bytes(w: World, fast: bool = False) -> bytes:
     return buf.getvalue()
 
 
+class _LazyArrays:
+    """The arrays of a save, read from the unpacked npz only when asked for (G4a pilot 3, 26 November 2026: loading
+    read every array before building the world, so all of them sat in memory beside the world being built). Each
+    access reads the array afresh; nothing is kept here. items() reads one array at a time."""
+
+    def __init__(self, npz):
+        self._npz = npz
+        self._keys = list(npz.files)
+        self._gone: set = set()
+
+    def __contains__(self, k):
+        return k in self._npz.files and k not in self._gone
+
+    def __getitem__(self, k):
+        if k not in self:
+            raise KeyError(k)
+        return self._npz[k]
+
+    def get(self, k, default=None):
+        return self[k] if k in self else default
+
+    def keys(self):
+        return [k for k in self._keys if k not in self._gone]
+
+    def __iter__(self):
+        return iter(self.keys())
+
+    def items(self):
+        for k in self.keys():
+            yield k, self._npz[k]
+
+    def pop(self, k, default=None):
+        self._gone.add(k)
+        return default
+
+    def __delitem__(self, k):
+        self._gone.add(k)
+
+    @property
+    def files(self):
+        return self.keys()
+
+
+def _prefixed(arrays, prefix: str, strip: bool = True) -> dict:
+    """The arrays whose names start with prefix (read now; the others are not touched)."""
+    n = len(prefix) if strip else 0
+    return {k[n:]: arrays[k] for k in arrays.keys() if k.startswith(prefix)}
+
+
 def _drop(arrays: dict, *names, prefix: str | None = None):
     """Forget decoded arrays a section has finished with, so the next section's copies do not sit beside them
     (Codex review 041, finding 1). Only lifetimes change: every value is read exactly as before."""
@@ -206,228 +255,230 @@ def from_file(src, planet=None) -> World:
     """A world from a save given as a path or a file object. From a path, the save is read from disk as it is
     parsed, and its arrays are unpacked to a temporary file and read one by one, not held as bytes beside the
     arrays (G4a pilot 2, 22 November 2026: loading a 1.1 GB checkpoint from bytes peaked at 13 GB)."""
+    import contextlib
     import shutil
     import tempfile
     _trace("load: start")
-    with zipfile.ZipFile(src) as z:
-        meta = json.loads(z.read("meta.json"))
-        _trace("load: meta.json parsed")
-        with tempfile.TemporaryFile() as tmp:
+    with contextlib.ExitStack() as stack:
+        with zipfile.ZipFile(src) as z:
+            meta = json.loads(z.read("meta.json"))
+            _trace("load: meta.json parsed")
+            tmp = stack.enter_context(tempfile.TemporaryFile())
             with z.open("arrays.npz") as f:
                 shutil.copyfileobj(f, tmp, 16 << 20)
             tmp.seek(0)
-            with np.load(tmp) as npz:
-                arrays = {k: npz[k] for k in npz.files}
-        _trace("load: arrays read")
-        if "events.jsonl" in z.namelist():
-            with z.open("events.jsonl") as f:
-                meta["events"] = EventStore(json.loads(line) for line in io.TextIOWrapper(f, encoding="utf-8") if line.strip())
-        if "custom_log.jsonl" in z.namelist():
-            with z.open("custom_log.jsonl") as f:
-                meta["_custom_log"] = {int(r[0]): r[1] for r in (json.loads(line) for line in io.TextIOWrapper(f, encoding="utf-8") if line.strip())}
-    _trace("load: events and logs read")
-    if meta.get("schema") not in READABLE_SCHEMAS:
-        raise ValueError(f"unsupported save schema {meta.get('schema')} (this version reads {READABLE_SCHEMAS})")
-    planet = planet if planet is not None and planet.seed == meta["world_seed"] else generate(meta["world_seed"])
-    from .worldgen import legacy_fingerprint
-    if meta["planet_fingerprint"] not in (planet.fingerprint, legacy_fingerprint(planet)):
-        raise ValueError("planet fingerprint mismatch: this save was made with different world-generation code")
-    w = World(planet, meta["run_seed"])
-    saved_env = meta.get("env")
-    w.load_warning = ""
-    if saved_env and saved_env != environment():
-        w.load_warning = (f"saved with Python {saved_env['python']} / NumPy {saved_env['numpy']}, now running "
-                          f"{environment()['python']} / {environment()['numpy']}: the world continues normally, but its "
-                          f"future may differ slightly from the same save continued on the original versions")
-    w.t = meta["t"]
-    w.counts = meta["counts"]
-    w.ledger = meta["ledger"]
-    w.next_band = meta["next_band"]
-    w.follow = meta["follow"]
-    w.intervened = meta["intervened"]
-    w.invariant_failures = meta["invariant_failures"]
-    for k, st in meta["rng"].items():
-        w.rng[k].bit_generator.state = st
-    w.region_z = np.array(meta["region_z"])
-    w.region_factor = np.array(meta["region_factor"])
-    w.region_bad_event = np.array(meta["region_bad_event"], dtype=np.int64)
-    w.yearly = meta["yearly"]
-    acc = new_accumulators()
-    for k, v in meta["accum"].items():
-        if isinstance(acc[k], np.ndarray):
-            arr = np.array(v)
-            if arr.shape[0] < acc[k].shape[0]:          # saves from before a cause of death was added
-                pad = np.zeros_like(acc[k])
-                pad[:arr.shape[0]] = arr
-                arr = pad
-            acc[k] = arr
+            # each array is read when its part of the world is built, not all at once beforehand (G4a pilot 3)
+            arrays = _LazyArrays(stack.enter_context(np.load(tmp)))
+            _trace("load: arrays opened")
+            if "events.jsonl" in z.namelist():
+                with z.open("events.jsonl") as f:
+                    meta["events"] = EventStore(json.loads(line) for line in io.TextIOWrapper(f, encoding="utf-8") if line.strip())
+            if "custom_log.jsonl" in z.namelist():
+                with z.open("custom_log.jsonl") as f:
+                    meta["_custom_log"] = {int(r[0]): r[1] for r in (json.loads(line) for line in io.TextIOWrapper(f, encoding="utf-8") if line.strip())}
+        _trace("load: events and logs read")
+        if meta.get("schema") not in READABLE_SCHEMAS:
+            raise ValueError(f"unsupported save schema {meta.get('schema')} (this version reads {READABLE_SCHEMAS})")
+        planet = planet if planet is not None and planet.seed == meta["world_seed"] else generate(meta["world_seed"])
+        from .worldgen import legacy_fingerprint
+        if meta["planet_fingerprint"] not in (planet.fingerprint, legacy_fingerprint(planet)):
+            raise ValueError("planet fingerprint mismatch: this save was made with different world-generation code")
+        w = World(planet, meta["run_seed"])
+        saved_env = meta.get("env")
+        w.load_warning = ""
+        if saved_env and saved_env != environment():
+            w.load_warning = (f"saved with Python {saved_env['python']} / NumPy {saved_env['numpy']}, now running "
+                              f"{environment()['python']} / {environment()['numpy']}: the world continues normally, but its "
+                              f"future may differ slightly from the same save continued on the original versions")
+        w.t = meta["t"]
+        w.counts = meta["counts"]
+        w.ledger = meta["ledger"]
+        w.next_band = meta["next_band"]
+        w.follow = meta["follow"]
+        w.intervened = meta["intervened"]
+        w.invariant_failures = meta["invariant_failures"]
+        for k, st in meta["rng"].items():
+            w.rng[k].bit_generator.state = st
+        w.region_z = np.array(meta["region_z"])
+        w.region_factor = np.array(meta["region_factor"])
+        w.region_bad_event = np.array(meta["region_bad_event"], dtype=np.int64)
+        w.yearly = meta["yearly"]
+        acc = new_accumulators()
+        for k, v in meta["accum"].items():
+            if isinstance(acc[k], np.ndarray):
+                arr = np.array(v)
+                if arr.shape[0] < acc[k].shape[0]:          # saves from before a cause of death was added
+                    pad = np.zeros_like(acc[k])
+                    pad[:arr.shape[0]] = arr
+                    arr = pad
+                acc[k] = arr
+            else:
+                acc[k] = list(v)
+        w.accum = acc
+        w.season_stats = meta["season_stats"]
+        w.events = meta["events"] if isinstance(meta["events"], EventStore) else EventStore(meta["events"])
+        w.bands = Bands()
+        for d in meta["bands"]:
+            d["trail"] = [tuple(x) for x in d["trail"]]
+            b = Band(**d)
+            w.bands[b.id] = b
+        w.bands.load_arrays(_prefixed(arrays, "b_"), meta.get("band_strings", []))
+        _drop(arrays, prefix="b_")
+        _trace("load: bands built")
+        w.reveal_pending = set(meta["reveal_pending"])
+        w.pending_restore = [(a, list(b), c) for a, b, c in meta.get("pending_restore", [])]
+        for k in ("stock", "known", "discovered_by", "discovered_at", "food_modifier", "intervention_event",
+                  "cell_hunger", "cell_births", "customs", "neutral", "hazard_food", "hazard_event", "immune",
+                  "skill", "farm_share", "crop_store", "still_years", "forage_rr", "spec", "polity_of", "polity_via", "conquered_at",
+                  "herder_since", "stock_broad", "farm_rr_real", "farm_rr_cell", "farm_rr_lost"):
+            if k in arrays:                      # older saves of this schema may lack optional arrays
+                setattr(w, k, arrays[k])
+        if getattr(w, "farm_rr_real", None) is None or len(w.farm_rr_real) != len(w.farm_share):
+            w.farm_rr_real = np.full(len(w.farm_share), np.nan)      # before choices saw real yields (19 Nov 2026)
+        if getattr(w, "farm_rr_cell", None) is None or len(w.farm_rr_cell) != len(w.farm_rr_real):
+            w.farm_rr_cell = np.full(len(w.farm_rr_real), -1, dtype=np.int64)   # before review 021 (20 Nov 2026)
+        if getattr(w, "farm_rr_lost", None) is None or len(w.farm_rr_lost) != len(w.farm_rr_real):
+            w.farm_rr_lost = np.zeros(len(w.farm_rr_real))                  # before review 022 (20 Nov 2026)
+        if getattr(w, "stock_broad", None) is None or len(w.stock_broad) != len(w.stock):
+            from .sim import climate as _climate            # saves from before the broad-spectrum pool (14 Nov 2026)
+            w.stock_broad = _climate.broad_max(w).copy()
+        _trace("load: per-band arrays built")
+        from .sim import technology as _tech
+        if "tech" in arrays:
+            w.tech = arrays["tech"]
+        if getattr(w, "tech", None) is None or w.tech.shape[0] < len(w.farm_share) or w.tech.shape[1] != _tech.K:
+            t = np.zeros((len(w.farm_share), _tech.K), dtype=np.float32)    # saves from before the technology network
+            old = getattr(w, "tech", None)
+            if old is not None and old.shape[1] == _tech.K:
+                t[:len(old)] = old
+            w.tech = t
+        rec = arrays.get("tech_record")                  # saves from before written records (14 Nov 2026): none kept
+        w.tech_record = np.zeros_like(w.tech)
+        if rec is not None and rec.shape[1] == _tech.K:
+            w.tech_record[:min(len(rec), len(w.tech))] = rec[:len(w.tech)]
+        rec = None
+        _drop(arrays, "tech_record")
+        sc = arrays.get("tech_scribes")                  # saves from before scribes (20 Nov 2026): today's specialists
+        w.tech_scribes = None
+        if sc is not None and np.asarray(sc).size:
+            w.tech_scribes = np.array(sc, dtype=float)
+        if len(getattr(w, "herder_since", ())) < len(w.farm_share):    # saves from before pastoralism (M4a)
+            h = np.full(len(w.farm_share), -1.0)
+            h[:len(getattr(w, "herder_since", ()))] = getattr(w, "herder_since", np.zeros(0))
+            w.herder_since = h
+        w.first_herders = meta.get("first_herders")
+        w.tech_firsts = dict(meta.get("tech_firsts", {}))
+        w.tech_writing_log = [list(r) for r in meta.get("tech_writing_log", [])]    # from review 032; older saves: none
+        _trace("load: technology built")
+        from .sim import trade as _trade                  # goods (M4a trade); saves from before have none
+        g = arrays.get("goods")
+        led = meta.get("goods_ledger")
+        _trade.init(w)
+        if g is not None and g.shape[1] == _trade.G:
+            w.goods = np.array(g, dtype=np.float64)        # exactly as saved (replay digest)
         else:
-            acc[k] = list(v)
-    w.accum = acc
-    w.season_stats = meta["season_stats"]
-    w.events = meta["events"] if isinstance(meta["events"], EventStore) else EventStore(meta["events"])
-    w.bands = Bands()
-    for d in meta["bands"]:
-        d["trail"] = [tuple(x) for x in d["trail"]]
-        b = Band(**d)
-        w.bands[b.id] = b
-    w.bands.load_arrays({k[2:]: v for k, v in arrays.items() if k.startswith("b_")}, meta.get("band_strings", []))
-    _drop(arrays, prefix="b_")
-    _trace("load: bands built")
-    w.reveal_pending = set(meta["reveal_pending"])
-    w.pending_restore = [(a, list(b), c) for a, b, c in meta.get("pending_restore", [])]
-    for k in ("stock", "known", "discovered_by", "discovered_at", "food_modifier", "intervention_event",
-              "cell_hunger", "cell_births", "customs", "neutral", "hazard_food", "hazard_event", "immune",
-              "skill", "farm_share", "crop_store", "still_years", "forage_rr", "spec", "polity_of", "polity_via", "conquered_at",
-              "herder_since", "stock_broad", "farm_rr_real", "farm_rr_cell", "farm_rr_lost"):
-        if k in arrays:                      # older saves of this schema may lack optional arrays
-            setattr(w, k, arrays[k])
-    if getattr(w, "farm_rr_real", None) is None or len(w.farm_rr_real) != len(w.farm_share):
-        w.farm_rr_real = np.full(len(w.farm_share), np.nan)      # before choices saw real yields (19 Nov 2026)
-    if getattr(w, "farm_rr_cell", None) is None or len(w.farm_rr_cell) != len(w.farm_rr_real):
-        w.farm_rr_cell = np.full(len(w.farm_rr_real), -1, dtype=np.int64)   # before review 021 (20 Nov 2026)
-    if getattr(w, "farm_rr_lost", None) is None or len(w.farm_rr_lost) != len(w.farm_rr_real):
-        w.farm_rr_lost = np.zeros(len(w.farm_rr_real))                  # before review 022 (20 Nov 2026)
-    if getattr(w, "stock_broad", None) is None or len(w.stock_broad) != len(w.stock):
-        from .sim import climate as _climate            # saves from before the broad-spectrum pool (14 Nov 2026)
-        w.stock_broad = _climate.broad_max(w).copy()
-    _trace("load: per-band arrays built")
-    from .sim import technology as _tech
-    if "tech" in arrays:
-        w.tech = arrays["tech"]
-    if getattr(w, "tech", None) is None or w.tech.shape[0] < len(w.farm_share) or w.tech.shape[1] != _tech.K:
-        t = np.zeros((len(w.farm_share), _tech.K), dtype=np.float32)    # saves from before the technology network
-        old = getattr(w, "tech", None)
-        if old is not None and old.shape[1] == _tech.K:
-            t[:len(old)] = old
-        w.tech = t
-    rec = arrays.get("tech_record")                  # saves from before written records (14 Nov 2026): none kept
-    w.tech_record = np.zeros_like(w.tech)
-    if rec is not None and rec.shape[1] == _tech.K:
-        w.tech_record[:min(len(rec), len(w.tech))] = rec[:len(w.tech)]
-    rec = None
-    _drop(arrays, "tech_record")
-    sc = arrays.get("tech_scribes")                  # saves from before scribes (20 Nov 2026): today's specialists
-    w.tech_scribes = None
-    if sc is not None and np.asarray(sc).size:
-        w.tech_scribes = np.array(sc, dtype=float)
-    if len(getattr(w, "herder_since", ())) < len(w.farm_share):    # saves from before pastoralism (M4a)
-        h = np.full(len(w.farm_share), -1.0)
-        h[:len(getattr(w, "herder_since", ()))] = getattr(w, "herder_since", np.zeros(0))
-        w.herder_since = h
-    w.first_herders = meta.get("first_herders")
-    w.tech_firsts = dict(meta.get("tech_firsts", {}))
-    w.tech_writing_log = [list(r) for r in meta.get("tech_writing_log", [])]    # from review 032; older saves: none
-    _trace("load: technology built")
-    from .sim import trade as _trade                  # goods (M4a trade); saves from before have none
-    g = arrays.get("goods")
-    led = meta.get("goods_ledger")
-    _trade.init(w)
-    if g is not None and g.shape[1] == _trade.G:
-        w.goods = np.array(g, dtype=np.float64)        # exactly as saved (replay digest)
-    else:
-        _trade.grow(w, len(w.farm_share) - 1)
-    alive_ids = [b.id for b in w.bands.live.values() if b.alive]
-    if "partner_slots_slot" in arrays:                  # partner rows for bands holding one (22 November 2026)
-        _trade.partner_load(w, arrays)
-    elif "partner_of" in arrays:                        # gift partnerships (trade stage 2), a row for every band id
-        of = np.asarray(arrays["partner_of"], dtype=np.int64)
-        gave = np.asarray(arrays["partner_gave"], dtype=np.float64) if "partner_gave" in arrays else None
-        _trade.partner_rows_from_dense(w, of, np.asarray(arrays["partner_since"], dtype=np.int64), gave, alive_ids)
-        of = gave = None
-    else:                                               # older saves have none: every living band starts without
-        for i in alive_ids:
-            w.partner_slots.assign(i)
-        _trade.mark_partner_ended(w, alive_ids)
-    _trade.grow(w, len(w.goods) - 1)                 # keeps every goods row (Codex review 013)
-    g = None
-    _drop(arrays, "goods", prefix="partner_")
-    if "goods_reached" in arrays:                       # trade stage 3, after review 014
-        w.goods_reached = np.asarray(arrays["goods_reached"], dtype=bool)
-    else:
-        w.goods_reached = None
-        _trade.grow(w, len(w.goods) - 1)             # older saves: what a band holds has reached it
-    _trace("load: trade built")
-    from .sim import disease as _disease                 # diseases from animals (M4a): older saves start with none
-    _disease.from_json(w, meta.get("disease", {}))
-    from .sim import places as _places                   # place names (M4a): older saves start with none
-    _places.from_json(w, meta.get("places", {}))
-    if "dz_log" in arrays and np.asarray(arrays["dz_log"]).size:
-        w.dz_log = _disease.RowLog.from_array(arrays["dz_log"])
-    _drop(arrays, "dz_log")
-    _trace("load: disease and places built")
-    from .sim import minorlog as _minor                  # the compact log: older saves start with it empty
-    _minor.load(w, {k: v for k, v in arrays.items() if k.startswith("minor_")})
-    _drop(arrays, prefix="minor_")
-    _trace("load: compact log built")
-    for k in _disease.ARRAYS:
-        if k in arrays and np.asarray(arrays[k]).size:
-            setattr(w, k, np.asarray(arrays[k], dtype=getattr(w, k).dtype))
-    if w.diseases and not meta.get("dz_counts_split") and any(k.startswith("ob_") for k in w.counts):
-        # a save made with named diseases before review 031 wrote their G1 counts under M1's keys: they cannot be
-        # told apart, so they are set aside, not reported as M1's (Codex review 031, finding 4). Only such saves:
-        # a current save marks itself, so M1's own counts in it are kept (Codex review 034, finding 10), and any
-        # earlier set-aside counts are added to, never overwritten.
-        for k in [k for k in w.counts if k.startswith("ob_")]:
-            w.counts["unattributed_" + k] = w.counts.get("unattributed_" + k, 0) + w.counts.pop(k)
-    _disease.load_rows(w, arrays, [b.id for b in w.bands.live.values() if b.alive])   # per-band rows (22 Nov 2026)
-    from .sim import customs as _customs
-    _customs.widen(w)                                    # "response to epidemics" (M4a) for older saves
-    from .sim import land as _land                       # the land answers back (M4a): older saves start untouched
-    _land.init(w)
-    for k in _land.ARRAYS:
-        if "land_" + k in arrays:
-            setattr(w, k, np.asarray(arrays["land_" + k], dtype=getattr(w, k).dtype))
-    if "trade_in" in arrays and np.asarray(arrays["trade_in"]).size:   # last year's goods received (stage 5)
-        w.trade_in = np.asarray(arrays["trade_in"], dtype=np.float64)
-    for n_ in ("tech_prev_prac", "tech_prev_mats", "tech_prev_wood"):   # last year's practice, goods-held materials
-        if n_ in arrays and np.asarray(arrays[n_]).size:                # (review 018) and wood work (review 022)
-            setattr(w, n_, np.asarray(arrays[n_], dtype=bool))
-    if "tech_prev_dep" in arrays and np.asarray(arrays["tech_prev_dep"]).size:   # practised on imports (review 035)
-        w.tech_prev_dep = np.asarray(arrays["tech_prev_dep"], dtype=bool)
-    elif getattr(w, "tech_prev_prac", None) is not None:
-        w.tech_prev_dep = w.tech_prev_prac.copy()       # older saves: as before, any practice counts
-    if getattr(w, "tech_prev_prac", None) is not None and getattr(w, "tech_prev_wood", None) is None:
-        from .sim import technology as _tech                            # older saves: any wood technique practised
-        w.tech_prev_wood = w.tech_prev_prac[:, _tech.WOOD_TECHS].any(axis=1)
-    if "treasury" in arrays:                            # rulers' stores (trade stage 4b)
-        w.treasury = np.asarray(arrays["treasury"], dtype=np.float64)
-    if led:
-        w.goods_ledger = {k: dict(v) for k, v in led.items()}
-    from .sim import customs as _customs
-    if w.customs.shape[1] < len(_customs.NAMES):          # saves from before a custom was added: it starts at variant 0
-        c = np.zeros((len(w.customs), len(_customs.NAMES)), dtype=w.customs.dtype)
-        c[:, :w.customs.shape[1]] = w.customs
-        w.customs = c
-    w.people = People.from_arrays({k[2:]: v for k, v in arrays.items() if k.startswith("p_")})
-    _drop(arrays, prefix="p_")
-    _trace("load: people built")
-    w.groups = Groups.from_arrays({k[2:]: v for k, v in arrays.items() if k.startswith("g_")})
-    _drop(arrays, prefix="g_")
-    _trace("load: groups built")
-    if "language" in meta:                   # schema 1 (M0) saves: everyone speaks the proto-language
-        language.from_json(w, meta["language"])
-        w.custom_log = ({int(k): v for k, v in meta["custom_log"].items()} if "custom_log" in meta
-                        else meta.get("_custom_log", {}))
-        w.hazards = meta["hazards"]
-        w.timing = meta.get("timing", {})
-        w.log_strides = meta.get("log_strides", {})
-    if "farming" in meta:
-        farming.from_json(w, meta["farming"])
-    if "surplus" in meta:
-        surplus.from_json(w, meta["surplus"])
-    from .sim import trade as _tr
-    _tr.from_json(w, meta.get("trade"))
-    if "polity" in meta:
-        polity.from_json(w, meta["polity"])
-    if "conflict" in meta:
-        conflict.from_json(w, meta["conflict"])
-    w.people.languages = w.languages
-    w.people_changed()
-    w._pool = None
-    w.bands_changed()
-    _trace("load: world built")
-    return w
+            _trade.grow(w, len(w.farm_share) - 1)
+        alive_ids = [b.id for b in w.bands.live.values() if b.alive]
+        if "partner_slots_slot" in arrays:                  # partner rows for bands holding one (22 November 2026)
+            _trade.partner_load(w, arrays)
+        elif "partner_of" in arrays:                        # gift partnerships (trade stage 2), a row for every band id
+            of = np.asarray(arrays["partner_of"], dtype=np.int64)
+            gave = np.asarray(arrays["partner_gave"], dtype=np.float64) if "partner_gave" in arrays else None
+            _trade.partner_rows_from_dense(w, of, np.asarray(arrays["partner_since"], dtype=np.int64), gave, alive_ids)
+            of = gave = None
+        else:                                               # older saves have none: every living band starts without
+            for i in alive_ids:
+                w.partner_slots.assign(i)
+            _trade.mark_partner_ended(w, alive_ids)
+        _trade.grow(w, len(w.goods) - 1)                 # keeps every goods row (Codex review 013)
+        g = None
+        _drop(arrays, "goods", prefix="partner_")
+        if "goods_reached" in arrays:                       # trade stage 3, after review 014
+            w.goods_reached = np.asarray(arrays["goods_reached"], dtype=bool)
+        else:
+            w.goods_reached = None
+            _trade.grow(w, len(w.goods) - 1)             # older saves: what a band holds has reached it
+        _trace("load: trade built")
+        from .sim import disease as _disease                 # diseases from animals (M4a): older saves start with none
+        _disease.from_json(w, meta.get("disease", {}))
+        from .sim import places as _places                   # place names (M4a): older saves start with none
+        _places.from_json(w, meta.get("places", {}))
+        if "dz_log" in arrays and np.asarray(arrays["dz_log"]).size:
+            w.dz_log = _disease.RowLog.from_array(arrays["dz_log"])
+        _drop(arrays, "dz_log")
+        _trace("load: disease and places built")
+        from .sim import minorlog as _minor                  # the compact log: older saves start with it empty
+        _minor.load(w, _prefixed(arrays, "minor_", strip=False))
+        _drop(arrays, prefix="minor_")
+        _trace("load: compact log built")
+        for k in _disease.ARRAYS:
+            if k in arrays and np.asarray(arrays[k]).size:
+                setattr(w, k, np.asarray(arrays[k], dtype=getattr(w, k).dtype))
+        if w.diseases and not meta.get("dz_counts_split") and any(k.startswith("ob_") for k in w.counts):
+            # a save made with named diseases before review 031 wrote their G1 counts under M1's keys: they cannot be
+            # told apart, so they are set aside, not reported as M1's (Codex review 031, finding 4). Only such saves:
+            # a current save marks itself, so M1's own counts in it are kept (Codex review 034, finding 10), and any
+            # earlier set-aside counts are added to, never overwritten.
+            for k in [k for k in w.counts if k.startswith("ob_")]:
+                w.counts["unattributed_" + k] = w.counts.get("unattributed_" + k, 0) + w.counts.pop(k)
+        _disease.load_rows(w, arrays, [b.id for b in w.bands.live.values() if b.alive])   # per-band rows (22 Nov 2026)
+        from .sim import customs as _customs
+        _customs.widen(w)                                    # "response to epidemics" (M4a) for older saves
+        from .sim import land as _land                       # the land answers back (M4a): older saves start untouched
+        _land.init(w)
+        for k in _land.ARRAYS:
+            if "land_" + k in arrays:
+                setattr(w, k, np.asarray(arrays["land_" + k], dtype=getattr(w, k).dtype))
+        if "trade_in" in arrays and np.asarray(arrays["trade_in"]).size:   # last year's goods received (stage 5)
+            w.trade_in = np.asarray(arrays["trade_in"], dtype=np.float64)
+        for n_ in ("tech_prev_prac", "tech_prev_mats", "tech_prev_wood"):   # last year's practice, goods-held materials
+            if n_ in arrays and np.asarray(arrays[n_]).size:                # (review 018) and wood work (review 022)
+                setattr(w, n_, np.asarray(arrays[n_], dtype=bool))
+        if "tech_prev_dep" in arrays and np.asarray(arrays["tech_prev_dep"]).size:   # practised on imports (review 035)
+            w.tech_prev_dep = np.asarray(arrays["tech_prev_dep"], dtype=bool)
+        elif getattr(w, "tech_prev_prac", None) is not None:
+            w.tech_prev_dep = w.tech_prev_prac.copy()       # older saves: as before, any practice counts
+        if getattr(w, "tech_prev_prac", None) is not None and getattr(w, "tech_prev_wood", None) is None:
+            from .sim import technology as _tech                            # older saves: any wood technique practised
+            w.tech_prev_wood = w.tech_prev_prac[:, _tech.WOOD_TECHS].any(axis=1)
+        if "treasury" in arrays:                            # rulers' stores (trade stage 4b)
+            w.treasury = np.asarray(arrays["treasury"], dtype=np.float64)
+        if led:
+            w.goods_ledger = {k: dict(v) for k, v in led.items()}
+        from .sim import customs as _customs
+        if w.customs.shape[1] < len(_customs.NAMES):          # saves from before a custom was added: it starts at variant 0
+            c = np.zeros((len(w.customs), len(_customs.NAMES)), dtype=w.customs.dtype)
+            c[:, :w.customs.shape[1]] = w.customs
+            w.customs = c
+        w.people = People.from_arrays(_prefixed(arrays, "p_"))
+        _drop(arrays, prefix="p_")
+        _trace("load: people built")
+        w.groups = Groups.from_arrays(_prefixed(arrays, "g_"))
+        _drop(arrays, prefix="g_")
+        _trace("load: groups built")
+        if "language" in meta:                   # schema 1 (M0) saves: everyone speaks the proto-language
+            language.from_json(w, meta["language"])
+            w.custom_log = ({int(k): v for k, v in meta["custom_log"].items()} if "custom_log" in meta
+                            else meta.get("_custom_log", {}))
+            w.hazards = meta["hazards"]
+            w.timing = meta.get("timing", {})
+            w.log_strides = meta.get("log_strides", {})
+        if "farming" in meta:
+            farming.from_json(w, meta["farming"])
+        if "surplus" in meta:
+            surplus.from_json(w, meta["surplus"])
+        from .sim import trade as _tr
+        _tr.from_json(w, meta.get("trade"))
+        if "polity" in meta:
+            polity.from_json(w, meta["polity"])
+        if "conflict" in meta:
+            conflict.from_json(w, meta["conflict"])
+        w.people.languages = w.languages
+        w.people_changed()
+        w._pool = None
+        w.bands_changed()
+        _trace("load: world built")
+        return w
 
 
 def save(w: World, path) -> Path:
