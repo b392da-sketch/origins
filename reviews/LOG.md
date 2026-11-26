@@ -132,3 +132,4 @@
 | 2026-11-22 | Claude | requests/040-per-band-rows.md | Disease and partner rows kept only for bands holding one (Ben, 22 November 2026); same events as main |
 | 2026-11-22 | Claude | responses/039-compact-log-claude.md | All five confirmed and fixed; shadow mode still matches main |
 | 2026-11-22 | Claude | responses/040-per-band-rows-claude.md | All three confirmed and fixed; NumPy pinned and each stage's machine recorded; cross-runner replay left to Ben |
+| 2026-11-26 | Claude | requests/041-loading-memory.md | Loading large saves from disk without second copies; memory traced at each part; checkpoints kept 14 days (Ben, 26 November 2026) |
