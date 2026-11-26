@@ -161,3 +161,41 @@ class Review040(unittest.TestCase):
         self.assertEqual(m.n, 5000)
         self.assertGreaterEqual(len(m._owner), 5000)
         self.assertEqual(m.owner[4999], 4999)
+
+
+class LoadFromFile(unittest.TestCase):
+    """G4a pilot 3 (26 November 2026): saves load from a path without holding the save and its arrays as bytes."""
+
+    def test_from_file_and_from_bytes_give_the_same_world(self):
+        import tempfile
+        from pathlib import Path
+        w = World.new(1, 1, generate(1))
+        engine.step(w, 4 * 20)
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "w.zip"
+            persist.to_file(w, p, fast=True)
+            a = persist.from_file(p, w.planet)
+            b = persist.from_bytes(p.read_bytes(), w.planet)
+        self.assertEqual(persist.digest(a), persist.digest(w))
+        self.assertEqual(persist.digest(b), persist.digest(w))
+        engine.step(a, 4 * 3)
+        engine.step(b, 4 * 3)
+        self.assertEqual(persist.digest(a), persist.digest(b))
+
+    def test_memory_trace_only_when_asked(self):
+        import contextlib
+        import io
+        import os
+        w = World.new(1, 1, generate(1))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            persist.from_bytes(persist.to_bytes(w), w.planet)
+        self.assertNotIn("[mem]", out.getvalue())
+        os.environ["ORIGINS_MEM_TRACE"] = "1"
+        try:
+            with contextlib.redirect_stdout(out):
+                persist.from_bytes(persist.to_bytes(w), w.planet)
+        finally:
+            del os.environ["ORIGINS_MEM_TRACE"]
+        self.assertIn("[mem] load: world built", out.getvalue())
+        self.assertIn("[mem] save, largest arrays", out.getvalue())

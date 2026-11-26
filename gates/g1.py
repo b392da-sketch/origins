@@ -391,7 +391,7 @@ def worker(jobs, years, budget, ckpt: Path):
         cp, meta = ckpt / f"w{ws}_s{rs}.zip", ckpt / f"w{ws}_s{rs}.json"
         start = time.time()
         if cp.exists():
-            w = persist.from_bytes(cp.read_bytes(), resume_planet(cp, ws))
+            w = persist.from_file(cp, resume_planet(cp, ws))
             m = json.loads(meta.read_text())
             if "t" in m and int(m["t"]) != int(w.t):        # a world and probes from different checkpoints (review 036)
                 raise RuntimeError(f"checkpoint {cp.name}: world at tick {w.t}, probes at tick {m['t']}")

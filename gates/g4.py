@@ -399,7 +399,7 @@ def worker(jobs, budget, ckpt: Path, arm: str):
         start = time.time()
         if cp.exists():
             t0 = time.time()
-            w = persist.from_bytes(cp.read_bytes(), g2.resume_planet(cp, ws))
+            w = persist.from_file(cp, g2.resume_planet(cp, ws))
             print(f"w{ws} s{rs}{tag}: restored year {w.year} ({cp.stat().st_size / 2 ** 20:.0f} MiB) in "
                   f"{time.time() - t0:.0f} s, {_rss():.2f} GB peak", flush=True)        # sizing (review 037)
             m = json.loads(meta.read_text())

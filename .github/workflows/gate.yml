@@ -24,6 +24,8 @@ on:
 permissions:
   contents: write
 
+env:
+  ORIGINS_MEM_TRACE: "1"        # memory at each part of loading and saving (G4a pilot 3, 26 November 2026)
 jobs:
   plan:
     runs-on: ubuntu-latest
@@ -74,7 +76,7 @@ jobs:
           name: ckpt-${{ matrix.name }}
           path: /tmp/ckpt/
           if-no-files-found: ignore
-          retention-days: 2
+          retention-days: 14
 
   continue:
     needs: [plan, run]
@@ -119,7 +121,7 @@ jobs:
           name: ckpt2-${{ matrix.name }}
           path: /tmp/ckpt/
           if-no-files-found: ignore
-          retention-days: 2
+          retention-days: 14
 
   continue2:
     needs: [plan, continue]
@@ -164,7 +166,7 @@ jobs:
           name: ckpt3-${{ matrix.name }}
           path: /tmp/ckpt/
           if-no-files-found: ignore
-          retention-days: 2
+          retention-days: 14
 
   continue3:
     needs: [plan, continue2]
@@ -209,7 +211,7 @@ jobs:
           name: ckpt4-${{ matrix.name }}
           path: /tmp/ckpt/
           if-no-files-found: ignore
-          retention-days: 2
+          retention-days: 14
 
   continue4:
     needs: [plan, continue3]
@@ -254,7 +256,7 @@ jobs:
           name: ckpt5-${{ matrix.name }}
           path: /tmp/ckpt/
           if-no-files-found: ignore
-          retention-days: 2
+          retention-days: 14
 
   continue5:
     needs: [plan, continue4]
@@ -299,7 +301,7 @@ jobs:
           name: ckpt6-${{ matrix.name }}
           path: /tmp/ckpt/
           if-no-files-found: ignore
-          retention-days: 2
+          retention-days: 14
 
   continue6:
     needs: [plan, continue5]
@@ -344,7 +346,7 @@ jobs:
           name: ckpt7-${{ matrix.name }}
           path: /tmp/ckpt/
           if-no-files-found: ignore
-          retention-days: 2
+          retention-days: 14
 
   continue7:
     needs: [plan, continue6]
@@ -389,7 +391,7 @@ jobs:
           name: ckpt8-${{ matrix.name }}
           path: /tmp/ckpt/
           if-no-files-found: ignore
-          retention-days: 2
+          retention-days: 14
 
   continue8:
     needs: [plan, continue7]
@@ -434,7 +436,7 @@ jobs:
           name: ckpt9-${{ matrix.name }}
           path: /tmp/ckpt/
           if-no-files-found: ignore
-          retention-days: 2
+          retention-days: 14
 
   continue9:
     needs: [plan, continue8]
