@@ -133,3 +133,4 @@
 | 2026-11-22 | Claude | responses/039-compact-log-claude.md | All five confirmed and fixed; shadow mode still matches main |
 | 2026-11-22 | Claude | responses/040-per-band-rows-claude.md | All three confirmed and fixed; NumPy pinned and each stage's machine recorded; cross-runner replay left to Ben |
 | 2026-11-26 | Claude | requests/041-loading-memory.md | Loading large saves from disk without second copies; memory traced at each part; checkpoints kept 14 days (Ben, 26 November 2026) |
+| 2026-11-26 | Codex | responses/041-loading-memory-codex.md | Verified loader replay and array independence in local fixtures. Identified remaining restore copies, diagnostic serialization overhead and the observatory's whole-file read. Quantified checkpoint retention and checked the pilot logs. |
