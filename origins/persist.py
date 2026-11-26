@@ -57,6 +57,34 @@ def to_bytes(w: World, fast: bool = False) -> bytes:
     return buf.getvalue()
 
 
+def _trace(label: str):
+    """With ORIGINS_MEM_TRACE set, print memory in use and the peak so far (G4a pilot 3: what fills memory when a
+    large save is loaded). A measuring aid only."""
+    import os
+    if not os.environ.get("ORIGINS_MEM_TRACE"):
+        return
+    import resource
+    now = 0.0
+    try:
+        for line in open("/proc/self/status"):
+            if line.startswith("VmRSS"):
+                now = int(line.split()[1]) / 1e6
+    except OSError:
+        pass
+    print(f"[mem] {label}: {now:.2f} GB in use, {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.2f} GB peak",
+          flush=True)
+
+
+def _trace_sizes(meta: dict, arrays: dict):
+    import os
+    if not os.environ.get("ORIGINS_MEM_TRACE"):
+        return
+    js = sorted(((len(json.dumps(v, default=str)), k) for k, v in meta.items() if k != "events"), reverse=True)[:12]
+    print("[mem] save, largest parts of meta.json (MB): " + ", ".join(f"{k} {n / 1e6:.0f}" for n, k in js), flush=True)
+    ar = sorted(((np.asarray(v).nbytes, k) for k, v in arrays.items()), reverse=True)[:15]
+    print("[mem] save, largest arrays (MB): " + ", ".join(f"{k} {n / 1e6:.0f}" for n, k in ar), flush=True)
+
+
 def to_file(w: World, f, fast: bool = False) -> None:
     """Write the whole world to a path or file object, streaming the large parts (events, customs log, arrays)
     so that saving a big world needs little memory beyond the world itself."""
@@ -124,6 +152,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
                         chunk = []
                 if chunk:
                     out.write(("\n".join(chunk) + "\n").encode())
+        _trace_sizes(meta, arrays)
         with z.open("arrays.npz", "w", force_zip64=True) as out:
             (np.savez if fast else np.savez_compressed)(out, **arrays)
 
@@ -138,20 +167,24 @@ def from_file(src, planet=None) -> World:
     arrays (G4a pilot 2, 22 November 2026: loading a 1.1 GB checkpoint from bytes peaked at 13 GB)."""
     import shutil
     import tempfile
+    _trace("load: start")
     with zipfile.ZipFile(src) as z:
         meta = json.loads(z.read("meta.json"))
+        _trace("load: meta.json parsed")
         with tempfile.TemporaryFile() as tmp:
             with z.open("arrays.npz") as f:
                 shutil.copyfileobj(f, tmp, 16 << 20)
             tmp.seek(0)
             with np.load(tmp) as npz:
                 arrays = {k: npz[k] for k in npz.files}
+        _trace("load: arrays read")
         if "events.jsonl" in z.namelist():
             with z.open("events.jsonl") as f:
                 meta["events"] = EventStore(json.loads(line) for line in io.TextIOWrapper(f, encoding="utf-8") if line.strip())
         if "custom_log.jsonl" in z.namelist():
             with z.open("custom_log.jsonl") as f:
                 meta["_custom_log"] = {int(r[0]): r[1] for r in (json.loads(line) for line in io.TextIOWrapper(f, encoding="utf-8") if line.strip())}
+    _trace("load: events and logs read")
     if meta.get("schema") not in READABLE_SCHEMAS:
         raise ValueError(f"unsupported save schema {meta.get('schema')} (this version reads {READABLE_SCHEMAS})")
     planet = planet if planet is not None and planet.seed == meta["world_seed"] else generate(meta["world_seed"])
@@ -198,6 +231,7 @@ def from_file(src, planet=None) -> World:
         b = Band(**d)
         w.bands[b.id] = b
     w.bands.load_arrays({k[2:]: v for k, v in arrays.items() if k.startswith("b_")}, meta.get("band_strings", []))
+    _trace("load: bands built")
     w.reveal_pending = set(meta["reveal_pending"])
     w.pending_restore = [(a, list(b), c) for a, b, c in meta.get("pending_restore", [])]
     for k in ("stock", "known", "discovered_by", "discovered_at", "food_modifier", "intervention_event",
@@ -215,6 +249,7 @@ def from_file(src, planet=None) -> World:
     if getattr(w, "stock_broad", None) is None or len(w.stock_broad) != len(w.stock):
         from .sim import climate as _climate            # saves from before the broad-spectrum pool (14 Nov 2026)
         w.stock_broad = _climate.broad_max(w).copy()
+    _trace("load: per-band arrays built")
     from .sim import technology as _tech
     if "tech" in arrays:
         w.tech = arrays["tech"]
@@ -239,6 +274,7 @@ def from_file(src, planet=None) -> World:
     w.first_herders = meta.get("first_herders")
     w.tech_firsts = dict(meta.get("tech_firsts", {}))
     w.tech_writing_log = [list(r) for r in meta.get("tech_writing_log", [])]    # from review 032; older saves: none
+    _trace("load: technology built")
     from .sim import trade as _trade                  # goods (M4a trade); saves from before have none
     g = arrays.get("goods")
     led = meta.get("goods_ledger")
@@ -260,21 +296,23 @@ def from_file(src, planet=None) -> World:
         _trade.mark_partner_ended(w, alive_ids)
     _trade.grow(w, len(w.goods) - 1)                 # keeps every goods row (Codex review 013)
     if "goods_reached" in arrays:                       # trade stage 3, after review 014
-        w.goods_reached = np.array(arrays["goods_reached"], dtype=bool)
+        w.goods_reached = np.asarray(arrays["goods_reached"], dtype=bool)
     else:
         w.goods_reached = None
         _trade.grow(w, len(w.goods) - 1)             # older saves: what a band holds has reached it
+    _trace("load: trade built")
     from .sim import disease as _disease                 # diseases from animals (M4a): older saves start with none
     _disease.from_json(w, meta.get("disease", {}))
     from .sim import places as _places                   # place names (M4a): older saves start with none
     _places.from_json(w, meta.get("places", {}))
     if "dz_log" in arrays and np.asarray(arrays["dz_log"]).size:
         w.dz_log = _disease.RowLog.from_array(arrays["dz_log"])
+    _trace("load: disease and places built")
     from .sim import minorlog as _minor                  # the compact log: older saves start with it empty
     _minor.load(w, {k: v for k, v in arrays.items() if k.startswith("minor_")})
     for k in _disease.ARRAYS:
         if k in arrays and np.asarray(arrays[k]).size:
-            setattr(w, k, np.array(arrays[k], dtype=getattr(w, k).dtype))
+            setattr(w, k, np.asarray(arrays[k], dtype=getattr(w, k).dtype))
     if w.diseases and not meta.get("dz_counts_split") and any(k.startswith("ob_") for k in w.counts):
         # a save made with named diseases before review 031 wrote their G1 counts under M1's keys: they cannot be
         # told apart, so they are set aside, not reported as M1's (Codex review 031, finding 4). Only such saves:
@@ -289,21 +327,21 @@ def from_file(src, planet=None) -> World:
     _land.init(w)
     for k in _land.ARRAYS:
         if "land_" + k in arrays:
-            setattr(w, k, np.array(arrays["land_" + k], dtype=getattr(w, k).dtype))
+            setattr(w, k, np.asarray(arrays["land_" + k], dtype=getattr(w, k).dtype))
     if "trade_in" in arrays and np.asarray(arrays["trade_in"]).size:   # last year's goods received (stage 5)
-        w.trade_in = np.array(arrays["trade_in"], dtype=np.float64)
+        w.trade_in = np.asarray(arrays["trade_in"], dtype=np.float64)
     for n_ in ("tech_prev_prac", "tech_prev_mats", "tech_prev_wood"):   # last year's practice, goods-held materials
         if n_ in arrays and np.asarray(arrays[n_]).size:                # (review 018) and wood work (review 022)
-            setattr(w, n_, np.array(arrays[n_], dtype=bool))
+            setattr(w, n_, np.asarray(arrays[n_], dtype=bool))
     if "tech_prev_dep" in arrays and np.asarray(arrays["tech_prev_dep"]).size:   # practised on imports (review 035)
-        w.tech_prev_dep = np.array(arrays["tech_prev_dep"], dtype=bool)
+        w.tech_prev_dep = np.asarray(arrays["tech_prev_dep"], dtype=bool)
     elif getattr(w, "tech_prev_prac", None) is not None:
         w.tech_prev_dep = w.tech_prev_prac.copy()       # older saves: as before, any practice counts
     if getattr(w, "tech_prev_prac", None) is not None and getattr(w, "tech_prev_wood", None) is None:
         from .sim import technology as _tech                            # older saves: any wood technique practised
         w.tech_prev_wood = w.tech_prev_prac[:, _tech.WOOD_TECHS].any(axis=1)
     if "treasury" in arrays:                            # rulers' stores (trade stage 4b)
-        w.treasury = np.array(arrays["treasury"], dtype=np.float64)
+        w.treasury = np.asarray(arrays["treasury"], dtype=np.float64)
     if led:
         w.goods_ledger = {k: dict(v) for k, v in led.items()}
     from .sim import customs as _customs
@@ -334,6 +372,7 @@ def from_file(src, planet=None) -> World:
     w.people_changed()
     w._pool = None
     w.bands_changed()
+    _trace("load: world built")
     return w
 
 
