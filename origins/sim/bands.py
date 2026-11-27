@@ -258,36 +258,23 @@ def carry(w, src, dst, route, carriers):
 
 
 def release_rows(w, band_id: int):
-    """An ended band gives up its band rows, after each system has moved, folded or cleared what they held: reading a
-    released row raises. The seat of a living polity keeps its rows, as they stood when it ended, until the polity
-    has a new seat or ends (the polity pass reads the seat's customs and specialists until then), and gives them up
-    at the end of that tick (sweep_rows)."""
-    m = getattr(w, "band_rows", None)
-    if m is None:
-        return
-    if _seat_of_living_polity(w, band_id):
-        kept = w.__dict__.setdefault("rows_kept", set())
-        kept.add(int(band_id))
-        return
-    m.release(band_id)
-
-
-def _seat_of_living_polity(w, band_id: int) -> bool:
-    """Whether this band is the seat of a living polity (a seat belongs to its own polity: polity_of)."""
-    po = getattr(w, "polity_of", None)
-    if po is None or not (0 <= band_id < len(po)):
-        return False
-    p = getattr(w, "polities", {}).get(int(po[band_id]))
-    return p is not None and p.alive and p.seat == band_id
+    """An ended band gives up its band rows at the end of the tick (sweep_rows), after each system has moved, folded
+    or cleared what they held: until then they read as they stood when it ended, as a row for every band id did.
+    Reading a released row raises."""
+    if getattr(w, "band_rows", None) is not None:
+        w.__dict__.setdefault("rows_kept", set()).add(int(band_id))
 
 
 def sweep_rows(w):
-    """End of each tick: ended seats whose polity has a new seat, or has ended, give up their rows."""
+    """End of each tick: ended bands give up their rows, except the seat of a living polity, which keeps them, as they
+    stood, until the polity has a new seat or ends (the polity pass reads its customs and specialists until then).
+    The seats are those the living polities name (Codex review 043, finding 5), not the seat's own polity entry."""
     kept = getattr(w, "rows_kept", None)
     if not kept:
         return
+    seats = {p.seat for p in getattr(w, "polities", {}).values() if p.alive}
     for i in sorted(kept):
-        if not _seat_of_living_polity(w, i):
+        if i not in seats:
             w.band_rows.release(i)
             kept.discard(i)
 

@@ -758,10 +758,11 @@ class Review023(unittest.TestCase):
         self.assertAlmostEqual(r.store - s0, 20.0)
         self.assertAlmostEqual(float(w.crop_store[r.id]) - c0, 40.0)
         self.assertAlmostEqual(float(w.land_crop_acc[r.id]) - a0, 16.0)
-        with self.assertRaises(KeyError):                # nothing left behind: the ended band's rows are released
-            w.crop_store[b.id]
+        self.assertEqual(float(w.crop_store[b.id]), 0.0)      # nothing left behind
+        self.assertEqual(float(w.land_crop_acc[b.id]), 0.0)
+        bands.sweep_rows(w)                                    # and at the end of the tick its rows are released
         with self.assertRaises(KeyError):
-            w.land_crop_acc[b.id]
+            w.crop_store[b.id]
         self.assertEqual(len(keep), 9)
 
     def test_a_later_sowing_does_not_move_the_last_harvests_loss(self):

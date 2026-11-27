@@ -97,8 +97,9 @@ class SlotMap:
         return s
 
     def held(self) -> np.ndarray:
-        """Band ids holding a row, ascending."""
-        return np.nonzero(self.slot >= 0)[0]
+        """Band ids holding a row, ascending (from the slots in use, not a scan of every id: review 043)."""
+        o = self.owner
+        return np.sort(o[o >= 0])
 
     # saving
     def state(self, prefix: str) -> dict:

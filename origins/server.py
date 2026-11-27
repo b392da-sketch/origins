@@ -549,8 +549,9 @@ def band_detail(w, bid: int) -> dict:
            "trail": [[P.START_YEARS_BP - t // P.TICKS_PER_YEAR, c] for t, c in b.trail[-20:]],
            "parent": b.parent, "followed": w.follow == b.id,
            "language": {"id": b.language, "name": language.display(w, b.language)},
+           # an ended band's rows are released (origins/rows.py): its customs and farming are not kept (review 043)
            "customs": [{"custom": k, "practice": customs.CUSTOMS[k][int(w.customs[b.id, j])]}
-                       for j, k in enumerate(customs.NAMES)],
+                       for j, k in enumerate(customs.NAMES)] if w.customs.has([b.id])[0] else None,
            "custom_changes": [{"bp": P.START_YEARS_BP - t // 4, "custom": c, "from": a, "to": z, "how": how}
                               for t, c, a, z, how in w.custom_log.get(b.id, [])][::-1]}
     if b.mode == "group" and b.group >= 0:
@@ -564,7 +565,7 @@ def band_detail(w, bid: int) -> dict:
         order = mem[np.argsort(w.people.birth[mem])]
         out["members"] = [person_brief(w, i) for i in order]
         out["size"] = len(mem)
-    out["farming"] = band_farming(w, b, out["size"])
+    out["farming"] = band_farming(w, b, out["size"]) if w.farm_share.has([b.id])[0] else None
     pid = _pol_of(w, b.id)
     out["polity"] = {"id": pid, "name": w.polities[pid].name, "seat": w.polities[pid].seat == b.id} if pid >= 0 else None
     from .sim import minorlog

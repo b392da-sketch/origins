@@ -1371,3 +1371,10 @@ The band rows now hold about 24,000 slots: tens of megabytes in all. **What now 
 - **Empty group rows outliving their band:** 23 of them in the planet-3 save at year 9,910. They are harmless, but nothing clears them.
 
 All values are starting values.
+
+**After Codex review 043 (27 November 2026)** (answer in `reviews/responses/043-...-claude.md`):
+- **Older saves:** an empty dense array of any shape is a placeholder; arrays an older save lacks start as a new world's (customs at the founders' row); saved scribes and records are kept when the technology table is replaced; nothing is left registered on the slot map.
+- **Rows are released at the end of the tick** (`bands.sweep_rows`), except the seats the living polities name. Within the tick an ended band's rows read as they stood.
+- **The observatory:** an ended band's page shows no customs or farming (not kept).
+- **`SlotMap.held`** reads the slots in use, not every id.
+- **The stage budget:** at about 40 s a year a planet-4 history would need about 54 more hours from year 6,353 to its target year 11,248, against 45 hours for all ten stages. Pilot 4 will show the real rate.

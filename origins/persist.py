@@ -121,9 +121,9 @@ def _load_band_rows(w, arrays, alive_ids, meta) -> bool:
             if key not in arrays:
                 continue
             d = np.asarray(arrays[key])
-            if not d.size and d.ndim <= 1 and k not in ("land_short", "land_lost_wild", "land_lost_crop", "land_crop_acc"):
-                _drop(arrays, key)
-                continue                                    # an empty placeholder: none kept
+            if not d.size:                                  # an empty placeholder, of any shape: none kept (review
+                _drop(arrays, key)                          # 043, finding 1); land accounts then start at their fill
+                continue
             fill = _ROW_FILL.get(k, False if d.dtype == bool else 0)
             if k == "forage_rr":
                 fill = _P.FORAGE_RATE
@@ -133,6 +133,25 @@ def _load_band_rows(w, arrays, alive_ids, meta) -> bool:
             d = None
             _drop(arrays, key)
     return new
+
+
+def _band_row_defaults(w):
+    """Per-band arrays an older save does not hold start as in a new world: at their fill, the customs at the
+    founders' row (as the constructor's arrays did before 27 November 2026: Codex review 043, finding 2)."""
+    from .sim import customs as _cu, farming as _fa
+    from . import params as _P
+    fills = {"neutral": ((_cu.N_NEUTRAL,), np.float32, 0.0), "skill": ((len(_fa.SPECIES),), np.float32, 0.0),
+             "farm_share": ((), np.float64, 0.0), "crop_store": ((), np.float64, 0.0),
+             "still_years": ((), np.float64, 0.0), "forage_rr": ((), np.float64, _P.FORAGE_RATE),
+             "spec": ((), np.float64, 0.0)}
+    for k, (tail, dt, fill) in fills.items():
+        if getattr(w, k, None) is None:
+            setattr(w, k, _rows_like(w, tail, dt, fill))
+    if getattr(w, "customs", None) is None:
+        c = _rows_like(w, (len(_cu.NAMES),), np.int8, 0)
+        ids = w.band_rows.held()
+        c.load_rows(ids, np.tile(_cu._founders_row(), (len(ids), 1)))
+        w.customs = c
 
 
 def _tech_scribes(w):
@@ -447,18 +466,17 @@ def from_file(src, planet=None) -> World:
             w.stock_broad = _climate.broad_max(w).copy()
         alive_ids = sorted(b.id for b in w.bands.live.values() if b.alive)
         new_rows_format = _load_band_rows(w, arrays, alive_ids, meta)
+        _band_row_defaults(w)                  # arrays an older save lacks start as a new world's (review 043)
         from .sim import farming as _farming
         _farming._farm_rows(w)                 # saves from before real yields (19-20 Nov 2026) or pastoralism (M4a)
         _trace("load: per-band arrays built")
         from .sim import technology as _tech
         if getattr(w, "tech", None) is None or w.tech.tail != (_tech.K,):
-            _set_rows(w, "tech", None)                    # saves from before the technology network
-            _tech.init(w)
+            _set_rows(w, "tech", _rows_like(w, (_tech.K,), np.float32, 0.0))   # saves from before the network;
+            # the records and scribes are kept if they fit (review 043, finding 4)
         if getattr(w, "tech_record", None) is None or w.tech_record.tail != (_tech.K,):
             _set_rows(w, "tech_record", _rows_like(w, (_tech.K,), np.float32, 0.0))   # before written records: none
-        if getattr(w, "tech_scribes", None) is not None and not new_rows_format and not np.asarray(
-                arrays.get("tech_scribes", np.zeros(0))).size:
-            _set_rows(w, "tech_scribes", None)            # saves from before scribes (20 Nov 2026): today's specialists
+        # (saves from before scribes, 20 Nov 2026, have none: _scribes starts them from today's specialists)
         w.first_herders = meta.get("first_herders")
         w.tech_firsts = dict(meta.get("tech_firsts", {}))
         w.tech_writing_log = [list(r) for r in meta.get("tech_writing_log", [])]    # from review 032; older saves: none
