@@ -313,6 +313,22 @@ def deaths(w):
         w.event("group_hunger_deaths", cell=b.cell, band=b.id, causes=causes_, deaths=int(hunger_rows[k]))
 
 
+def _farm_share_of_rows(w, rows):
+    """Each group row's band's farm share. A row can outlive its band empty (merged away, or ended with nobody in
+    it): it holds nobody, so its share weighs nothing; it reads 0 here, the band's row having been released
+    (origins/rows.py). A row with people whose band has ended would be an error, and raises."""
+    G = w.groups
+    bands = np.asarray(G.band[rows], dtype=np.int64)
+    has = w.farm_share.has(bands)
+    out = np.zeros(len(bands))
+    out[has] = w.farm_share[bands[has]]
+    if not has.all():
+        gone = np.asarray(rows)[~has]
+        if (G.F[gone].sum(axis=1) + G.M[gone].sum(axis=1) + G.preg[gone].sum(axis=1)).any():
+            raise KeyError(f"group rows {gone[:5].tolist()} hold people but their bands have ended")
+    return out
+
+
 def births(w):
     G = w.groups
     rows = G.rows()
@@ -329,9 +345,10 @@ def births(w):
         G.F[rows, 0] += girls
         G.M[rows, 0] += n_due - girls
         w.counts["births"] += int(n_due.sum())
-        vill = w.farm_share[G.band[rows]] >= 0.5
+        fs = _farm_share_of_rows(w, rows)
+        vill = fs >= 0.5
         w.counts["births_village"] = w.counts.get("births_village", 0) + int(n_due[vill].sum())
-        w.counts["births_forager"] = w.counts.get("births_forager", 0) + int(n_due[w.farm_share[G.band[rows]] < 0.1].sum())
+        w.counts["births_forager"] = w.counts.get("births_forager", 0) + int(n_due[fs < 0.1].sum())
         np.add.at(w.cell_births, _row_cells(w, G.band[rows]), n_due)
         maternal = rng.binomial(n_due, P.MATERNAL_DEATH)
         for r, k in zip(rows, maternal):
@@ -358,7 +375,7 @@ def births(w):
         f1 = np.clip(np.where(wtot > 0, infants01 / wtot, 0), 0, 1)
         f2 = np.clip(np.where(wtot > 0, age2 / wtot, 0), 0, 1 - f1)
         fp = np.clip(np.where(wtot > 0, pregnant / wtot, 0), 0, 1)
-    settled = w.farm_share[G.band[rows]] >= 0.5
+    settled = _farm_share_of_rows(w, rows) >= 0.5
     sup1 = np.where(settled, P.FARMER_NURSING_1, P.NURSING_SUPPRESS_1)
     nurse = (1 - f1 - f2) + f1 * sup1 + f2 * P.NURSING_SUPPRESS_2
     from .demography import _fecundity

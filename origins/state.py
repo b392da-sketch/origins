@@ -17,9 +17,10 @@ from . import names as N
 from . import params as P
 from .worldgen import Planet, generate
 
-SCHEMA = 5                       # 4: per-band rows only for bands holding one, and the compact log (22 Nov 2026);
-                                 # 5: the compact log in int32 and float64 columns (26 Nov 2026)
-READABLE_SCHEMAS = (1, 2, 3, 4, 5)  # (reviews 040, 042: a reader of an older schema must refuse newer saves)
+SCHEMA = 6                       # 4: per-band rows only for bands holding one, and the compact log (22 Nov 2026);
+                                 # 5: the compact log in int32 and float64 columns (26 Nov 2026);
+                                 # 6: every per-band array as band rows, for living bands only (27 Nov 2026)
+READABLE_SCHEMAS = (1, 2, 3, 4, 5, 6)  # (reviews 040, 042: a reader of an older schema must refuse newer saves)
 VERSION = "0.2.0-M1"
 
 CAUSES = ["", "infancy and early childhood", "hunger", "accident or illness",
@@ -476,6 +477,8 @@ class World:
         if parent >= 0:
             b.language = self.bands[parent].language
             b.farming_since = self.bands[parent].farming_since
+        from .rows import band_rows
+        band_rows(self).assign(b.id)                     # its row in every per-band array (origins/rows.py)
         from .sim import conflict, customs, farming, polity, surplus, technology
         customs.ensure(self, b.id, parent)
         farming.ensure(self, b.id, parent)

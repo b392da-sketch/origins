@@ -137,9 +137,9 @@ class Review013(unittest.TestCase):
         import io, zipfile, json
         w = World.new(1, 1, generate(1))
         a = w.living_bands()[0]
-        while len(w.goods) < 128:
+        while w.next_band < 128:
             w.new_band(a.cell, parent=a.id)
-        last = len(w.goods) - 1
+        last = w.next_band - 1
         w.goods[last] = np.arange(1, trade.G + 1) * 10.0
         data = persist.to_bytes(w)
         zin = zipfile.ZipFile(io.BytesIO(data))

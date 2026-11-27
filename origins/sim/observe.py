@@ -27,7 +27,10 @@ def end_tick(w):
     if w.quarter == 0:
         # person-years by way of life (villages farm at least half their work; foragers under a tenth)
         sizes = w.band_sizes()
-        fs = w.farm_share[:len(sizes)]
+        ids = np.asarray(w.live_index()[0], dtype=np.int64)    # (only living bands hold people)
+        ids = ids[ids < len(sizes)]
+        fs = np.zeros(len(sizes))
+        fs[ids] = w.farm_share[ids]
         w.counts["py_village"] = w.counts.get("py_village", 0.0) + float(sizes[fs >= 0.5].sum())
         w.counts["py_forager"] = w.counts.get("py_forager", 0.0) + float(sizes[fs < 0.1].sum())
     # people: nobody appears or disappears without a recorded birth or death

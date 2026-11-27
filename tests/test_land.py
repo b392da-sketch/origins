@@ -110,7 +110,12 @@ class Land(unittest.TestCase):
         w.land_take[c] = 5.0                           # mid-year accounts are kept too
         w2 = persist.from_bytes(persist.to_bytes(w), planet=w.planet)
         for k in land.ARRAYS:
-            self.assertTrue(np.array_equal(getattr(w2, k), getattr(w, k)), k)
+            a, b = getattr(w2, k), getattr(w, k)
+            if k in land.BAND_ARRAYS:                     # band rows, by band id (27 November 2026)
+                (ia, ra), (ib, rb) = a.by_id(), b.by_id()
+                self.assertTrue(np.array_equal(ia, ib) and np.array_equal(ra, rb, equal_nan=True), k)
+            else:
+                self.assertTrue(np.array_equal(a, b), k)
         self.assertEqual(persist.digest(w2), persist.digest(w))
 
     def test_fallow_gives_way_to_need(self):
@@ -753,8 +758,10 @@ class Review023(unittest.TestCase):
         self.assertAlmostEqual(r.store - s0, 20.0)
         self.assertAlmostEqual(float(w.crop_store[r.id]) - c0, 40.0)
         self.assertAlmostEqual(float(w.land_crop_acc[r.id]) - a0, 16.0)
-        self.assertEqual(float(w.crop_store[b.id]), 0.0)
-        self.assertEqual(float(w.land_crop_acc[b.id]), 0.0)
+        with self.assertRaises(KeyError):                # nothing left behind: the ended band's rows are released
+            w.crop_store[b.id]
+        with self.assertRaises(KeyError):
+            w.land_crop_acc[b.id]
         self.assertEqual(len(keep), 9)
 
     def test_a_later_sowing_does_not_move_the_last_harvests_loss(self):

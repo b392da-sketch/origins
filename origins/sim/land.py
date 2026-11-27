@@ -55,18 +55,15 @@ def init(w):
     w.fertility = np.ones(n)
     w.salt = np.zeros(n)
     w.fallow = np.full(n, P.FALLOW_MAX)        # share of farmland resting, set each year by need (Boserup 1965)
-    w.land_short = np.zeros(0)                 # per band, this season: shortfall of food against needs
-    w.land_lost_wild = np.zeros(0)             # ... wild food lost game and forest took from its harvest
-    w.land_lost_crop = np.zeros(0)             # ... crops worn or salted soil took, per season, from the last harvest
-    w.land_crop_acc = np.zeros(0)              # ... crops lost so far this year, before the harvest
-    # ... of the crop loss, the parts taken by worn soil and by salt where that condition had a recorded event,
-    # booked season by season (Codex review 024): per season from the last harvest, and this year so far; with, per
-    # kind, the event of the season with the largest such loss, cited as the example (and that loss)
-    w.land_crop_k = np.zeros((0, 2))
-    w.land_crop_ev = -np.ones((0, 2), dtype=np.int64)
-    w.land_acc_k = np.zeros((0, 2))
-    w.land_acc_kev = -np.ones((0, 2), dtype=np.int64)
-    w.land_acc_ktop = np.zeros((0, 2))
+    # per band (band rows, origins/rows.py): this season's shortfall of food against needs (land_short); wild food
+    # lost game and forest took from its harvest (land_lost_wild); crops worn or salted soil took, per season, from
+    # the last harvest (land_lost_crop); crops lost so far this year, before the harvest (land_crop_acc); and, of the
+    # crop loss, the parts taken by worn soil and by salt where that condition had a recorded event, booked season by
+    # season (Codex review 024): per season from the last harvest, and this year so far; with, per kind, the event of
+    # the season with the largest such loss, cited as the example (and that loss)
+    for name in BAND_ARRAYS:
+        setattr(w, name, None)
+    _band_rows(w, 0)
     w.land_flags = np.zeros((n, len(KINDS)), dtype=bool)   # crossed and not yet recovered
     w.land_event = -np.ones((n, len(KINDS)), dtype=np.int64)
     w.land_since = -np.ones((n, len(KINDS)), dtype=np.int64)   # year the use began that led to the crossing
@@ -377,7 +374,7 @@ def _links(w, band_id: int, cell: int):
             if w.land_flags[cell, j] and e >= 0 and kind_factors(w, cell)[kind] < 1.0:
                 wild.append(e)
     ck = getattr(w, "land_crop_k", None)
-    if lc > 0 and ck is not None and band_id < len(ck):
+    if lc > 0 and ck is not None:
         crop = [int(w.land_crop_ev[band_id, j]) for j in range(2)
                 if ck[band_id, j] > 0 and w.land_crop_ev[band_id, j] >= 0]
     return wild, crop
@@ -386,7 +383,7 @@ def _links(w, band_id: int, cell: int):
 def crop_linked(w, band_id: int) -> float:
     """Of a band's crop loss per season, the part taken by soil or salt conditions with a recorded event."""
     ck = getattr(w, "land_crop_k", None)
-    if ck is None or band_id >= len(ck):
+    if ck is None:
         return 0.0
     return float(min(ck[band_id].sum(), w.land_lost_crop[band_id]))
 
@@ -398,7 +395,7 @@ def felt(w, band_id: int, cell: int) -> list:
     if not getattr(P, "LAND", False) or getattr(w, "land_flags", None) is None:
         return []
     a = getattr(w, "land_short", None)
-    if a is None or band_id >= len(a) or float(w.land_short[band_id]) <= 0:
+    if a is None or float(w.land_short[band_id]) <= 0:
         return []
     wild, crop = _links(w, band_id, cell)
     lw, lc = float(w.land_lost_wild[band_id]), float(w.land_lost_crop[band_id])
@@ -442,24 +439,31 @@ def hunger_event(w, band_id: int, cell: int) -> int:
     return e
 
 
-def _band_rows(w, n):
-    for name in ("land_short", "land_lost_wild", "land_lost_crop", "land_crop_acc", "land_crop_k", "land_crop_ev",
-                 "land_acc_k", "land_acc_kev", "land_acc_ktop"):
+BAND_ARRAYS = ("land_short", "land_lost_wild", "land_lost_crop", "land_crop_acc", "land_crop_k", "land_crop_ev",
+               "land_acc_k", "land_acc_kev", "land_acc_ktop")
+
+
+def _band_shape(name):
+    """(trailing shape, dtype, fill) of a per-band land array."""
+    if name.endswith("ev"):
+        return (2,), np.int64, -1
+    if name in ("land_crop_k", "land_acc_k", "land_acc_ktop"):
+        return (2,), np.float64, 0.0
+    return (), np.float64, 0.0
+
+
+def _band_rows(w, n=0):
+    """The per-band land arrays, as band rows (each band holds one at its fill until something is noted)."""
+    from ..rows import new_rows, is_rows
+    for name in BAND_ARRAYS:
         a = getattr(w, name, None)
-        if a is not None and name in ("land_crop_k", "land_crop_ev", "land_acc_k", "land_acc_kev", "land_acc_ktop") \
-                and (a.ndim != 2 or a.shape[1:] != (2,)):
+        tail, dt, fill = _band_shape(name)
+        if a is not None and (not is_rows(a) or a.tail != tail):
+            if is_rows(a):
+                a.slots.arrays.remove(a)
             a = None                                  # an older save's array of another shape: start afresh
-        if a is None or len(a) < n:
-            size = max(n, 64, 2 * len(a)) if a is not None else max(n, 64)
-            if name.endswith("ev"):
-                b = -np.ones((size, 2), dtype=np.int64)
-            elif name in ("land_crop_k", "land_acc_k", "land_acc_ktop"):
-                b = np.zeros((size, 2))
-            else:
-                b = np.zeros(size)
-            if a is not None and len(a):
-                b[:len(a)] = a
-            setattr(w, name, b)
+        if a is None:
+            setattr(w, name, new_rows(w, tail, dt, fill))
 
 
 def move_crop_loss(w, src: int, dst: int, frac: float):
@@ -468,7 +472,7 @@ def move_crop_loss(w, src: int, dst: int, frac: float):
     season's loss) where the moving part of that kind is the larger (Codex review 024, finding 2)."""
     if getattr(w, "land_crop_acc", None) is None or not getattr(P, "LAND", False):
         return
-    _band_rows(w, max(src, dst) + 1)
+    _band_rows(w)
     for name in ("land_crop_acc", "land_lost_crop"):
         a = getattr(w, name)
         x = a[src] * frac
@@ -497,7 +501,7 @@ def drop_crop_loss(w, band_id: int):
     """A band that ends with nobody to take its fields loses its standing crop and its loss record."""
     if getattr(w, "land_crop_acc", None) is None:
         return
-    _band_rows(w, band_id + 1)                    # older saves may hold some of these rows and not others (review 024)
+    _band_rows(w)                                 # older saves may hold some of these rows and not others (review 024)
     w.land_crop_acc[band_id] = w.land_lost_crop[band_id] = 0.0
     w.land_crop_k[band_id] = w.land_acc_k[band_id] = w.land_acc_ktop[band_id] = 0.0
     w.land_crop_ev[band_id] = w.land_acc_kev[band_id] = -1
@@ -512,9 +516,10 @@ def note_crop_loss(w, ids, lost, cells=None, parts=None):
     if not getattr(P, "LAND", False) or getattr(w, "game", None) is None:
         return
     ids = np.asarray(ids)
-    _band_rows(w, int(np.max(ids, initial=-1)) + 1)
+    _band_rows(w)
     lost = np.asarray(lost, dtype=float)
-    np.add.at(w.land_crop_acc, ids, lost)
+    a = w.land_crop_acc
+    np.add.at(a.data, a.slots.slots_of(ids), lost)
     if cells is not None and parts is not None:
         cells = np.asarray(cells)
         for j, kind in enumerate(("soil", "salt")):
@@ -525,7 +530,7 @@ def note_crop_loss(w, ids, lost, cells=None, parts=None):
             if not on.any():
                 continue
             oi, op, oe = ids[on], part[on], ev[on]
-            np.add.at(w.land_acc_k[:, j], oi, op)
+            np.add.at(w.land_acc_k.data[:, j], w.land_acc_k.slots.slots_of(oi), op)
             # the example's comparison value is the linked loss attributed to it so far: a season citing the
             # same event adds to it; another event takes over only with a larger season (Codex review 026)
             same = w.land_acc_kev[oi, j] == oe
@@ -551,7 +556,7 @@ def note_account(w, ids, short, lost_wild, cells=None):
     if not getattr(P, "LAND", False) or getattr(w, "game", None) is None:
         return
     ids = np.asarray(ids)
-    _band_rows(w, int(np.max(ids, initial=-1)) + 1)
+    _band_rows(w)
     w.land_short[ids] = short
     w.land_lost_wild[ids] = lost_wild
     if cells is None:
