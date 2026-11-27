@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from ..rows import new_rows
+
 from .. import params as P
 from ..state import log_row
 
@@ -30,19 +32,13 @@ ANNUAL = 365.0 * 0.95                         # food units a typical person need
 
 
 def init(w):
-    w.spec = np.zeros(64)                      # specialists per band (counts, also for groups)
+    w.spec = new_rows(w, (), np.float64, 0.0)  # specialists per band (counts, also for groups)
     w.gini_log = []                            # [year, band, gini, surplus per person, households, years its people have farmed]
     w.spec_log = []                            # every 50 years: [year, band, surplus per person, specialist share, farm share]
 
 
 def ensure(w, band_id: int, parent: int):
-    if band_id >= len(w.spec):
-        cap = len(w.spec)
-        while cap <= band_id:
-            cap *= 2
-        s = np.zeros(cap)
-        s[:len(w.spec)] = w.spec
-        w.spec = s
+    return                                     # the band's row is made with it, at 0 (origins/rows.py)
 
 
 def gini(x) -> float:

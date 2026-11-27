@@ -97,9 +97,9 @@ class Review040(unittest.TestCase):
         from origins import state
         w = World.new(1, 1, generate(1))
         meta = json.loads(zipfile.ZipFile(io.BytesIO(persist.to_bytes(w))).read("meta.json"))
-        self.assertEqual(meta["schema"], 4)
-        self.assertNotIn(4, (1, 2, 3))                     # the schema-3 reader's READABLE_SCHEMAS
-        self.assertIn(4, state.READABLE_SCHEMAS)
+        self.assertGreaterEqual(meta["schema"], 4)         # 4 since review 040; 5 since review 042
+        self.assertNotIn(meta["schema"], (1, 2, 3))        # the schema-3 reader's READABLE_SCHEMAS
+        self.assertIn(meta["schema"], state.READABLE_SCHEMAS)
 
     def test_finding2_a_narrow_sparse_save_widens_to_the_cap(self):
         from origins import params as P
@@ -199,3 +199,137 @@ class LoadFromFile(unittest.TestCase):
             del os.environ["ORIGINS_MEM_TRACE"]
         self.assertIn("[mem] load: world built", out.getvalue())
         self.assertIn("[mem] save, largest arrays", out.getvalue())
+
+
+class Review041(unittest.TestCase):
+    """Codex review 041."""
+
+    def test_finding1_decoded_arrays_are_dropped_after_their_section(self):
+        import inspect
+        src = inspect.getsource(persist.from_file)
+        self.assertIn('_drop(arrays, "br_" + k, "brfill_" + k)', inspect.getsource(persist._load_band_rows))
+        self.assertIn('_drop(arrays, key)', inspect.getsource(persist._load_band_rows))   # older dense saves
+        for k in ('_drop(arrays, prefix="b_")', '_drop(arrays, "dz_log")',
+                  '_drop(arrays, prefix="minor_")', '_drop(arrays, prefix="p_")', '_drop(arrays, prefix="g_")',
+                  '_drop(arrays, "goods", prefix="partner_")'):
+            self.assertIn(k, src)
+
+    def test_finding2_meta_is_written_part_by_part_with_the_same_bytes(self):
+        import io
+        import json
+        import zipfile
+        w = World.new(1, 1, generate(1))
+        engine.step(w, 4 * 10)
+        m = zipfile.ZipFile(io.BytesIO(persist.to_bytes(w))).read("meta.json")
+        self.assertEqual(m, json.dumps(persist._jsonable(json.loads(m)), separators=(",", ":")).encode())
+        import inspect
+        self.assertNotIn("json.dumps(v, default=str)", inspect.getsource(persist))   # no second serialisation
+
+    def test_finding3_load_from_a_path_streams(self):
+        import inspect
+        self.assertIn("return from_file(path, planet)", inspect.getsource(persist.load))
+
+
+class BandRows(unittest.TestCase):
+    """Every per-band array kept as band rows, for living bands only (27 November 2026, after G4a pilot 3: the
+    dense arrays doubled to 4,194,304 rows with about 26,000 bands alive)."""
+
+    def test_every_per_band_array_is_band_rows_and_sized_by_living_bands(self):
+        w = World.new(1, 1, generate(1))
+        engine.step(w, 4 * 40)
+        from origins.rows import is_rows
+        for k in persist.BAND_ROW_ARRAYS:
+            a = getattr(w, k, None)
+            if a is not None:
+                self.assertTrue(is_rows(a), k)
+                self.assertIs(a.slots, w.band_rows, k)
+        live = sorted(b.id for b in w.living_bands())
+        held = w.band_rows.held().tolist()
+        self.assertEqual(sorted(set(held) - set(live)), sorted(getattr(w, "rows_kept", set())))
+        self.assertLessEqual(len(w.band_rows.owner), 2 * max(len(live), 32))
+
+    def test_an_ended_band_gives_up_its_rows_and_reading_them_raises(self):
+        w = World.new(1, 1, generate(1))
+        a = w.living_bands()[0]
+        b = w.new_band(a.cell, parent=a.id)
+        w.tech[b.id, 0] = 0.5
+        w.goods[b.id] = 0.0
+        from origins.sim import bands
+        bands.end_band(w, b, "test", log=False)
+        self.assertEqual(int(w.band_rows.slot[b.id]), -2)
+        for k in ("tech", "goods", "customs", "farm_share", "spec", "skill", "land_short"):
+            with self.assertRaises(KeyError):
+                getattr(w, k)[b.id]
+        c = w.new_band(a.cell, parent=a.id)               # the freed slot, at each array's fill
+        self.assertEqual(float(w.tech[c.id, 0]), float(w.tech[a.id, 0]))   # (a daughter knows what her mother knew)
+        self.assertTrue(np.isnan(w.farm_rr_real[c.id]))
+        self.assertEqual(int(w.farm_rr_cell[c.id]), -1)
+
+    def test_an_ended_seat_keeps_its_rows_until_its_polity_moves_on(self):
+        w = World.new(1, 1, generate(1))
+        a = w.living_bands()[0]
+        s = w.new_band(a.cell, parent=a.id)
+        from origins.sim import bands
+        from origins.sim.polity import Polity
+        import dataclasses
+        fields = {f.name for f in dataclasses.fields(Polity)}
+        p = Polity(**{k: v for k, v in {"id": 0, "seat": s.id, "founded": w.t, "name": "Test"}.items() if k in fields})
+        w.polities = {0: p}
+        w.polity_of[s.id] = 0                              # a seat belongs to its own polity
+        w.customs[s.id, 0] = 1
+        bands.end_band(w, s, "test", log=False)
+        self.assertEqual(int(w.customs[s.id, 0]), 1)       # read as it stood when the band ended
+        bands.sweep_rows(w)
+        self.assertEqual(int(w.customs[s.id, 0]), 1)       # still the seat of a living polity
+        data = persist.to_bytes(w)
+        w2 = persist.from_bytes(data, w.planet)
+        self.assertEqual(w2.rows_kept, {s.id})
+        self.assertEqual(persist.digest(w2), persist.digest(w))
+        p.alive = False
+        bands.sweep_rows(w)
+        with self.assertRaises(KeyError):
+            w.customs[s.id]
+        self.assertEqual(w.rows_kept, set())
+
+    def test_round_trip_and_an_older_dense_save(self):
+        w = World.new(1, 1, generate(1))
+        engine.step(w, 4 * 60)
+        data = persist.to_bytes(w)
+        w2 = persist.from_bytes(data, w.planet)
+        self.assertEqual(persist.digest(w2), persist.digest(w))
+        engine.step(w, 4 * 5)
+        engine.step(w2, 4 * 5)
+        self.assertEqual(persist.digest(w2), persist.digest(w))   # and the slots replay exactly
+        # a save from before (schema 5): a dense array for every band id ever issued
+        import io
+        import zipfile
+        zin = zipfile.ZipFile(io.BytesIO(data))
+        out = io.BytesIO()
+        w0 = persist.from_bytes(data, w.planet)
+        with zipfile.ZipFile(out, "w") as zo:
+            for n in zin.namelist():
+                blob = zin.read(n)
+                if n == "arrays.npz":
+                    arrs = dict(np.load(io.BytesIO(blob)))
+                    for k in [k for k in arrs if k.startswith(("br_", "brfill_", "band_rows_"))]:
+                        arrs.pop(k)
+                    for k in persist.BAND_ROW_ARRAYS:
+                        a = getattr(w0, k, None)
+                        if a is not None:
+                            d = a.dense()
+                            d[w0.next_band:] = a.fill
+                            arrs[("land_" + k) if k.startswith("land_") else k] = d
+                    buf = io.BytesIO()
+                    np.savez(buf, **arrs)
+                    blob = buf.getvalue()
+                zo.writestr(n, blob)
+        w3 = persist.from_bytes(out.getvalue(), w.planet)
+        self.assertEqual(persist.digest(w3), persist.digest(w0))  # the same rows, by band id
+        engine.step(w3, 4 * 5)
+        engine.step(w0, 4 * 5)
+        self.assertEqual(persist.digest(w3), persist.digest(w0))  # and the same history after
+
+    def test_a_schema_5_reader_refuses_these_saves(self):
+        from origins import state
+        self.assertEqual(state.SCHEMA, 6)
+        self.assertIn(5, state.READABLE_SCHEMAS)

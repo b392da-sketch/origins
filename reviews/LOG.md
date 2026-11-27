@@ -132,3 +132,10 @@
 | 2026-11-22 | Claude | requests/040-per-band-rows.md | Disease and partner rows kept only for bands holding one (Ben, 22 November 2026); same events as main |
 | 2026-11-22 | Claude | responses/039-compact-log-claude.md | All five confirmed and fixed; shadow mode still matches main |
 | 2026-11-22 | Claude | responses/040-per-band-rows-claude.md | All three confirmed and fixed; NumPy pinned and each stage's machine recorded; cross-runner replay left to Ben |
+| 2026-11-26 | Claude | requests/041-loading-memory.md | Loading large saves from disk without second copies; memory traced at each part; checkpoints kept 14 days (Ben, 26 November 2026) |
+| 2026-11-26 | Codex | responses/041-loading-memory-codex.md | Verified loader replay and array independence in local fixtures. Identified remaining restore copies, diagnostic serialization overhead and the observatory's whole-file read. Quantified checkpoint retention and checked the pilot logs. |
+| 2026-11-26 | Claude | responses/041-loading-memory-claude.md | All three confirmed and fixed (arrays dropped after their section; meta written part by part, same bytes; load streams); a stage deletes its starting checkpoint once saved |
+| 2026-11-26 | Claude | requests/042-lazy-loading-and-compact-columns.md | Arrays read when used while loading; compact log in int32/float64 columns (exact) |
+| 2026-11-27 | Codex | responses/042-lazy-loading-and-compact-columns-codex.md | Reproduced schema-4 rollback data loss and narrowing validation gaps. Measured whole-section restore overlap, counted repeated member reads, and verified wide/split replay and scratch cleanup. |
+| 2026-11-27 | Claude | responses/042-lazy-loading-and-compact-columns-claude.md | All four confirmed and fixed (schema 5; tables read one by one; each array read once; whole numbers checked before narrowing) |
+| 2026-11-27 | Claude | requests/043-band-rows-for-every-per-band-array.md | Every per-band array as band rows for living bands (after pilot 3: arrays doubled to 4.2 million rows); same events as main on planets 3 and 4; planet-4 load peak 4.1 GB against 11.3 |

@@ -145,10 +145,17 @@ def census(w, pr):
     sk = T.skilled(w, live, ids)
     sk_cell = np.bincount(cells, weights=sk, minlength=w.planet.n)
     sk_reach = T._reach(w, cells, sk_cell[:, None])[:, 0]
-    ti = getattr(w, "trade_in", None)                 # the trade-need accessor may grow this array: put it back
-    ti_copy = None if ti is None else ti.copy()        # as it was, so the census changes nothing (review 036)
+    ti = getattr(w, "trade_in", None)                 # the trade-need accessor may make this array: put it back
+    ti_copy = None if ti is None else ti.data.copy()   # as it was, so the census changes nothing (review 036)
     needs = T._needs(w, live, ids, cells, sizes, cell_pop)
-    w.trade_in = ti_copy
+    if ti is None:
+        made = getattr(w, "trade_in", None)
+        if made is not None:
+            made.slots.arrays.remove(made)
+        w.trade_in = None
+    else:
+        w.trade_in = ti
+        ti.data[:len(ti_copy)] = ti_copy
     need = np.stack([needs[t.need] for t in T.TECHNIQUES], axis=1)
     eligible = T._possible(w, ids, cells) & (w.tech[ids] <= 0)        # what it could invent now (finding 5)
     n_elig = eligible.sum(axis=1)
@@ -420,7 +427,7 @@ def worker(jobs, budget, ckpt: Path, arm: str):
             census(w, pr)
             if w.year % 500 == 0:
                 print(f"w{ws} s{rs}{tag}: year {w.year}, {w.population():,} people, {len(w.events):,} events, "
-                      f"{len(w.living_bands()):,} bands living of {len(w.tech):,} allocated, "
+                      f"{len(w.living_bands()):,} bands living, {w.band_rows.n:,} band rows, "
                       f"{len(getattr(w, 'dz_log', [])):,} disease rows, {time.time() - start:.0f} s, "
                       f"peak memory {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.2f} GB", flush=True)
             if w.first_village is not None and "fv_deaths" not in pr:

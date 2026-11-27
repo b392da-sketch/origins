@@ -37,6 +37,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from ..rows import new_rows
+
 
 @dataclass(frozen=True)
 class Technique:
@@ -147,50 +149,30 @@ _check()
 
 
 def init(w):
-    w.tech = np.zeros((64, K), dtype=np.float32)
-    w.tech_record = np.zeros((64, K), dtype=np.float32)
-    w.tech_scribes = np.zeros(64)          # scribes per band: its specialists averaged over about a generation
+    w.tech = new_rows(w, (K,), np.float32, 0.0)
+    w.tech_record = new_rows(w, (K,), np.float32, 0.0)
+    w.tech_scribes = new_rows(w, (), np.float64, 0.0)   # scribes per band: its specialists averaged over about a generation
 
 
 def _scribes(w):
     """The per-band scribes array, sized to w.tech (older saves and worlds: started from today's specialists at the
     seats of living complex chiefdoms and states)."""
     s = getattr(w, "tech_scribes", None)
-    if s is None or len(s) != len(w.tech):
-        out = np.zeros(len(w.tech))
-        if s is not None:
-            n = min(len(s), len(out))
-            out[:n] = s[:n]
-        elif hasattr(w, "spec"):
+    if s is None:
+        out = new_rows(w, (), np.float64, 0.0)
+        if hasattr(w, "spec"):
             for p in getattr(w, "polities", {}).values():
-                if p.ended < 0 and getattr(p, "tier", 0) >= P.TECH_SCRIBE_TIER and 0 <= p.seat < min(len(w.spec), len(out)):
+                if p.ended < 0 and getattr(p, "tier", 0) >= P.TECH_SCRIBE_TIER and out.has([p.seat])[0]:
                     out[p.seat] = w.spec[p.seat]
         w.tech_scribes = out
     return w.tech_scribes
 
 
-def _grow(a, n):
-    cap = len(a)
-    while cap <= n:
-        cap *= 2
-    out = np.zeros((cap, K), dtype=np.float32)
-    out[:len(a)] = a
-    return out
-
-
 def ensure(w, band_id: int, parent: int):
     if not hasattr(w, "tech"):
         init(w)
-    if getattr(w, "tech_record", None) is None or w.tech_record.shape != w.tech.shape:
-        rec = np.zeros_like(w.tech)
-        old = getattr(w, "tech_record", None)
-        if old is not None:
-            n = min(len(old), len(rec))
-            rec[:n] = old[:n]
-        w.tech_record = rec
-    if band_id >= len(w.tech):
-        w.tech = _grow(w.tech, band_id)
-        w.tech_record = _grow(w.tech_record, band_id)
+    if getattr(w, "tech_record", None) is None:
+        w.tech_record = new_rows(w, (K,), np.float32, 0.0)
     w.tech[band_id] = w.tech[parent] if parent >= 0 else 0.0            # a daughter knows what her mother knew
     if SCRIBAL and getattr(P, "TECH_SCRIBES", True):
         w.tech[band_id, SCRIBAL] = 0.0                                   # ... except writing: the scribes stay
@@ -320,7 +302,7 @@ def _wood_ok(w, ids, cells):
     (Codex review 022, finding 6)."""
     if not (getattr(P, "LAND", False) and getattr(w, "forest", None) is not None
             and not getattr(w, "_static_forest", False) and getattr(w, "tech_prev_wood", None) is not None
-            and len(w.tech_prev_wood) > int(np.max(ids, initial=0))):
+            and bool(w.tech_prev_wood.has(ids).all())):
         return None
     from . import land
     near = land.forest_near(w)[cells]
@@ -455,12 +437,8 @@ def _prev_arrays(w):
     (Codex review 018). Grown to the size of w.tech."""
     M = len(MATERIALS)
     for name, width in (("tech_prev_prac", K), ("tech_prev_mats", M), ("tech_prev_wood", 0), ("tech_prev_dep", K)):
-        a = getattr(w, name, None)
-        if a is None or len(a) < len(w.tech):
-            out = np.zeros((len(w.tech), width) if width else len(w.tech), dtype=bool)
-            if a is not None:
-                out[:len(a)] = a
-            setattr(w, name, out)
+        if getattr(w, name, None) is None:
+            setattr(w, name, new_rows(w, (width,) if width else (), bool, False))
 
 
 def _mark(w, live, ids, cells):
@@ -665,7 +643,7 @@ def yearly(w):
             w.tech_firsts = firsts
     if hasattr(w, "spec"):                               # scribes follow the specialists slowly (a generation)
         sc = _scribes(w)
-        spec = np.asarray(w.spec[ids], dtype=float) if len(w.spec) > ids.max() else np.zeros(len(ids))
+        spec = np.asarray(w.spec[ids], dtype=float) if w.spec.has(ids).all() else np.zeros(len(ids))
         # scribes are the polity's specialists: those at a living polity's seat (Ben, 20 November 2026). A village's
         # leader, ritual specialists and craft workers do not keep a script.
         # ... and only at seats of polities large enough to need them: complex chiefdoms and states (tier
@@ -1079,9 +1057,12 @@ def practised_quality(w) -> np.ndarray:
     """bands x K: the quality of each technique each band practises now (0 where unknown or not practised).
     Judged once per season, at first use (cached by tick)."""
     c = getattr(w, "_tech_eff", None)
-    if c is not None and c[0] == w.t and len(c[1]) == len(w.tech):
+    if c is not None and c[0] == w.t:
         return c[1]
-    eff = np.zeros_like(w.tech)
+    eff = getattr(w, "_tech_eff_rows", None)         # one set of band rows, reused each season
+    if eff is None:
+        eff = w._tech_eff_rows = new_rows(w, (K,), np.float32, 0.0)
+    eff[:] = 0.0
     if getattr(P, "TECHNOLOGY", False):
         live = w.living_bands()
         if live:
@@ -1171,7 +1152,7 @@ def spoil_multiplier(w, ids) -> np.ndarray:
 
 
 def band_quality(w, band_id: int, key: str) -> float:
-    if not getattr(P, "TECHNOLOGY", False) or band_id < 0 or band_id >= len(w.tech):
+    if not getattr(P, "TECHNOLOGY", False) or band_id < 0 or not w.tech.has([band_id])[0]:
         return 0.0
     return float(practised_quality(w)[band_id, INDEX[key]])
 
@@ -1194,7 +1175,7 @@ def capacity_multiplier(w, seat_id: int) -> float:
     qt = band_quality(w, seat_id, "tallies")
     qw = band_quality(w, seat_id, "writing")
     keepers = 0.0
-    if hasattr(w, "spec") and 0 <= seat_id < len(w.spec):
+    if hasattr(w, "spec") and 0 <= seat_id:          # (a seat is a living band: an ended one raises)
         keepers = float(np.clip(float(w.spec[seat_id]) / P.TECH_RECORD_KEEPERS, 0.0, 1.0))
     kept = getattr(P, "TECH_RECORDS_SHARE", 0.0) * qt * keepers
     base = 1.0 + _e("tallies") * qt + _e("writing") * max(qw, kept)

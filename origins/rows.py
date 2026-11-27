@@ -140,9 +140,17 @@ class SparseRows:
         return self.data.dtype
 
     def _key(self, key):
-        if not isinstance(key, tuple):
-            key = (key,)
-        first, rest = key[0], key[1:]
+        if type(key) is tuple:
+            first, rest = key[0], key[1:]
+        else:
+            first, rest = key, ()
+        if type(first) is int or type(first) is np.int64 or type(first) is np.int32:   # one band (the common case)
+            sl = self.slots.slot
+            if 0 <= first < len(sl):
+                s = sl[first]
+                if s >= 0:
+                    return (s,) + rest
+            raise KeyError(f"band {int(first)} holds no row")
         if isinstance(first, slice):
             if first != slice(None):
                 raise IndexError("only ':' slices sparse rows")
@@ -171,3 +179,56 @@ class SparseRows:
         """(band ids holding a row, ascending; their rows in that order)."""
         ids = self.slots.held()
         return ids, self.data[self.slots.slot[ids]] if len(ids) else self.data[:0]
+
+    def has(self, ids) -> np.ndarray:
+        """Which of these band ids hold a row (ids outside the map do not)."""
+        a = np.asarray(ids, dtype=np.int64)
+        out = np.zeros(a.shape, dtype=bool)
+        ok = (a >= 0) & (a < len(self.slots.slot))
+        out[ok] = self.slots.slot[a[ok]] >= 0
+        return out
+
+    def total(self) -> np.ndarray:
+        """The sum over every band holding a row, added in band-id order (as the dense array's sum would be, but
+        without the ended bands' rows, which hold nothing by the time they end)."""
+        ids, rows = self.by_id()
+        return rows.sum(axis=0)
+
+    def load_rows(self, ids, rows):
+        """Rows for these band ids (each already given a slot)."""
+        ids = np.asarray(ids, dtype=np.int64)
+        if len(ids):
+            self.data[self.slots.slot[ids]] = rows
+
+
+# The band rows (Ben, 22 November 2026; extended to every per-band array on 27 November 2026, after pilot 3 showed
+# the arrays doubling to 4,194,304 rows when about 26,000 bands were alive): every band gets a slot in w.band_rows
+# when it is made and gives it up when it ends, after each system has folded or cleared what its rows held.
+
+def band_rows(w) -> SlotMap:
+    m = getattr(w, "band_rows", None)
+    if m is None:
+        m = w.band_rows = SlotMap()
+    return m
+
+
+def new_rows(w, tail=(), dtype=np.float64, fill=0) -> SparseRows:
+    """A per-band array on the band rows, every band holding a row at `fill`."""
+    m = band_rows(w)
+    a = SparseRows(m, tuple(tail), dtype, fill)
+    a._grow_rows(m.n)
+    return a
+
+
+def is_rows(a) -> bool:
+    return isinstance(a, SparseRows)
+
+
+def rows_from_dense(w, dense, fill, alive_ids) -> SparseRows:
+    """An older save's dense per-band array as band rows: the living bands' rows are kept, the rest dropped (they
+    belong to bands that have ended)."""
+    d = np.asarray(dense)
+    a = new_rows(w, d.shape[1:], d.dtype, fill)
+    ids = np.asarray(sorted(int(i) for i in alive_ids if int(i) < len(d)), dtype=np.int64)
+    a.load_rows(ids, d[ids])
+    return a

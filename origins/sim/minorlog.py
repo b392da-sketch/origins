@@ -48,26 +48,95 @@ NONE = -1.0                     # a gift good not mentioned
 SHADOW = False
 
 
-class Table:
-    """A growing float64 array of rows."""
+FLOATS = {"amount", "closeness", "here", "there", "here_natural", "band_gave_shell", "band_gave_gold",
+          "partner_gave_shell", "partner_gave_gold"}
 
-    def __init__(self, ncol: int, a=None):
-        a = np.zeros((0, ncol)) if a is None else np.asarray(a, dtype=np.float64).reshape(-1, ncol)
-        self._a = np.zeros((max(1024, len(a) + len(a) // 4), ncol))
-        self._a[:len(a)] = a
-        self.n = len(a)
+
+I32 = (-2 ** 31, 2 ** 31 - 1)
+
+
+def _whole(a, kind: str) -> np.ndarray:
+    """Whole numbers as int32, checked before narrowing: finite, integral and inside int32 (review 042, finding 4)."""
+    a = np.asarray(a)
+    if a.size == 0:
+        return a.astype(np.int32)
+    if np.issubdtype(a.dtype, np.integer):
+        if a.min() < I32[0] or a.max() > I32[1]:
+            raise OverflowError(f"compact log {kind}: a whole number beyond int32")
+        return a.astype(np.int32)
+    f = np.asarray(a, dtype=np.float64)
+    if not np.isfinite(f).all():
+        raise ValueError(f"compact log {kind}: a whole-number column holds a non-finite value")
+    if (f != np.floor(f)).any():
+        raise ValueError(f"compact log {kind}: a whole-number column holds a fraction")
+    if f.min() < I32[0] or f.max() > I32[1]:
+        raise OverflowError(f"compact log {kind}: a whole number beyond int32")
+    return f.astype(np.int32)
+
+
+class Table:
+    """A growing table of rows: whole-number columns as int32, amounts as float64 (G4a pilot 3, 26 November 2026:
+    every column was float64, 1.4 GB by year 5,733 on planet 4). Every value reads back exactly as recorded: ids,
+    ticks, cells, counts and indexes are whole numbers well inside int32, and amounts keep their float64 bits."""
+
+    def __init__(self, kind: str, ints=None, floats=None):
+        cols = COLUMNS[kind]
+        self.kind = kind
+        self.icol = [c for c in cols if c not in FLOATS]
+        self.fcol = [c for c in cols if c in FLOATS]
+        self.where = {c: ("i", self.icol.index(c)) if c in self.icol else ("f", self.fcol.index(c)) for c in cols}
+        ints = np.zeros((0, len(self.icol)), dtype=np.int32) if ints is None else np.asarray(ints).reshape(-1, len(self.icol))
+        floats = np.zeros((0, len(self.fcol))) if floats is None else np.asarray(floats, dtype=np.float64).reshape(-1, len(self.fcol))
+        n = len(ints)
+        if len(floats) != n:
+            raise ValueError(f"compact log {kind}: {n} rows of whole numbers, {len(floats)} of amounts")
+        cap = max(1024, n + n // 4)
+        self._i = np.zeros((cap, len(self.icol)), dtype=np.int32)
+        self._f = np.zeros((cap, len(self.fcol)))
+        self._i[:n] = _whole(ints, kind)
+        self._f[:n] = floats
+        self.n = n
+
+    @classmethod
+    def from_wide(cls, kind: str, a):
+        """From one float64 array holding every column (saves of 22-26 November 2026)."""
+        cols = COLUMNS[kind]
+        a = np.asarray(a, dtype=np.float64).reshape(-1, len(cols))
+        t = cls(kind)
+        ii = [cols.index(c) for c in t.icol]
+        fi = [cols.index(c) for c in t.fcol]
+        return cls(kind, _whole(a[:, ii], kind), a[:, fi])
 
     def append(self, row) -> int:
-        if self.n == len(self._a):
-            b = np.zeros((2 * len(self._a), self._a.shape[1]))
-            b[:self.n] = self._a
-            self._a = b
-        self._a[self.n] = row
+        if self.n == len(self._i):
+            cap = 2 * len(self._i)
+            i, f = np.zeros((cap, self._i.shape[1]), dtype=np.int32), np.zeros((cap, self._f.shape[1]))
+            i[:self.n], f[:self.n] = self._i[:self.n], self._f[:self.n]
+            self._i, self._f = i, f
+        cols = COLUMNS[self.kind]
+        vals = dict(zip(cols, row))
+        self._i[self.n] = _whole(np.array([vals[c] for c in self.icol]), self.kind)
+        self._f[self.n] = [float(vals[c]) for c in self.fcol]
         self.n += 1
         return self.n - 1
 
-    def array(self):
-        return self._a[:self.n]
+    def col(self, name: str) -> np.ndarray:
+        """One column over all rows (whole numbers as int32, amounts as float64)."""
+        part, j = self.where[name]
+        return (self._i if part == "i" else self._f)[:self.n, j]
+
+    def row(self, i: int) -> np.ndarray:
+        """Row i with every column, in COLUMNS order, as float64 (whole numbers are exact in float64)."""
+        out = np.empty(len(COLUMNS[self.kind]))
+        for c, (part, j) in self.where.items():
+            out[COL[self.kind][c]] = self._i[i, j] if part == "i" else self._f[i, j]
+        return out
+
+    def ints(self):
+        return self._i[:self.n]
+
+    def floats(self):
+        return self._f[:self.n]
 
     def __len__(self):
         return self.n
@@ -97,7 +166,7 @@ class Ints:
 
 def init(w):
     assert tuple(P.GIFT_GOODS) == GIFT, "the compact log's gift columns follow GIFT_GOODS"
-    w.minor = {k: Table(len(c)) for k, c in COLUMNS.items()}
+    w.minor = {k: Table(k) for k in COLUMNS}
     w.minor_givers = Ints()
     w.minor_names = []           # band names as recorded, shared by all rows
     w._minor_name_ix = {}
@@ -212,7 +281,7 @@ def as_event(w, kind: str, i: int) -> dict:
     i = int(i)
     if not 0 <= i < size(w, kind):
         raise IndexError(f"no row {i} in the compact log of {kind}")      # (review 039, finding 5)
-    r = w.minor[kind].array()[i]
+    r = w.minor[kind].row(i)
     c = COL[kind]
     names = w.minor_names
 
@@ -269,8 +338,8 @@ def as_event(w, kind: str, i: int) -> dict:
 
 def key_of_row(w, kind: str, i: int) -> tuple:
     """Where a row falls among events and rows: (events recorded before it, its order among rows)."""
-    r = w.minor[kind].array()[int(i)]
-    return (int(r[COL[kind]["after"]]), int(r[COL[kind]["order"]]))
+    t = w.minor[kind]
+    return (int(t.col("after")[int(i)]), int(t.col("order")[int(i)]))
 
 
 def key_of_event(event_id: int) -> tuple:
@@ -297,18 +366,17 @@ def latest(w, limit: int, band_id: int | None = None) -> list:
         return []
     out = []
     for kind, tab in m.items():
-        a = tab.array()
-        if not len(a):
+        if not len(tab):
             continue
         if band_id is None:
-            idx = np.arange(max(0, len(a) - limit), len(a))
+            idx = np.arange(max(0, len(tab) - limit), len(tab))
         else:
-            hit = a[:, 1] == band_id
+            hit = tab.col("band") == band_id
             if COLUMNS[kind][2] == "partner":
-                hit |= a[:, 2] == band_id
+                hit |= tab.col("partner") == band_id
             idx = np.nonzero(hit)[0][-limit:]
-        c = COL[kind]
-        out += [((int(a[i, c["after"]]), int(a[i, c["order"]])), kind, int(i)) for i in idx]
+        after, order = tab.col("after"), tab.col("order")
+        out += [((int(after[i]), int(order[i])), kind, int(i)) for i in idx]
     out.sort()
     return out[-limit:]
 
@@ -328,7 +396,10 @@ def arrays(w) -> dict:
     _ensure(w)
     if SHADOW:
         return {}
-    out = {f"minor_{k}": t.array() for k, t in w.minor.items()}
+    out = {}
+    for k, t in w.minor.items():
+        out[f"minor_{k}_i"] = t.ints()
+        out[f"minor_{k}_f"] = t.floats()
     out["minor_givers"] = w.minor_givers.array()
     out["minor_names"] = _names_blob(w)
     out["minor_order"] = np.array([w.minor_order], dtype=np.int64)
@@ -338,10 +409,16 @@ def arrays(w) -> dict:
 def load(w, arrs: dict):
     w.minor = {}
     for k, c in COLUMNS.items():
-        a = arrs.get(f"minor_{k}")
-        if a is not None and np.asarray(a).ndim == 2 and np.asarray(a).shape[1] != len(c):
-            raise ValueError(f"compact log {k}: {np.asarray(a).shape[1]} columns saved, {len(c)} expected")
-        w.minor[k] = Table(len(c), a)
+        if f"minor_{k}_i" in arrs:
+            w.minor[k] = Table(k, arrs[f"minor_{k}_i"], arrs[f"minor_{k}_f"])
+        elif f"minor_{k}" in arrs:                       # one float64 array per kind (saves of 22-26 November)
+            a = np.asarray(arrs[f"minor_{k}"])
+            if a.ndim == 2 and a.shape[1] != len(c):
+                raise ValueError(f"compact log {k}: {a.shape[1]} columns saved, {len(c)} expected")
+            w.minor[k] = Table.from_wide(k, a)
+            a = None                                     # released before the next table is read (review 042)
+        else:
+            w.minor[k] = Table(k)
     w.minor_givers = Ints(arrs.get("minor_givers"))
     blob = arrs.get("minor_names")
     w.minor_names = (bytes(np.asarray(blob, dtype=np.uint8)).decode("utf-8").split("\x1f")

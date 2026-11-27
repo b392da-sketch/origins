@@ -52,14 +52,15 @@ class CompactLog(unittest.TestCase):
         w2 = persist.from_bytes(persist.to_bytes(w), w.planet)
         self.assertEqual(persist.digest(w2), persist.digest(w))
         for k in minorlog.KINDS:
-            self.assertTrue(np.array_equal(w2.minor[k].array(), w.minor[k].array()))
+            self.assertTrue(np.array_equal(w2.minor[k].ints(), w.minor[k].ints()))
+            self.assertTrue(np.array_equal(w2.minor[k].floats(), w.minor[k].floats()))
         d0 = persist.digest(w)
         k = next(k for k in minorlog.KINDS if minorlog.size(w, k))
-        w.minor[k]._a[0, 0] += 1                                       # a changed row changes the digest
+        w.minor[k]._i[0, 0] += 1                                       # a changed row changes the digest
         try:
             self.assertNotEqual(persist.digest(w), d0)
         finally:
-            w.minor[k]._a[0, 0] -= 1
+            w.minor[k]._i[0, 0] -= 1
 
     def test_a_fresh_world_and_a_reloaded_one_digest_alike(self):
         w = World.new(1, 1, generate(1))
@@ -167,3 +168,83 @@ class Review039(unittest.TestCase):
         minorlog.formed(w, a.id, b.id, a.cell, minorlog.FORMED_NEAR, closeness=0.5)
         with self.assertRaises((KeyError, IndexError)):
             explain.describe(w, server.parse_ref("log:partnership_formed:-1"))
+
+
+class CompactColumns(unittest.TestCase):
+    """G4a pilot 3 (26 November 2026): whole numbers in int32 columns, amounts in float64, read back exactly; saves
+    with one float64 array per kind still load."""
+
+    def test_rows_read_back_exactly_and_wide_saves_load(self):
+        w = _world(40)
+        for k in minorlog.KINDS:
+            t = w.minor[k]
+            if not len(t):
+                continue
+            self.assertEqual(t.ints().dtype, np.int32)
+            wide = np.stack([t.row(i) for i in range(len(t))])
+            t2 = minorlog.Table.from_wide(k, wide)
+            self.assertTrue(np.array_equal(t2.ints(), t.ints()))
+            self.assertTrue(np.array_equal(t2.floats(), t.floats()))
+            for i in range(min(len(t), 20)):
+                self.assertTrue(np.array_equal(t2.row(i), t.row(i)))
+
+    def test_a_number_beyond_int32_is_refused(self):
+        w = World.new(1, 1, generate(1))
+        a = w.living_bands()[0]
+        with self.assertRaises(OverflowError):
+            minorlog.formed(w, a.id, 2 ** 31, a.cell, minorlog.FORMED_NEAR, closeness=0.5)
+
+
+class Review042(unittest.TestCase):
+    """Codex review 042."""
+
+    def test_finding1_split_column_saves_carry_a_schema_older_readers_refuse(self):
+        import io
+        import zipfile
+        from origins import state
+        w = World.new(1, 1, generate(1))
+        meta = json.loads(zipfile.ZipFile(io.BytesIO(persist.to_bytes(w))).read("meta.json"))
+        self.assertGreaterEqual(meta["schema"], 5)          # (6 from 27 November 2026: band rows)
+        self.assertNotIn(meta["schema"], (1, 2, 3, 4))      # the schema-4 reader's READABLE_SCHEMAS
+        self.assertIn(5, state.READABLE_SCHEMAS)
+
+    def test_findings2_3_each_array_is_read_once_and_tables_one_by_one(self):
+        import inspect
+        self.assertIn("_minor.load(w, arrays)", inspect.getsource(persist.from_file))
+        w = _world(30)
+        data = persist.to_bytes(w)
+        reads = {}
+        orig = persist._LazyArrays.__init__
+
+        def spy(self, npz):
+            orig(self, npz)
+            real = npz.__class__.__getitem__
+
+            class Counting(npz.__class__):
+                def __getitem__(s2, k):
+                    reads[k] = reads.get(k, 0) + 1
+                    return real(s2, k)
+            npz.__class__ = Counting
+        persist._LazyArrays.__init__ = spy
+        try:
+            w2 = persist.from_bytes(data, w.planet)
+        finally:
+            persist._LazyArrays.__init__ = orig
+        self.assertEqual(persist.digest(w2), persist.digest(w))
+        twice = {k: n for k, n in reads.items() if n > 1}
+        self.assertEqual(twice, {})
+
+    def test_finding4_whole_numbers_are_checked_before_narrowing(self):
+        w, a, b = Review039()._two()
+        with self.assertRaises(ValueError):
+            minorlog.Table("land_move").append([1.75, a.id, 0, 1.0, 1.0, 1.0, -1, -1, 0, 0, 0])
+        wide = np.zeros((1, len(minorlog.COLUMNS["land_move"])))
+        wide[0, minorlog.COL["land_move"]["after"]] = 2.0 ** 63
+        with self.assertRaises(OverflowError):
+            minorlog.Table.from_wide("land_move", wide)
+        wide[0, minorlog.COL["land_move"]["after"]] = 1.75
+        with self.assertRaises(ValueError):
+            minorlog.Table.from_wide("land_move", wide)
+        t = minorlog.Table("land_move")
+        t.append([-2 ** 31, a.id, 0, 1.0, 1.0, 1.0, -1, -1, 0, 0, 0])   # the int32 minimum is valid
+        self.assertEqual(int(t.col("t")[0]), -2 ** 31)

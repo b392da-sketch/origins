@@ -23,6 +23,7 @@ on:
 
 permissions:
   contents: write
+  actions: write                # to delete a checkpoint once the next stage has saved its own (review 041)
 
 env:
   ORIGINS_MEM_TRACE: "1"        # memory at each part of loading and saving (G4a pilot 3, 26 November 2026)
@@ -122,6 +123,16 @@ jobs:
           path: /tmp/ckpt/
           if-no-files-found: ignore
           retention-days: 14
+      - name: drop the previous stage's checkpoint
+        if: success() && steps.need.outputs.go == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # this stage saved its own checkpoint (or finished): the one it started from is no longer needed,
+          # so a gate keeps one checkpoint per history, not one per stage (Codex review 041)
+          for id in $(gh api repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts --paginate -q '.artifacts[] | select(.name == "ckpt-${{ matrix.name }}") | .id'); do
+            gh api -X DELETE repos/$GITHUB_REPOSITORY/actions/artifacts/$id && echo "deleted checkpoint artifact $id"
+          done
 
   continue2:
     needs: [plan, continue]
@@ -167,6 +178,16 @@ jobs:
           path: /tmp/ckpt/
           if-no-files-found: ignore
           retention-days: 14
+      - name: drop the previous stage's checkpoint
+        if: success() && steps.need.outputs.go == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # this stage saved its own checkpoint (or finished): the one it started from is no longer needed,
+          # so a gate keeps one checkpoint per history, not one per stage (Codex review 041)
+          for id in $(gh api repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts --paginate -q '.artifacts[] | select(.name == "ckpt2-${{ matrix.name }}") | .id'); do
+            gh api -X DELETE repos/$GITHUB_REPOSITORY/actions/artifacts/$id && echo "deleted checkpoint artifact $id"
+          done
 
   continue3:
     needs: [plan, continue2]
@@ -212,6 +233,16 @@ jobs:
           path: /tmp/ckpt/
           if-no-files-found: ignore
           retention-days: 14
+      - name: drop the previous stage's checkpoint
+        if: success() && steps.need.outputs.go == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # this stage saved its own checkpoint (or finished): the one it started from is no longer needed,
+          # so a gate keeps one checkpoint per history, not one per stage (Codex review 041)
+          for id in $(gh api repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts --paginate -q '.artifacts[] | select(.name == "ckpt3-${{ matrix.name }}") | .id'); do
+            gh api -X DELETE repos/$GITHUB_REPOSITORY/actions/artifacts/$id && echo "deleted checkpoint artifact $id"
+          done
 
   continue4:
     needs: [plan, continue3]
@@ -257,6 +288,16 @@ jobs:
           path: /tmp/ckpt/
           if-no-files-found: ignore
           retention-days: 14
+      - name: drop the previous stage's checkpoint
+        if: success() && steps.need.outputs.go == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # this stage saved its own checkpoint (or finished): the one it started from is no longer needed,
+          # so a gate keeps one checkpoint per history, not one per stage (Codex review 041)
+          for id in $(gh api repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts --paginate -q '.artifacts[] | select(.name == "ckpt4-${{ matrix.name }}") | .id'); do
+            gh api -X DELETE repos/$GITHUB_REPOSITORY/actions/artifacts/$id && echo "deleted checkpoint artifact $id"
+          done
 
   continue5:
     needs: [plan, continue4]
@@ -302,6 +343,16 @@ jobs:
           path: /tmp/ckpt/
           if-no-files-found: ignore
           retention-days: 14
+      - name: drop the previous stage's checkpoint
+        if: success() && steps.need.outputs.go == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # this stage saved its own checkpoint (or finished): the one it started from is no longer needed,
+          # so a gate keeps one checkpoint per history, not one per stage (Codex review 041)
+          for id in $(gh api repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts --paginate -q '.artifacts[] | select(.name == "ckpt5-${{ matrix.name }}") | .id'); do
+            gh api -X DELETE repos/$GITHUB_REPOSITORY/actions/artifacts/$id && echo "deleted checkpoint artifact $id"
+          done
 
   continue6:
     needs: [plan, continue5]
@@ -347,6 +398,16 @@ jobs:
           path: /tmp/ckpt/
           if-no-files-found: ignore
           retention-days: 14
+      - name: drop the previous stage's checkpoint
+        if: success() && steps.need.outputs.go == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # this stage saved its own checkpoint (or finished): the one it started from is no longer needed,
+          # so a gate keeps one checkpoint per history, not one per stage (Codex review 041)
+          for id in $(gh api repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts --paginate -q '.artifacts[] | select(.name == "ckpt6-${{ matrix.name }}") | .id'); do
+            gh api -X DELETE repos/$GITHUB_REPOSITORY/actions/artifacts/$id && echo "deleted checkpoint artifact $id"
+          done
 
   continue7:
     needs: [plan, continue6]
@@ -392,6 +453,16 @@ jobs:
           path: /tmp/ckpt/
           if-no-files-found: ignore
           retention-days: 14
+      - name: drop the previous stage's checkpoint
+        if: success() && steps.need.outputs.go == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # this stage saved its own checkpoint (or finished): the one it started from is no longer needed,
+          # so a gate keeps one checkpoint per history, not one per stage (Codex review 041)
+          for id in $(gh api repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts --paginate -q '.artifacts[] | select(.name == "ckpt7-${{ matrix.name }}") | .id'); do
+            gh api -X DELETE repos/$GITHUB_REPOSITORY/actions/artifacts/$id && echo "deleted checkpoint artifact $id"
+          done
 
   continue8:
     needs: [plan, continue7]
@@ -437,6 +508,16 @@ jobs:
           path: /tmp/ckpt/
           if-no-files-found: ignore
           retention-days: 14
+      - name: drop the previous stage's checkpoint
+        if: success() && steps.need.outputs.go == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # this stage saved its own checkpoint (or finished): the one it started from is no longer needed,
+          # so a gate keeps one checkpoint per history, not one per stage (Codex review 041)
+          for id in $(gh api repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts --paginate -q '.artifacts[] | select(.name == "ckpt8-${{ matrix.name }}") | .id'); do
+            gh api -X DELETE repos/$GITHUB_REPOSITORY/actions/artifacts/$id && echo "deleted checkpoint artifact $id"
+          done
 
   continue9:
     needs: [plan, continue8]
@@ -484,6 +565,16 @@ jobs:
           path: /tmp/ckpt/
           if-no-files-found: ignore
           retention-days: 14
+      - name: drop the previous stage's checkpoint
+        if: success() && steps.need.outputs.go == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # this stage saved its own checkpoint (or finished): the one it started from is no longer needed,
+          # so a gate keeps one checkpoint per history, not one per stage (Codex review 041)
+          for id in $(gh api repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts --paginate -q '.artifacts[] | select(.name == "ckpt9-${{ matrix.name }}") | .id'); do
+            gh api -X DELETE repos/$GITHUB_REPOSITORY/actions/artifacts/$id && echo "deleted checkpoint artifact $id"
+          done
 
   report:
     needs: [plan, run, continue, continue2, continue3, continue4, continue5, continue6, continue7, continue8, continue9]
