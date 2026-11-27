@@ -27,6 +27,8 @@ The stage count and packing are set from it. Its result is not part of the gate.
 
 **Exact replay (Ben, 22 November 2026, after Codex review 040):** exact replay is required within one setup, not across machines. One setup means GitHub's standard runner with Python 3.13 and NumPy 2.5.5 (`requirements-gate.txt`). The processor can differ between stages, because GitHub assigns runners. Each stage records the machine it ran on (`stage_envs`).
 
+**Speed before the gate (Ben, 28 November 2026):** pilot 4 showed planet 4 at about 48 s a year by year 6,600 and slowing as it grows. That is too slow to reach its target year in ten stages: at least 62 more hours were needed against 27 left. Ben chose option 2: speed work before the gate. The worst slowdowns are vectorised, each change shown to give exactly the same history, and then a pilot measures the result. This brings the first item of the approved scale note forward. The other options were more stages, a shorter target, or deciding without the planet-4 histories.
+
 **Completeness (Codex review 037):** a history still unfinished after the last stage is recorded as incomplete, and its checkpoint is kept. The report then says "GATE INCOMPLETE" and names the missing histories. The gate is not decided until every requested history has completed.
 
 ## What the record adds to G3's (`gates/g4.py`)

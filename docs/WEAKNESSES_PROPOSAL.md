@@ -24,6 +24,8 @@ At M4a the project is a credible, literature-based and explainable simulation of
 | 7 | Milestone order | Approved: M4b, then M5 belief and ritual, M6 cities, markets and money, M7 states and empires, then industry and beyond. |
 | 8 | Process safeguards | Approved: a realism review at each milestone's start, and an unexpected-behaviour log in each milestone's build notes. Both added to `CLAUDE.md`. |
 
+**Change (Ben, 28 November 2026):** the speed work in the scale note ("vectorise first") starts before G4a, because the gate cannot finish planet 4 otherwise (`docs/G4A_GATE_PLAN.md`). The rest of the scale note stays after G4a.
+
 ## Order after G4a
 
 1. The scale design note, with its target and the followed-sample size.
