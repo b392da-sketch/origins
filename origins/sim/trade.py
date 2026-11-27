@@ -407,8 +407,8 @@ def partnerships_yearly(w, live):
         for o in partners(w, b.id):
             if o > b.id:
                 given = {str(b.id): {}, str(o): {}}
-                kb = int(np.nonzero(pof[b.id] == o)[0][0])
-                ko = int(np.nonzero(pof[o] == b.id)[0][0])
+                kb = pof[b.id].tolist().index(o)           # the first slot holding the partner, as np.nonzero
+                ko = pof[o].tolist().index(b.id)
                 gb, go_ = pgave[pslot[b.id], kb], pgave[pslot[o], ko]
                 first = not (gb.any() or go_.any())
                 rb, ro = gdata[gslot[b.id]], gdata[gslot[o]]
@@ -774,12 +774,13 @@ def _effects_on() -> bool:
     return bool(getattr(P, "TRADE", False) and getattr(P, "GOODS_EFFECTS", False))
 
 
-def per_person(w, ids, names) -> np.ndarray:
-    """Holdings per person of the named goods, summed (0 where goods are not set up)."""
+def per_person(w, ids, names, n=None) -> np.ndarray:
+    """Holdings per person of the named goods, summed (0 where goods are not set up). `n`: the bands' sizes, if the
+    caller has them (the same numbers as sizes_of now)."""
     ids = np.asarray(ids)
     if getattr(w, "goods", None) is None or not len(ids):
         return np.zeros(len(ids))
-    n = np.maximum(w.sizes_of(ids).astype(float), 1.0)
+    n = np.maximum((w.sizes_of(ids) if n is None else n).astype(float), 1.0)
     has = w.goods.has(ids)
     held = np.zeros(len(ids))
     if has.any():
@@ -793,9 +794,12 @@ def goods_materials(w, ids, materials) -> np.ndarray:
     out = np.zeros((len(ids), len(materials)), dtype=bool)
     if not _effects_on() or not getattr(P, "MATERIALS_FROM_GOODS", False):
         return out
+    n = None
     for g, m in P.GOOD_MATERIAL.items():
         if m in materials:
-            out[:, materials.index(m)] = per_person(w, ids, (g,)) >= P.MATERIAL_HELD
+            if n is None:
+                n = w.sizes_of(np.asarray(ids))       # once for all the goods (nothing moves between them)
+            out[:, materials.index(m)] = per_person(w, ids, (g,), n) >= P.MATERIAL_HELD
     return out
 
 

@@ -1159,7 +1159,10 @@ def spoil_multiplier(w, ids) -> np.ndarray:
 
 
 def band_quality(w, band_id: int, key: str) -> float:
-    if not getattr(P, "TECHNOLOGY", False) or band_id < 0 or not w.tech.has([band_id])[0]:
+    if not getattr(P, "TECHNOLOGY", False) or band_id < 0:
+        return 0.0
+    sl = w.tech.slots.slot                          # (w.tech.has, without the arrays: speed, 28 November 2026)
+    if band_id >= len(sl) or sl[band_id] < 0:
         return 0.0
     return float(practised_quality(w)[band_id, INDEX[key]])
 
