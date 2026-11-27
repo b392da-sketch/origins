@@ -67,3 +67,14 @@ Noted with thanks:
 - the census snapshot;
 - the land fills;
 - the goods sum.
+
+## After the recheck
+
+**Finding 6, the page itself: confirmed; fixed.** The endpoint returned `null` customs, but the band panel then called `.map` on it and threw. The panel now says the customs are "not kept for a people that has ended". The farming block already handled `null`.
+
+Checked in Chromium (Playwright) against a running server, with a living band and an ended one:
+- the living band's panel lists its customs;
+- the ended band's panel opens with the note;
+- the page raised no errors.
+
+The test `Review043.test_finding6_an_ended_bands_page_opens` also checks the guard in `observatory/index.html`.

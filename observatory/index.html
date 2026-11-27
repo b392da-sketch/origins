@@ -501,7 +501,7 @@ async function showBand(id){
     <dt>Last move</dt><dd>${esc(d.last_move || "—")}</dd>
     <dt>Language</dt><dd><a style="cursor:pointer;color:var(--accent2)" onclick="showLanguage(${d.language.id})">${esc(d.language.name)}</a></dd>
     ${d.polity ? `<dt>Polity</dt><dd><a style="cursor:pointer;color:var(--accent2)" onclick="showPolity(${d.polity.id})">${esc(d.polity.name)}</a>${d.polity.seat ? " (its seat)" : ""}</dd>` : ""}</div>
-    <details style="margin:6px 0;font:12.5px system-ui"><summary>Customs</summary><div class="kv">${d.customs.map(c => `<dt>${esc(c.custom)}</dt><dd>${esc(c.practice)}</dd>`).join("")}</div>
+    <details style="margin:6px 0;font:12.5px system-ui"><summary>Customs</summary><div class="kv">${d.customs ? d.customs.map(c => `<dt>${esc(c.custom)}</dt><dd>${esc(c.practice)}</dd>`).join("") : '<dd class="muted">not kept for a people that has ended</dd>'}</div>
     ${d.custom_changes.length ? `<ul class="list">${d.custom_changes.map(c => `<li>${esc(c.custom)}: ${esc(c.from)} → ${esc(c.to)} <small>${esc(c.how)}, ${bp(c.bp)}</small></li>`).join("")}</ul>` : ""}</details>
     ${farmingBlock(d.farming)}
     ${body}

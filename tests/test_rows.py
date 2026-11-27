@@ -435,6 +435,8 @@ class Review043(unittest.TestCase):
         self.assertIsNone(d["customs"])
         self.assertIsNone(d["farming"])
         server.band_detail(w, a.id)                        # a living band's page as before
+        page = (__import__("pathlib").Path(server.__file__).parent.parent / "observatory" / "index.html").read_text()
+        self.assertIn("d.customs ? d.customs.map(", page)    # the page renders it (recheck of review 043)
 
     def test_held_ids_come_from_the_slots_in_use(self):
         m = SlotMap()
