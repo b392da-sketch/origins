@@ -63,6 +63,40 @@ def is_herder(w, b, wild=None, suit=None, cell=None) -> bool:
     return out
 
 
+def herders_now(w, bands, wild, suit) -> list:
+    """is_herder(w, b) for many bands at their own cells, at once: the same answers, cached the same way, with
+    the cache's misses worked out together (speed, 28 November 2026)."""
+    out = [False] * len(bands)
+    if not bands:
+        return out
+    cache = getattr(w, "_herder_cache", None)
+    if cache is None or cache[0] != w.t:
+        cache = (w.t, {})
+        w._herder_cache = cache
+    ids = np.fromiter((b.id for b in bands), dtype=np.int64, count=len(bands))
+    fs = np.asarray(w.farm_share[ids], dtype=float)
+    miss = []
+    for i, (b, f) in enumerate(zip(bands, fs.tolist())):
+        if f < 0.5:
+            continue
+        hit = cache[1].setdefault(b.id, {}).get(b.cell)
+        if hit is None:
+            miss.append(i)
+        else:
+            out[i] = hit
+    if miss:
+        cells = np.fromiter((bands[i].cell for i in miss), dtype=np.int64, count=len(miss))
+        sk = np.asarray(w.skill[ids[miss]], dtype=float)
+        usable = (sk >= 3) | wild[cells]
+        val = np.where(usable, farming._quality(sk) * suit[cells], 0.0)
+        VA, VP = val[:, farming.ANIMALS].max(axis=1).tolist(), val[:, farming.PLANTS].max(axis=1).tolist()
+        for i, c, va, vp in zip(miss, cells.tolist(), VA, VP):
+            r = bool(va > 0 and va >= P.PASTORAL_SHARE * (va + vp))
+            cache[1][bands[i].id][c] = r
+            out[i] = r
+    return out
+
+
 def move(w):
     if not getattr(P, "PASTORALISM", False):
         return
@@ -70,32 +104,55 @@ def move(w):
     if not bands:
         return
     wild, suit = farming.land_tables(w)
-    sizes = w.band_sizes()
     nb = w.planet.grid.neighbours
     land = w.planet.land
     farmers: dict = {}
     herders = []
-    for b in bands:
+    # (By arrays over the living bands, in the same order with the same operations: speed, 28 November 2026.)
+    ids = np.fromiter((b.id for b in bands), dtype=np.int64, count=len(bands))
+    fs = np.asarray(w.farm_share[ids], dtype=float)
+    sizes = dict(zip(ids.tolist(), w.sizes_of(ids).tolist()))          # band_sizes()[id], the same numbers
+    for b, f in zip(bands, fs.tolist()):
         # everyone farming in a cell shares its land, in proportion to their farming work (as in season_food):
         # count people x farming share, not only bands farming at least half their work. (Until 13 November 2026
         # only the latter were counted, so a crowded cell could look empty: found by Codex, review 005)
-        if w.farm_share[b.id] > 0:
-            farmers[b.cell] = farmers.get(b.cell, 0.0) + float(sizes[b.id]) * float(w.farm_share[b.id])
-    for b in bands:
-        if w.farm_share[b.id] < 0.5:
-            continue
-        va, vp = _animal_value(w, b, b.cell, wild, suit)
-        if va <= 0 or va < P.PASTORAL_SHARE * (va + vp):
-            continue
-        herders.append((b, va))
-    for b, va in herders:
+        if f > 0:
+            farmers[b.cell] = farmers.get(b.cell, 0.0) + float(sizes[b.id]) * f
+    k = np.nonzero(fs >= 0.5)[0]
+    if len(k):
+        cells = np.fromiter((bands[i].cell for i in k.tolist()), dtype=np.int64, count=len(k))
+        sk = np.asarray(w.skill[ids[k]], dtype=float)           # each band's value at its own cell (_animal_value)
+        usable = (sk >= 3) | wild[cells]
+        val = np.where(usable, farming._quality(sk) * suit[cells], 0.0)
+        VA, VP = val[:, farming.ANIMALS].max(axis=1).tolist(), val[:, farming.PLANTS].max(axis=1).tolist()
+        for i, va, vp in zip(k.tolist(), VA, VP):
+            if va <= 0 or va < P.PASTORAL_SHARE * (va + vp):
+                continue
+            herders.append((bands[i], va))
+    # every herder's value at each neighbouring land cell, worked out together (_animal_values, elementwise the same:
+    # speed, 28 November 2026); a herder's cell changes only when it moves, after its own values are used
+    cand_of, vals_of = [], []
+    if herders:
+        hb = [b for b, _ in herders]
+        cand_of = [[int(c) for c in nb[b.cell] if c >= 0 and land[int(c)]] for b in hb]
+        rows = np.repeat(np.arange(len(hb)), [len(c) for c in cand_of])
+        cells = np.fromiter((c for cs in cand_of for c in cs), dtype=np.int64, count=len(rows))
+        sk = np.asarray(w.skill[np.fromiter((b.id for b in hb), dtype=np.int64, count=len(hb))], dtype=float)
+        q = farming._quality(sk)
+        usable = (sk >= 3)[rows] | wild[cells]
+        val = np.where(usable, q[rows] * suit[cells], 0.0)
+        flat = val[:, farming.ANIMALS].max(axis=1).tolist() if len(rows) else []
+        k = 0
+        for cs in cand_of:
+            vals_of.append(flat[k:k + len(cs)])
+            k += len(cs)
+    for h_, (b, va) in enumerate(herders):
         n = float(sizes[b.id]) * float(w.farm_share[b.id])          # its farming work, in people
         if n <= 0:
             continue
         here = va * P.FARM_CAPACITY / max(farmers.get(b.cell, 0.0), 1.0)
         best, best_v, best_va = None, here * P.PASTORAL_MOVE, 0.0
-        cand = [int(c) for c in nb[b.cell] if c >= 0 and land[int(c)]]
-        vals = _animal_values(w, b, cand, wild, suit)[0].tolist() if cand else []
+        cand, vals = cand_of[h_], vals_of[h_]
         for c, vc in zip(cand, vals):
             if vc <= 0:
                 continue

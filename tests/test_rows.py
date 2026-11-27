@@ -256,6 +256,8 @@ class BandRows(unittest.TestCase):
         w.goods[b.id] = 0.0
         from origins.sim import bands
         bands.end_band(w, b, "test", log=False)
+        self.assertEqual(float(w.tech[b.id, 0]), 0.5)      # readable, as it stood, until the end of the tick
+        bands.sweep_rows(w)
         self.assertEqual(int(w.band_rows.slot[b.id]), -2)
         for k in ("tech", "goods", "customs", "farm_share", "spec", "skill", "land_short"):
             with self.assertRaises(KeyError):
@@ -333,3 +335,113 @@ class BandRows(unittest.TestCase):
         from origins import state
         self.assertEqual(state.SCHEMA, 6)
         self.assertIn(5, state.READABLE_SCHEMAS)
+
+
+class Review043(unittest.TestCase):
+    """Codex review 043. The fixtures were written by the schema-5 writer (main at 59b90f2, the review-042 code):
+    a fresh planet-1 world, and the same world after 15 years with band 0's scribes set to 7.25 and its first
+    written record to 0.5."""
+
+    FIX = __import__("pathlib").Path(__file__).parent / "fixtures"
+
+    def _load(self, name, edit=None):
+        import io
+        import zipfile
+        data = (self.FIX / name).read_bytes()
+        if edit is not None:
+            zin = zipfile.ZipFile(io.BytesIO(data))
+            out = io.BytesIO()
+            with zipfile.ZipFile(out, "w") as zo:
+                for n in zin.namelist():
+                    blob = zin.read(n)
+                    if n == "arrays.npz":
+                        arrs = dict(np.load(io.BytesIO(blob)))
+                        edit(arrs)
+                        buf = io.BytesIO()
+                        np.savez(buf, **arrs)
+                        blob = buf.getvalue()
+                    zo.writestr(n, blob)
+            data = out.getvalue()
+        return persist.from_bytes(data, generate(1))
+
+    def _no_orphans(self, w):
+        refs = {id(v) for v in vars(w).values()}
+        for a in w.band_rows.arrays:
+            self.assertIn(id(a), refs)
+
+    def test_finding1_a_schema5_save_without_practice_rows_loads(self):
+        w = self._load("schema5_fresh.zip")
+        self.assertIsNone(w.tech_prev_prac)
+        engine.step(w, 4)
+        self._no_orphans(w)
+
+    def test_finding2_a_legacy_save_without_customs_loads_with_the_founders_customs(self):
+        from origins.sim import customs
+        w = self._load("schema5_fresh.zip", lambda a: (a.pop("customs"), a.pop("neutral")))
+        b = w.living_bands()[0].id
+        self.assertEqual(int(w.customs[b, customs.RESIDENCE]), 2)
+        self.assertEqual(w.customs.shape[1], len(customs.NAMES))
+        engine.step(w, 4)
+
+    def test_finding3_saved_scribes_survive_conversion(self):
+        from origins.sim import technology
+        w = self._load("schema5_y15.zip")
+        self.assertEqual(float(technology._scribes(w)[0]), 7.25)
+
+    def test_finding4_a_reset_technology_table_keeps_the_records_and_leaves_no_orphans(self):
+        def narrow(a):
+            a["tech"] = a["tech"][:, :1].copy()
+        w = self._load("schema5_y15.zip", narrow)
+        from origins.sim import technology
+        self.assertEqual(w.tech.tail, (technology.K,))
+        self.assertEqual(float(w.tech_record[0, 0]), 0.5)
+        self.assertEqual(float(technology._scribes(w)[0]), 7.25)
+        self._no_orphans(w)
+
+    def test_finding5_a_seat_outside_its_own_polity_keeps_its_rows(self):
+        import dataclasses
+        from origins.sim import bands
+        from origins.sim.polity import Polity
+        w = World.new(1, 1, generate(1))
+        a = w.living_bands()[0]
+        s = w.new_band(a.cell, parent=a.id)
+        fields = {f.name for f in dataclasses.fields(Polity)}
+        p = Polity(**{k: v for k, v in {"id": 0, "seat": s.id, "founded": w.t, "name": "Test"}.items() if k in fields})
+        w.polities = {0: p}
+        w.polity_of[a.id] = 0
+        w.polity_of[s.id] = -1                             # the seat's own entry unset
+        w.customs[s.id, 0] = 1
+        bands.end_band(w, s, "test", log=False)
+        bands.sweep_rows(w)
+        self.assertEqual(int(w.customs[s.id, 0]), 1)       # still the seat of a living polity
+        w2 = persist.from_bytes(persist.to_bytes(w), w.planet)
+        bands.sweep_rows(w2)
+        self.assertEqual(int(w2.customs[s.id, 0]), 1)
+        p.alive = False
+        bands.sweep_rows(w)
+        with self.assertRaises(KeyError):
+            w.customs[s.id]
+
+    def test_finding6_an_ended_bands_page_opens(self):
+        from origins import server
+        from origins.sim import bands
+        w = World.new(1, 1, generate(1))
+        a = w.living_bands()[0]
+        b = w.new_band(a.cell, parent=a.id)
+        bands.end_band(w, b, "test", log=False)
+        bands.sweep_rows(w)
+        d = server.band_detail(w, b.id)
+        self.assertFalse(d["alive"])
+        self.assertIsNone(d["customs"])
+        self.assertIsNone(d["farming"])
+        server.band_detail(w, a.id)                        # a living band's page as before
+        page = (__import__("pathlib").Path(server.__file__).parent.parent / "observatory" / "index.html").read_text()
+        self.assertIn("d.customs ? d.customs.map(", page)    # the page renders it (recheck of review 043)
+
+    def test_held_ids_come_from_the_slots_in_use(self):
+        m = SlotMap()
+        for i in (5, 9, 2):
+            m.assign(i)
+        m.grow_ids(1_000_000)
+        m.release(9)
+        self.assertEqual(m.held().tolist(), [2, 5])

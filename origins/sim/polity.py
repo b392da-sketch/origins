@@ -125,8 +125,18 @@ def _surplus(b, size):
     return max(0.0, b.store - P.SURPLUS_RESERVE * size * ANNUAL)
 
 
+def _living_ids(w):
+    """The living bands and their ids, in living_bands() order (cached with the list itself)."""
+    lb = w.living_bands()
+    c = getattr(w, "_living_ids", None)
+    if c is None or c[0] is not lb or len(c[1]) != len(lb):
+        c = w._living_ids = (lb, np.fromiter((b.id for b in lb), dtype=np.int64, count=len(lb)))
+    return c
+
+
 def members_of(w, pid) -> list:
-    return [b for b in w.living_bands() if w.polity_of[b.id] == pid]
+    lb, ids = _living_ids(w)
+    return [lb[i] for i in np.nonzero(w.polity_of[ids] == pid)[0].tolist()]
 
 
 def depth_of(w, i, seat) -> int:

@@ -75,10 +75,8 @@ def fission_and_merge(w):
     group_at = {}
     from .farming import land_tables
     tables = land_tables(w)
-    for k, b in enumerate(live):
-        if b.mode != "group":
-            continue
-        key = group_key(w, b, tables=tables)
+    gb = [b for b in live if b.mode == "group"]
+    for b, key in zip(gb, group_keys(w, gb, tables)):
         if key not in group_at:
             group_at[key] = b
     for k, b in enumerate(live):
@@ -233,6 +231,20 @@ def group_key(w, b, cell=None, tables=None) -> tuple:
     return (b.cell if cell is None else cell, farming, herder, pol)
 
 
+def group_keys(w, bands, tables) -> list:
+    """group_key(w, b, tables=tables) for many bands at their own cells, at once (the same keys; speed, 28 November
+    2026)."""
+    from . import pastoral
+    if not bands:
+        return []
+    ids = np.fromiter((b.id for b in bands), dtype=np.int64, count=len(bands))
+    farming = (np.asarray(w.farm_share[ids], dtype=float) >= 0.5).tolist()
+    herd = pastoral.herders_now(w, bands, *tables)
+    po = getattr(w, "polity_of", None)
+    pol = [int(po[i]) if po is not None and i < len(po) else -1 for i in ids.tolist()]
+    return [(b.cell, f, f and h, p_) for b, f, h, p_ in zip(bands, farming, herd, pol)]
+
+
 def carry(w, src, dst, route, carriers):
     """People joining another band bring what they know: techniques (technology.combine, at a quality that depends
     on how many bring it) and domestication skills (the better of the two, as farming's learning from neighbours
@@ -258,36 +270,23 @@ def carry(w, src, dst, route, carriers):
 
 
 def release_rows(w, band_id: int):
-    """An ended band gives up its band rows, after each system has moved, folded or cleared what they held: reading a
-    released row raises. The seat of a living polity keeps its rows, as they stood when it ended, until the polity
-    has a new seat or ends (the polity pass reads the seat's customs and specialists until then), and gives them up
-    at the end of that tick (sweep_rows)."""
-    m = getattr(w, "band_rows", None)
-    if m is None:
-        return
-    if _seat_of_living_polity(w, band_id):
-        kept = w.__dict__.setdefault("rows_kept", set())
-        kept.add(int(band_id))
-        return
-    m.release(band_id)
-
-
-def _seat_of_living_polity(w, band_id: int) -> bool:
-    """Whether this band is the seat of a living polity (a seat belongs to its own polity: polity_of)."""
-    po = getattr(w, "polity_of", None)
-    if po is None or not (0 <= band_id < len(po)):
-        return False
-    p = getattr(w, "polities", {}).get(int(po[band_id]))
-    return p is not None and p.alive and p.seat == band_id
+    """An ended band gives up its band rows at the end of the tick (sweep_rows), after each system has moved, folded
+    or cleared what they held: until then they read as they stood when it ended, as a row for every band id did.
+    Reading a released row raises."""
+    if getattr(w, "band_rows", None) is not None:
+        w.__dict__.setdefault("rows_kept", set()).add(int(band_id))
 
 
 def sweep_rows(w):
-    """End of each tick: ended seats whose polity has a new seat, or has ended, give up their rows."""
+    """End of each tick: ended bands give up their rows, except the seat of a living polity, which keeps them, as they
+    stood, until the polity has a new seat or ends (the polity pass reads its customs and specialists until then).
+    The seats are those the living polities name (Codex review 043, finding 5), not the seat's own polity entry."""
     kept = getattr(w, "rows_kept", None)
     if not kept:
         return
+    seats = {p.seat for p in getattr(w, "polities", {}).values() if p.alive}
     for i in sorted(kept):
-        if not _seat_of_living_polity(w, i):
+        if i not in seats:
             w.band_rows.release(i)
             kept.discard(i)
 

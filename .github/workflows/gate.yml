@@ -313,7 +313,7 @@ jobs:
         id: ck
         continue-on-error: true
         with:
-          name: ckpt6-${{ matrix.name }}
+          name: ckpt5-${{ matrix.name }}
           path: /tmp/ckpt
       - name: anything to continue?
         id: need
