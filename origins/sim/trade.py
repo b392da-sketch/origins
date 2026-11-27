@@ -40,6 +40,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from ..rows import new_rows
+
 GOODS = ("salt", "fine_stone", "copper", "tin", "iron", "gold", "textiles", "pottery", "shell")
 G = len(GOODS)
 GI = {g: i for i, g in enumerate(GOODS)}
@@ -61,13 +63,13 @@ FLOWS = ("produced", "worn", "lost", "moved_out", "moved_in")
 def init(w):
     from . import traders
     traders.init(w)
-    w.goods = np.zeros((64, G), dtype=np.float64)
+    w.goods = new_rows(w, (G,), np.float64, 0.0)
     w.goods_ledger = {g: {f: 0.0 for f in FLOWS} for g in GOODS}
     _partner_rows(w)
     w.gift_log = []              # thinned: [year, band, partner, {good: given}, {good: received}]
     w.partner_dropped = {}       # "a,b" (a < b) -> tick a swap parted them (PARTNER_REFORM_WAIT; Ben, 15 Nov 2026)
     w.exchange_log = []          # [year, band, units received, units given, goods that first arrived]
-    w.goods_reached = np.zeros((64, G), dtype=bool)   # a good has reached this band (Codex review 014)
+    w.goods_reached = new_rows(w, (G,), bool, False)   # a good has reached this band (Codex review 014)
 
 
 def _partner_rows(w, k: int | None = None):
@@ -103,19 +105,10 @@ def grow(w, band_id: int):
     clear its last goods row)."""
     if getattr(w, "goods", None) is None:
         init(w)
-    if band_id >= len(w.goods):
-        cap = len(w.goods)
-        while cap <= band_id:
-            cap *= 2
-        out = np.zeros((cap, G), dtype=np.float64)
-        out[:len(w.goods)] = w.goods
-        w.goods = out
     if getattr(w, "goods_reached", None) is None:
-        w.goods_reached = w.goods > P.ARRIVE_MIN        # older saves: whatever a band holds has reached it
-    if len(w.goods_reached) < len(w.goods):
-        out = np.zeros((len(w.goods), G), dtype=bool)
-        out[:len(w.goods_reached)] = w.goods_reached
-        w.goods_reached = out
+        w.goods_reached = new_rows(w, (G,), bool, False)  # older saves: whatever a band holds has reached it
+        ids, rows = w.goods.by_id()
+        w.goods_reached.load_rows(ids, rows > P.ARRIVE_MIN)
     if getattr(w, "partner_of", None) is None:
         _partner_rows(w)
     if not hasattr(w, "gift_log"):
@@ -131,7 +124,7 @@ def partner_rows_from_dense(w, of, since, gave, alive_ids):
     partnerships ended)."""
     k = max(int(P.PARTNERS_CAP), of.shape[1] if of.ndim == 2 else 0)
     _partner_rows(w, k)
-    w.partner_slots.grow_ids(max(w.next_band, len(w.goods)) - 1)
+    w.partner_slots.grow_ids(max(w.next_band, 1) - 1)
     alive = sorted(int(x) for x in alive_ids)
     for i in alive:
         w.partner_slots.assign(i)
@@ -190,7 +183,7 @@ def move_share(w, src_id: int, dst_id: int, frac: float):
 
 def band_ended(w, band_id: int):
     """An ended band's goods are lost (scattered, buried, taken up by no one we follow); its partnerships end."""
-    if getattr(w, "goods", None) is None or band_id >= len(w.goods):
+    if getattr(w, "goods", None) is None or not w.goods.has([band_id])[0]:
         return
     _unlink_all(w, band_id)
     for i, g in enumerate(GOODS):
@@ -202,7 +195,7 @@ def band_ended(w, band_id: int):
 def totals(w) -> np.ndarray:
     """Goods held by bands and by rulers (trade stage 4b)."""
     from . import traders
-    base = w.goods.sum(axis=0) if getattr(w, "goods", None) is not None else np.zeros(G)
+    base = w.goods.total() if getattr(w, "goods", None) is not None else np.zeros(G)
     return base + traders.totals(w)
 
 
@@ -228,8 +221,6 @@ def yearly(w):
     if not live:
         return
     ids = np.asarray(w.live_index()[0])
-    if len(w.goods) <= ids.max():
-        ensure(w, int(ids.max()), -1)
     _trade_in_size(w)
     w.trade_in[:] = 0.0                                 # this year's goods received by exchange, gifts and traders
     cells = np.array([b.cell for b in live])
@@ -738,7 +729,8 @@ def check_end(w):
                 abs((now[i] - before[i]) - flows) > 1e-6 * max(1.0, abs(before[i])):
             w.invariant_failures.append(f"t={w.t}: {g} change {now[i] - before[i]:.4f} vs flows {flows:.4f}")
     tre = getattr(w, "treasury", None)
-    if (w.goods < -1e-9).any() or not np.isfinite(w.goods).all() or \
+    held = w.goods.rows()
+    if (held < -1e-9).any() or not np.isfinite(held).all() or \
             (tre is not None and (not np.isfinite(tre).all() or (tre < -1e-9).any())):   # rulers' stores too (review 036)
         w.invariant_failures.append(f"t={w.t}: negative or non-finite goods")
 
@@ -761,9 +753,11 @@ def per_person(w, ids, names) -> np.ndarray:
     if getattr(w, "goods", None) is None or not len(ids):
         return np.zeros(len(ids))
     n = np.maximum(w.sizes_of(ids).astype(float), 1.0)
-    rows = np.minimum(ids, len(w.goods) - 1)
-    held = w.goods[rows][:, [GI[g] for g in names]].sum(axis=1)
-    return np.where(ids < len(w.goods), held, 0.0) / n
+    has = w.goods.has(ids)
+    held = np.zeros(len(ids))
+    if has.any():
+        held[has] = w.goods[ids[has]][:, [GI[g] for g in names]].sum(axis=1)
+    return held / n
 
 
 def goods_materials(w, ids, materials) -> np.ndarray:
@@ -860,12 +854,8 @@ def craft_share(w, ids) -> np.ndarray:
 
 
 def _trade_in_size(w):
-    a = getattr(w, "trade_in", None)
-    if a is None or len(a) < len(w.goods):
-        out = np.zeros(len(w.goods))
-        if a is not None:
-            out[:len(a)] = a
-        w.trade_in = out
+    if getattr(w, "trade_in", None) is None:
+        w.trade_in = new_rows(w, (), np.float64, 0.0)
 
 
 def trade_need(w, ids, cells) -> np.ndarray:

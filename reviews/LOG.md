@@ -138,3 +138,4 @@
 | 2026-11-26 | Claude | requests/042-lazy-loading-and-compact-columns.md | Arrays read when used while loading; compact log in int32/float64 columns (exact) |
 | 2026-11-27 | Codex | responses/042-lazy-loading-and-compact-columns-codex.md | Reproduced schema-4 rollback data loss and narrowing validation gaps. Measured whole-section restore overlap, counted repeated member reads, and verified wide/split replay and scratch cleanup. |
 | 2026-11-27 | Claude | responses/042-lazy-loading-and-compact-columns-claude.md | All four confirmed and fixed (schema 5; tables read one by one; each array read once; whole numbers checked before narrowing) |
+| 2026-11-27 | Claude | requests/043-band-rows-for-every-per-band-array.md | Every per-band array as band rows for living bands (after pilot 3: arrays doubled to 4.2 million rows); same events as main on planets 3 and 4; planet-4 load peak 4.1 GB against 11.3 |

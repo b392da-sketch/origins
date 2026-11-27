@@ -204,8 +204,8 @@ class Review042(unittest.TestCase):
         from origins import state
         w = World.new(1, 1, generate(1))
         meta = json.loads(zipfile.ZipFile(io.BytesIO(persist.to_bytes(w))).read("meta.json"))
-        self.assertEqual(meta["schema"], 5)
-        self.assertNotIn(5, (1, 2, 3, 4))                   # the schema-4 reader's READABLE_SCHEMAS
+        self.assertGreaterEqual(meta["schema"], 5)          # (6 from 27 November 2026: band rows)
+        self.assertNotIn(meta["schema"], (1, 2, 3, 4))      # the schema-4 reader's READABLE_SCHEMAS
         self.assertIn(5, state.READABLE_SCHEMAS)
 
     def test_findings2_3_each_array_is_read_once_and_tables_one_by_one(self):

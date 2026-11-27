@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from ..rows import new_rows
+
 from .. import params as P
 from ..worldgen import B, DOMESTICABLES
 
@@ -81,47 +83,30 @@ def quality(skill):
 
 # ------------------------------------------------------------------ state
 def init(w):
-    cap = 64
-    w.skill = np.zeros((cap, len(SPECIES)), dtype=np.float32)
-    w.farm_share = np.zeros(cap)
-    w.crop_store = np.zeros(cap)            # this year's standing crop, harvested in the harvest season
-    w.still_years = np.zeros(cap)           # years since the band last moved
-    w.forage_rr = np.full(cap, P.FORAGE_RATE)   # recent food per worker-day from foraging
-    w.herder_since = np.full(cap, -1.0)     # tick a band first moved with its herds (M4a pastoralism), or -1
-    w.farm_rr_real = np.full(cap, np.nan)   # recent food per worker-day actually got from fields and herds (M4a land)
-    w.farm_rr_cell = np.full(cap, -1, dtype=np.int64)   # the cell where it was got
-    w.farm_rr_lost = np.zeros(cap)          # of which worn or salted soil took, per worker-day, on the same terms
+    w.skill = new_rows(w, (len(SPECIES),), np.float32, 0.0)
+    w.farm_share = new_rows(w)
+    w.crop_store = new_rows(w)              # this year's standing crop, harvested in the harvest season
+    w.still_years = new_rows(w)             # years since the band last moved
+    w.forage_rr = new_rows(w, fill=P.FORAGE_RATE)   # recent food per worker-day from foraging
+    _farm_rows(w)
     w.first_village = None                  # event id of the first farming village
     w.farm_firsts = {}                      # species -> {stage: event id} (first anywhere in the world)
 
 
+def _farm_rows(w):
+    """The per-band farming rows added since M2 (older saves and worlds start them at their fill)."""
+    if getattr(w, "herder_since", None) is None:
+        w.herder_since = new_rows(w, fill=-1.0)     # tick a band first moved with its herds (M4a pastoralism), or -1
+    if getattr(w, "farm_rr_real", None) is None:
+        w.farm_rr_real = new_rows(w, fill=np.nan)   # recent food per worker-day actually got from fields and herds (M4a land)
+    if getattr(w, "farm_rr_cell", None) is None:
+        w.farm_rr_cell = new_rows(w, (), np.int64, -1)   # the cell where it was got
+    if getattr(w, "farm_rr_lost", None) is None:
+        w.farm_rr_lost = new_rows(w)                # of which worn or salted soil took, per worker-day, on the same terms
+
+
 def ensure(w, band_id: int, parent: int):
-    if band_id >= len(w.farm_share):
-        cap = len(w.farm_share)
-        while cap <= band_id:
-            cap *= 2
-        if not hasattr(w, "herder_since"):
-            w.herder_since = np.full(len(w.farm_share), -1.0)
-        if getattr(w, "farm_rr_real", None) is None:
-            w.farm_rr_real = np.full(len(w.farm_share), np.nan)
-        if getattr(w, "farm_rr_cell", None) is None or len(w.farm_rr_cell) != len(w.farm_rr_real):
-            w.farm_rr_cell = np.full(len(w.farm_rr_real), -1, dtype=np.int64)
-        if getattr(w, "farm_rr_lost", None) is None or len(w.farm_rr_lost) != len(w.farm_rr_real):
-            w.farm_rr_lost = np.zeros(len(w.farm_rr_real))
-        for name in ("skill", "farm_share", "crop_store", "still_years", "forage_rr", "herder_since", "farm_rr_real",
-                     "farm_rr_cell", "farm_rr_lost"):
-            old = getattr(w, name)
-            new = np.zeros((cap,) + old.shape[1:], dtype=old.dtype)
-            if name == "forage_rr":
-                new[:] = P.FORAGE_RATE
-            if name == "herder_since":
-                new[:] = -1.0
-            if name == "farm_rr_real":
-                new[:] = np.nan
-            if name == "farm_rr_cell":
-                new[:] = -1
-            new[:len(old)] = old
-            setattr(w, name, new)
+    _farm_rows(w)
     if parent >= 0:
         w.skill[band_id] = w.skill[parent]
         w.farm_share[band_id] = w.farm_share[parent]
@@ -187,7 +172,8 @@ def season_food(w, ids, cells, effort):
     nb_ = len(effort)
     forage_eff = effort.copy()
     food = np.zeros(nb_)
-    share = w.farm_share[:nb_]
+    share = np.zeros(nb_)
+    share[ids] = w.farm_share[ids]
     if not share[ids].any():
         return forage_eff, food
     _, suit = land_tables(w)
@@ -377,10 +363,7 @@ def _real_rr(w, ids, cells=None, lost=False) -> np.ndarray:
     finding 2)."""
     if not getattr(P, "LAND", False) or not getattr(P, "REAL_YIELDS", True) or getattr(w, "farm_rr_real", None) is None:
         return np.full(len(ids), np.nan)
-    if len(w.farm_rr_real) <= int(np.max(ids, initial=0)):
-        ensure(w, int(np.max(ids)), -1)
-    if lost and (getattr(w, "farm_rr_lost", None) is None or len(w.farm_rr_lost) != len(w.farm_rr_real)):
-        w.farm_rr_lost = np.zeros(len(w.farm_rr_real))
+    _farm_rows(w)
     r = (w.farm_rr_lost if lost else w.farm_rr_real)[ids].copy()
     if lost:
         r[~np.isfinite(w.farm_rr_real[ids])] = np.nan
@@ -506,16 +489,12 @@ def season_food_live(w, ids, cells, effort):
         # what fields and herds actually gave per worker-day this season (M4a land: choices see real yields)
         days = farm_eff[on] / P.FORAGE_RATE
         ok = days > 0
-        if len(w.farm_rr_real) <= int(ids.max()):
-            ensure(w, int(ids.max()), -1)
         oi = ids[on][ok]
         rr = grown[on][ok] / days[ok]
         prev = w.farm_rr_real[oi]
         here = cells[on][ok]
         same = np.isfinite(prev) & (w.farm_rr_cell[oi] == here)
         w.farm_rr_real[oi] = np.where(same, 0.9 * prev + 0.1 * rr, rr)
-        if getattr(w, "farm_rr_lost", None) is None or len(w.farm_rr_lost) != len(w.farm_rr_real):
-            w.farm_rr_lost = np.zeros(len(w.farm_rr_real))
         lr = lost_crop[on][ok] / days[ok]
         w.farm_rr_lost[oi] = np.where(same, 0.9 * w.farm_rr_lost[oi] + 0.1 * lr, lr)
         w.farm_rr_cell[oi] = here

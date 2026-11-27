@@ -257,6 +257,41 @@ def carry(w, src, dst, route, carriers):
             cache[1].pop(dst.id, None)
 
 
+def release_rows(w, band_id: int):
+    """An ended band gives up its band rows, after each system has moved, folded or cleared what they held: reading a
+    released row raises. The seat of a living polity keeps its rows, as they stood when it ended, until the polity
+    has a new seat or ends (the polity pass reads the seat's customs and specialists until then), and gives them up
+    at the end of that tick (sweep_rows)."""
+    m = getattr(w, "band_rows", None)
+    if m is None:
+        return
+    if _seat_of_living_polity(w, band_id):
+        kept = w.__dict__.setdefault("rows_kept", set())
+        kept.add(int(band_id))
+        return
+    m.release(band_id)
+
+
+def _seat_of_living_polity(w, band_id: int) -> bool:
+    """Whether this band is the seat of a living polity (a seat belongs to its own polity: polity_of)."""
+    po = getattr(w, "polity_of", None)
+    if po is None or not (0 <= band_id < len(po)):
+        return False
+    p = getattr(w, "polities", {}).get(int(po[band_id]))
+    return p is not None and p.alive and p.seat == band_id
+
+
+def sweep_rows(w):
+    """End of each tick: ended seats whose polity has a new seat, or has ended, give up their rows."""
+    kept = getattr(w, "rows_kept", None)
+    if not kept:
+        return
+    for i in sorted(kept):
+        if not _seat_of_living_polity(w, i):
+            w.band_rows.release(i)
+            kept.discard(i)
+
+
 def consolidate_groups(w):
     """Groups sharing a cell become one local population (a change of representation, not a social event)."""
     from . import groups
@@ -286,6 +321,7 @@ def consolidate_groups(w):
         b.ended = w.t
         from . import disease
         disease.release(w, b.id)                     # its disease rows are freed (origins/rows.py)
+        release_rows(w, b.id)                        # and its row in every other per-band array
         del b.trail[:-3]
         b.last_move = f"combined with {w.band_name(o)} (same land)"
         w.counts["consolidated"] = w.counts.get("consolidated", 0) + 1
@@ -344,6 +380,7 @@ def end_band(w, b, why, log=True):
     if getattr(w, "crop_store", None) is not None and b.id < len(w.crop_store):
         w.crop_store[b.id] = 0.0                       # fields nobody is left to harvest (not yet counted as food)
     land.drop_crop_loss(w, b.id)
+    release_rows(w, b.id)                              # its row in every other per-band array (origins/rows.py)
     if b.store:
         w.ledger["spoiled"] += b.store
         b.store = 0.0

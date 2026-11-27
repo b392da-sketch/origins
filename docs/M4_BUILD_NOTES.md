@@ -1310,3 +1310,64 @@ All values are starting values.
 - **Drift fixes:** docstrings, the `PARTNERS_CAP` comment, superseded statements marked in place, the workflow header, and the gate plan's title and pipeline note.
 
 All values are starting values.
+
+### Band rows for every per-band array (27 November 2026, after G4a pilot 3)
+
+**What pilot 3 showed** (gate run 45794080188, on the review-041 code):
+
+| Stage | From year | Loading peak | Seconds per simulated year | Save | Living bands | Band ids issued |
+|---|---|---|---|---|---|---|
+| 2 | 5,733 | 6.41 GB | 22.6 | 1,212 MiB, 7.33 GB peak | 20,061 | about 2.0 million |
+| 3 | 6,348 | 11.27 GB | about 45 | 1,527 MiB, 11.27 GB peak | 26,268 | 2,222,331 |
+
+Between the two stages the band ids passed 2,097,152, and every per-band array still holding a row for every id doubled to 4,194,304 rows. That covers technology and its record, goods, customs and neutral traits, skill, the farming and land accounts, specialists and trade receipts. Those rows were 2.7 GiB of the year-6,348 save's arrays, almost all for bands that had ended.
+
+**What changed.** Every one of these arrays is now band rows (`origins/rows.py`) on one shared slot map, `w.band_rows`:
+- **Making and ending:** a band gets its slot when it is made (`World.new_band`). It gives the slot up when it ends (`bands.release_rows`), after each system has moved, folded or cleared what the slot held. Reading a released row raises, so no code can read an ended band's values without it showing.
+- **Arrays kept dense:** `polity_of`, `polity_via` and `conquered_at` (int32) stay dense, because ended bands are read through them.
+- **Whole-array uses rewritten to work by band id:**
+  - the per-season practised-quality table, which reuses one set of band rows instead of a dense allocation each phase;
+  - the goods totals and checks;
+  - the farm-share masks in births, conception and the person-year counts;
+  - the land accounts' `np.add.at`;
+  - the census's trade-receipts snapshot.
+- **Saves (schema 6):** the slot map and each array's rows in slot order. Older saves load each living band's row from the dense arrays, and every other issued id is marked ended.
+- **The digest:** it hashes each array by band id, ascending, so it is the same however slots were assigned.
+
+**Two places where code read an ended band's row**, found because the read raised:
+1. **Group rows that outlive their band empty** (merged away, or ended with nobody in them). Births and conception read their band's farm share. These rows hold nobody, so the value weighs nothing; it now reads 0 (`groups._farm_share_of_rows`). A row with people whose band has ended raises.
+2. **The seat of a living polity that ends.** Its customs are read by cultural distance and its specialists by record-keeping, until the polity pass gives the polity a new seat or ends it. Such a seat keeps its rows, as they stood when it ended, until then (`w.rows_kept`, saved). They are released at the end of that tick (`bands.sweep_rows`). In the year-6,353 world, 9 seats were held this way, each ended for one tick.
+
+**Exactness:**
+- **Planet 3, year 9,910 save, 20 years in shadow mode:** the all-event hash matches main, `f9eb76a6d77265d1`.
+- **Planet 4, year 5,765 save, 10 years:** main and this code both give `fbc73ea0f432818d`, with the same 16,986,830 events and 1,914,002 people.
+- **Unit tests** (`tests/test_rows.py::BandRows`): saves round-trip and replay exactly; a dense save loads to the same rows by id and the same history after it.
+
+**Measured** (this container, Python 3.13, NumPy 2.5.5):
+
+| | Main | Band rows |
+|---|---|---|
+| Planet 4 from year 5,765: loading and stepping peak | 3.60 GB | 2.68 GB |
+| Planet 4 from year 5,765: seconds per year | 21.7 | 22.0 |
+| Planet 4 from year 6,348 (pilot 3's checkpoint): loading peak | 11.27 GB (on the runner) | 4.10 GB |
+| Planet 4 at year 6,353: save | 1,527 MiB (runner, year 6,698) | 874 MiB, 4.6 GB peak |
+| Planet 4 at year 6,353: seconds per year | about 45 (runner) | 39.9 |
+
+The band rows now hold about 24,000 slots: tens of megabytes in all. **What now fills a save:**
+- the compact log (int32 and float64 columns), about 1.4 GB unpacked at year 6,353, growing with history;
+- the events, 1.1 GB unpacked;
+- people, 0.4 GB.
+
+**Unexpected behaviour (log):**
+- **Speed falls as the world grows:** about 22 s a year at year 5,765 (14,000 bands, 1.9 million people), 40–45 s at year 6,350 (24,000 bands, 2.7 million people). It does so on main too, so it is not the arrays.
+- **Where the time goes:** a profile at year 6,353 puts it in:
+  - gift partnerships;
+  - fission and merging;
+  - polities and conflict;
+  - traders;
+  - consolidation.
+
+  This is the scaling the scale design note (approved 27 November 2026) is to address. It bears on how far planet-4 histories get in a gate's ten stages.
+- **Empty group rows outliving their band:** 23 of them in the planet-3 save at year 9,910. They are harmless, but nothing clears them.
+
+All values are starting values.

@@ -45,6 +45,7 @@ def step(w, ticks: int = 1):
             w._tech_eff = None          # technique effects are judged afresh in each phase (Codex review 010, finding 4)
             fn(w)
         observe.end_tick(w)
+        bands.sweep_rows(w)               # ended seats' rows, once no living polity is seated there (origins/rows.py)
         w.t += 1
         if not w.living_bands():
             if not w.events or w.events[-1]["kind"] != "extinction":

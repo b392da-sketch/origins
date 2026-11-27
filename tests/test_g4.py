@@ -332,7 +332,7 @@ class Review036(unittest.TestCase):
             n1 = len(w.invariant_failures)
             trade.check_begin(w)
             w.treasury.flat[0] -= 1.0
-            w.goods.flat[0] += 1.0
+            w.goods[w.living_bands()[0].id, 0] += 1.0
             trade.check_end(w)
             self.assertGreater(len(w.invariant_failures), n1)
 

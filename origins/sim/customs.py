@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from ..rows import new_rows
+
 from .. import params as P
 
 CUSTOMS = {
@@ -40,35 +42,37 @@ N_NEUTRAL = 12
 
 
 def init(w):
-    cap = 64
-    w.customs = np.zeros((cap, len(NAMES)), dtype=np.int8)
-    w.customs[:, RESIDENCE] = 2                   # founders: either (M0's 50/50 rule)
-    w.neutral = np.zeros((cap, N_NEUTRAL), dtype=np.float32)
+    w.customs = new_rows(w, (len(NAMES),), np.int8, 0)
+    w.neutral = new_rows(w, (N_NEUTRAL,), np.float32, 0.0)
     w.custom_log = {}
+
+
+def _founders_row():
+    c = np.zeros(len(NAMES), dtype=np.int8)
+    c[RESIDENCE] = 2                              # founders: either (M0's 50/50 rule)
+    return c
 
 
 def widen(w):
     """Older saves have fewer customs: new ones start at their first variant."""
     if w.customs.shape[1] < len(NAMES):
-        c = np.zeros((len(w.customs), len(NAMES)), dtype=np.int8)
-        c[:, :w.customs.shape[1]] = w.customs
+        c = new_rows(w, (len(NAMES),), np.int8, 0)
+        ids, rows = w.customs.by_id()
+        wide = np.zeros((len(ids), len(NAMES)), dtype=np.int8)
+        wide[:, :rows.shape[1]] = rows
+        c.load_rows(ids, wide)
+        w.customs.slots.arrays.remove(w.customs)
         w.customs = c
 
 
 def ensure(w, band_id: int, parent: int):
     widen(w)
-    if band_id >= len(w.customs):
-        cap = len(w.customs)
-        while cap <= band_id:
-            cap *= 2
-        c = np.zeros((cap, len(NAMES)), dtype=np.int8)
-        c[:len(w.customs)] = w.customs
-        n = np.zeros((cap, N_NEUTRAL), dtype=np.float32)
-        n[:len(w.neutral)] = w.neutral
-        w.customs, w.neutral = c, n
-    src = parent if parent >= 0 else 0
-    w.customs[band_id] = w.customs[src]
-    w.neutral[band_id] = w.neutral[src]
+    if parent >= 0:
+        w.customs[band_id] = w.customs[parent]
+        w.neutral[band_id] = w.neutral[parent]
+    else:                                         # the founders (the only bands made without a mother)
+        w.customs[band_id] = _founders_row()
+        w.neutral[band_id] = 0.0
 
 
 def residence_share(w, band_id: int) -> float:
