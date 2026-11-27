@@ -1378,3 +1378,54 @@ All values are starting values.
 - **The observatory:** an ended band's page shows no customs or farming (not kept).
 - **`SlotMap.held`** reads the slots in use, not every id.
 - **The stage budget:** at about 40 s a year a planet-4 history would need about 54 more hours from year 6,353 to its target year 11,248, against 45 hours for all ten stages. Pilot 4 will show the real rate.
+
+### Speed before the gate (28 November 2026; Ben's option 2)
+
+**Why.** Pilot 4 ran at about 48 s a year on the runner by year 6,600, and slowing. At that rate the planet-4 histories cannot reach year 11,248 within the gate's ten stages (`docs/G4A_GATE_PLAN.md`).
+
+**The rule for every change:** the same operations on the same values in the same order, or a different order only where the result cannot differ:
+- sums of band sizes, which are whole numbers;
+- a lookup that returns the first match, as before.
+
+Each change was checked by the all-event hash in shadow mode, from three saves, against main:
+- planet 3, year 9,910, 20 years: `f9eb76a6d77265d1`;
+- planet 4, year 5,765, 10 years: `fbc73ea0f432818d`;
+- planet 4, year 6,631 (pilot 4's stage-3 checkpoint), 5 years: `c3e0b565819d60f0`, with the same 5,227,815 events and 4,178,611 people.
+
+**What changed** (found by profiling the year-6,631 world):
+- **Prestige goods:** the polity's members are read from the bands holding anyone, not by scanning all 2.4 million ids on each of about 13,000 calls a year.
+- **`polity.members_of`:** works from the living bands' ids.
+- **Band rows:** a fast path for one band's whole row.
+- **Gifts and traders:** work on the rows in place, by slot, with the moves written out as `move_good` does them.
+- **Skill quality:** a cache of rows already worked out.
+- **Herders:** herding and group keys for all group bands at once (`pastoral.herders_now`, `bands.group_keys`); each herder's value at its own and neighbouring cells worked out together.
+- **Conflict:** each band's side is remembered until a war is fought; a cell already scanned for targets is not scanned again by the next member.
+- **Goods held:** `goods_materials` reads band sizes once for all goods.
+- **First arrivals:** the loop runs only over the pairs that flow into a first arrival.
+- **`_settled`:** looks the living bands up directly.
+- **`band_quality`:** checks the slot directly.
+- **Partner slots:** found with a list lookup.
+
+**Measured** (this container, the same 5-year or 10-year runs):
+
+| Planet 4 from | Main | Now | Faster |
+|---|---|---|---|
+| Year 5,765 | 22.0 s a year | 12.0 | 1.8 times |
+| Year 6,631 | 59.7 s a year | 34.1 | 1.75 times |
+
+**Where the time is now** (about 34 s a year at year 6,632, timed by phase without a profiler):
+- trade, about 8 (gift partnerships 4, traders 3, exchange 1.5);
+- conflict, about 4;
+- fission and merging, about 3;
+- polities, about 3;
+- herding, about 2;
+- disease, about 2.5;
+- foraging, about 2;
+- technology, about 2.
+
+No single part dominates any more. Further gains would need restructuring the per-pair and per-band loops, which takes more care to keep exact.
+
+**What it means for the gate:**
+- The runner was about 0.8 times this container's time on pilot 4, which suggests about 27 s a year on the runner at year 6,631.
+- The planet-4 histories grow until their end, and time per year grows with them.
+- Ten stages are still unlikely to be enough for planet 4. Pilot 5, on this code, will measure it.

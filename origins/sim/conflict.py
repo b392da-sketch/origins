@@ -240,10 +240,15 @@ def yearly(w):
         is_pol = s[0] == "p"
         pol = w.polities[s[1]] if is_pol else None
         seen = {}
+        scanned = set()              # a cell already scanned adds nothing on a second pass (sides are fixed until a war)
         for b in mem:
             reach = r2[b.cell] if (is_pol or w.farm_share[b.id] >= 0.5) else [b.cell] + [int(x) for x in nb[b.cell] if x >= 0]
             for c in reach:
-                for t in by_cell.get(int(c), ()):
+                c = int(c)
+                if c in scanned:
+                    continue
+                scanned.add(c)
+                for t in by_cell.get(c, ()):
                     ts = side(t)
                     if ts == s or t.id in seen:
                         continue

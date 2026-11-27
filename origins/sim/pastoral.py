@@ -129,14 +129,30 @@ def move(w):
             if va <= 0 or va < P.PASTORAL_SHARE * (va + vp):
                 continue
             herders.append((bands[i], va))
-    for b, va in herders:
+    # every herder's value at each neighbouring land cell, worked out together (_animal_values, elementwise the same:
+    # speed, 28 November 2026); a herder's cell changes only when it moves, after its own values are used
+    cand_of, vals_of = [], []
+    if herders:
+        hb = [b for b, _ in herders]
+        cand_of = [[int(c) for c in nb[b.cell] if c >= 0 and land[int(c)]] for b in hb]
+        rows = np.repeat(np.arange(len(hb)), [len(c) for c in cand_of])
+        cells = np.fromiter((c for cs in cand_of for c in cs), dtype=np.int64, count=len(rows))
+        sk = np.asarray(w.skill[np.fromiter((b.id for b in hb), dtype=np.int64, count=len(hb))], dtype=float)
+        q = farming._quality(sk)
+        usable = (sk >= 3)[rows] | wild[cells]
+        val = np.where(usable, q[rows] * suit[cells], 0.0)
+        flat = val[:, farming.ANIMALS].max(axis=1).tolist() if len(rows) else []
+        k = 0
+        for cs in cand_of:
+            vals_of.append(flat[k:k + len(cs)])
+            k += len(cs)
+    for h_, (b, va) in enumerate(herders):
         n = float(sizes[b.id]) * float(w.farm_share[b.id])          # its farming work, in people
         if n <= 0:
             continue
         here = va * P.FARM_CAPACITY / max(farmers.get(b.cell, 0.0), 1.0)
         best, best_v, best_va = None, here * P.PASTORAL_MOVE, 0.0
-        cand = [int(c) for c in nb[b.cell] if c >= 0 and land[int(c)]]
-        vals = _animal_values(w, b, cand, wild, suit)[0].tolist() if cand else []
+        cand, vals = cand_of[h_], vals_of[h_]
         for c, vc in zip(cand, vals):
             if vc <= 0:
                 continue
