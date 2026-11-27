@@ -252,8 +252,15 @@ def _settled(w, ids) -> np.ndarray:
     updated only once a year (Codex review 011, finding 1)."""
     ids = np.asarray(ids)
     still = w.still_years[ids] if hasattr(w, "still_years") else np.zeros(len(ids))
-    recent = np.array([bool(w.bands[int(i)].trail) and w.bands[int(i)].trail[-1][0] > w.t - P.TICKS_PER_YEAR
-                       for i in ids], dtype=bool)
+    live, bands, since = w.bands.live, w.bands, w.t - P.TICKS_PER_YEAR
+    rec = []
+    for i in ids.tolist():                           # (the living bands looked up directly: speed, 28 Nov 2026)
+        b = live.get(i)
+        if b is None:
+            b = bands[i]
+        tr = b.trail
+        rec.append(bool(tr) and tr[-1][0] > since)
+    recent = np.array(rec, dtype=bool)
     return (np.clip(w.farm_share[ids], 0, 1) >= 0.5) | ((still >= P.TECH_SETTLED_YEARS) & ~recent)
 
 

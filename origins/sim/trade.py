@@ -395,22 +395,46 @@ def partnerships_yearly(w, live):
                 _unlink(w, b.id, o)
                 minorlog.lapsed(w, b.id, o, b.cell, minorlog.LAPSED_REACH, tot)
     # gifts: lasting goods pass both ways each year, keeping the link alive and carrying goods along chains
+    # (The rows are read and written in place, by slot: the same operations in the same order as move_good and the
+    # per-band arrays, without the indexing on every one; speed before G4a, Ben 28 November 2026.)
+    _trade_in_size(w)
+    gdata, gslot = w.goods.data, w.goods.slots.slot
+    tdata = w.trade_in.data
+    pof, pgave, pslot = w.partner_of, w.partner_gave.data, w.partner_slots.slot
+    gift = [(j, g, GI[g], w.goods_ledger[g]) for j, g in enumerate(P.GIFT_GOODS)]
+    share = P.GIFT_SHARE
     for b in live:
         for o in partners(w, b.id):
             if o > b.id:
                 given = {str(b.id): {}, str(o): {}}
-                kb = int(np.nonzero(w.partner_of[b.id] == o)[0][0])
-                ko = int(np.nonzero(w.partner_of[o] == b.id)[0][0])
-                first = not (w.partner_gave[b.id, kb].any() or w.partner_gave[o, ko].any())
-                for j, g in enumerate(P.GIFT_GOODS):
-                    i = GI[g]
-                    x, y = P.GIFT_SHARE * w.goods[b.id, i], P.GIFT_SHARE * w.goods[o, i]
-                    gx, gy = move_good(w, b.id, o, i, x), move_good(w, o, b.id, i, y)
-                    _trade_in_size(w)
-                    w.trade_in[o] += gx
-                    w.trade_in[b.id] += gy
-                    w.partner_gave[b.id, kb, j] += gx
-                    w.partner_gave[o, ko, j] += gy
+                kb = int(np.nonzero(pof[b.id] == o)[0][0])
+                ko = int(np.nonzero(pof[o] == b.id)[0][0])
+                gb, go_ = pgave[pslot[b.id], kb], pgave[pslot[o], ko]
+                first = not (gb.any() or go_.any())
+                rb, ro = gdata[gslot[b.id]], gdata[gslot[o]]
+                sb, so = gslot[b.id], gslot[o]
+                for j, g, i, led in gift:
+                    x, y = share * rb[i], share * ro[i]
+                    gx = float(min(max(x, 0.0), rb[i]))        # move_good(b -> o)
+                    if gx > 0:
+                        rb[i] -= gx
+                        ro[i] += gx
+                        led["moved_out"] += gx
+                        led["moved_in"] += gx
+                    else:
+                        gx = 0.0
+                    gy = float(min(max(y, 0.0), ro[i]))        # move_good(o -> b)
+                    if gy > 0:
+                        ro[i] -= gy
+                        rb[i] += gy
+                        led["moved_out"] += gy
+                        led["moved_in"] += gy
+                    else:
+                        gy = 0.0
+                    tdata[so] += gx
+                    tdata[sb] += gy
+                    gb[j] += gx
+                    go_[j] += gy
                     if gx > 0:
                         given[str(b.id)][g] = round(gx, 6)
                     if gy > 0:
@@ -668,7 +692,10 @@ def down_the_line(w, live, ids, cells):
         reached[:, gi] |= (g + delta > P.ARRIVE_MIN)
         if len(new):
             inflow = {}
-            for a, b_, x, kd in zip(I.tolist(), J.tolist(), f.tolist(), KIND.tolist()):
+            isnew = np.zeros(len(ids), dtype=bool)          # only the pairs flowing into a first arrival, in pair
+            isnew[new] = True                               # order (the same lists for those bands: speed, 28 Nov)
+            sel = np.nonzero(((f > 0) & isnew[J]) | ((f < 0) & isnew[I]))[0]
+            for a, b_, x, kd in zip(I[sel].tolist(), J[sel].tolist(), f[sel].tolist(), KIND[sel].tolist()):
                 if x > 0:
                     inflow.setdefault(b_, []).append((x, a, kd))
                 elif x < 0:
@@ -807,17 +834,11 @@ def prestige_factor(w, polity_id: int) -> float:
         # c[1] is the length the full array had (next_band), compared with len(w.bands) as before
         c = (w.t, w.next_band, live, w.sizes_of(live).astype(float))
         w._sizes_tick = c
-    members = np.nonzero(w.polity_of[:c[1]] == polity_id)[0]
-    if len(members):
-        vals = np.zeros(len(members))
-        live, sz = c[2], c[3]
-        if len(live):
-            k = np.minimum(np.searchsorted(live, members), len(live) - 1)
-            ok = live[k] == members
-            vals[ok] = sz[k[ok]]
-        n = float(vals.sum())
-    else:
-        n = 0.0
+    # Members are read from the bands holding anyone (polity_of fresh): a member holding nobody adds 0, and band
+    # sizes are whole numbers, so the sum is the same, in any order, as over every member id (speed before G4a,
+    # Ben 28 November 2026: this scanned all 2.4 million ids on every call).
+    live, sz = c[2], c[3]
+    n = float(sz[w.polity_of[live] == polity_id].sum()) if len(live) else 0.0
     return float(np.clip(held / max(n, 1.0) / P.PRESTIGE_NEED, 0.0, 1.0))
 
 

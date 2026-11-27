@@ -221,6 +221,15 @@ def yearly(w):
         m = sum(b.margin * sizes.get(b.id, 0) for b in mem) / max(tot, 1)
         scarcity[s] = float(np.clip((P.WAR_SCARCITY_MARGIN - m) / 0.6, 0, 1))
     # who can reach whom: villages and polities two rings, foragers one
+    # Each band's side is remembered until a war is fought (only a war changes sides within this pass), so it is
+    # the same as asking afresh each time (speed, 28 November 2026).
+    side_now: dict = {}
+
+    def side(t):
+        v = side_now.get(t.id)
+        if v is None:
+            v = side_now[t.id] = side_of(w, t)
+        return v
     for s, mem in sides.items():
         # a side weighs war in a given year with chance WAR_CONSIDER, and then attacks with chance (its chance
         # of war) / WAR_CONSIDER: the same chance of war (up to WAR_CONSIDER a year), for a quarter of the work
@@ -235,7 +244,7 @@ def yearly(w):
             reach = r2[b.cell] if (is_pol or w.farm_share[b.id] >= 0.5) else [b.cell] + [int(x) for x in nb[b.cell] if x >= 0]
             for c in reach:
                 for t in by_cell.get(int(c), ()):
-                    ts = side_of(w, t)
+                    ts = side(t)
                     if ts == s or t.id in seen:
                         continue
                     seen[t.id] = b
@@ -260,7 +269,7 @@ def yearly(w):
         else:
             dd = np.arccos(np.clip(xyz[tcell] @ xyz[mcells].T, -1, 1)) / spacing        # targets x members
             att = (np.where(dd <= 2.5, np.exp(-dd / P.LOAD_DISTANCE), 0.0) @ mfight) * warriors
-        tside = [side_of(w, t) for t in tb]
+        tside = [side(t) for t in tb]
         dw = np.array([1 + P.WARRIOR_STRENGTH * w.polities[x[1]].inst[polity.WARRIORS] if x[0] == "p" else 1.0
                        for x in tside])
         dfd = np.array([fighters[i] for i in tids]) * P.DEFENDER_ADVANTAGE * dw
@@ -295,6 +304,7 @@ def yearly(w):
         for key, bn in (("scarcity", sbin), ("distance", dbin)):
             w.war_stats[key][bn][1] += 1
         _fight(w, rng, s, mem, b, best, d, sc, cd, share, g, att, dfd, is_pol, pol, sizes, fighters)
+        side_now.clear()                          # a war can move bands between sides
 
 
 def _fight(w, rng, s, mem, b, t, d, sc, cd, share, g, att, dfd, is_pol, pol, sizes, fighters):

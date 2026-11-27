@@ -400,6 +400,12 @@ def _carry(w, A, B, cost, cells, bcost, bcells, cap, tq, holder, cols, sizes_all
     back = _leg(pl, bcells, bcost, tq, holder, ends)
     acc = {"lost": 0.0, "tolls": 0.0}
     moved = picks = kept = 0.0
+    from . import trade as _trade
+    _trade._trade_in_size(w)
+    gslot = w.goods.slots.slot                       # the seats' rows, read and written in place (speed, 28 Nov 2026)
+    grow_ = {a: w.goods.data[gslot[a]], b: w.goods.data[gslot[b]]}
+    rch = {a: w.goods_reached.data[gslot[a]], b: w.goods_reached.data[gslot[b]]}
+    tdata = w.trade_in.data
     for col, x in zip(cols, f.tolist()):
         if x == 0:
             continue
@@ -409,7 +415,7 @@ def _carry(w, A, B, cost, cells, bcost, bcells, cap, tq, holder, cols, sizes_all
         m = abs(x)
         g = GOODS[col]
         led = w.goods_ledger[g]
-        w.goods[src, col] -= m
+        grow_[src][col] -= m
         lost0 = acc["lost"]
         arrive = _travel(w, m, col, leg, led, acc)
         levy = P.RULER_LEVY * arrive                          # the destination's ruler's levy (Ben, 16 Nov 2026)
@@ -418,21 +424,19 @@ def _carry(w, A, B, cost, cells, bcost, bcells, cap, tq, holder, cols, sizes_all
         arrive -= levy
         kp = P.TRADER_KEEP * arrive                           # the traders are A's: their share goes home with them
         arrive -= kp
-        reached_before = bool(w.goods_reached[dst, col])
-        w.goods[dst, col] += arrive
-        from . import trade as _trade
-        _trade._trade_in_size(w)
-        w.trade_in[dst] += arrive                       # received from traders (stage 5's trade need)
+        reached_before = bool(rch[dst][col])
+        grow_[dst][col] += arrive
+        tdata[gslot[dst]] += arrive                     # received from traders (stage 5's trade need)
         home = _travel(w, kp, col, back, led, acc) if outbound else kp
-        w.goods[a, col] += home
-        w.trade_in[a] += home
+        grow_[a][col] += home
+        tdata[gslot[a]] += home
         led["moved_out"] += m
         led["moved_in"] += m - (acc["lost"] - lost0)       # whatever was not lost reached a band or a ruler's store
         moved += m
         picks += levy
         kept += home
-        if not reached_before and w.goods[dst, col] > P.ARRIVE_MIN:
-            w.goods_reached[dst, col] = True
+        if not reached_before and grow_[dst][col] > P.ARRIVE_MIN:
+            rch[dst][col] = True
             db = w.bands[dst]
             # the giver and the traders' seat (on a return load they differ: Codex review 036, finding 4)
             cz = [{"band": src}] + ([{"band": a}] if a != src else [])

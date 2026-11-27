@@ -74,11 +74,30 @@ def land_tables(w):
     return pl._farm
 
 
-def quality(skill):
-    """How productive a species is in a people's hands: little while tended, full once domesticated."""
-    s = np.asarray(skill, dtype=float)
+def _quality(s):
     return np.where(s < 1, 0.15 * s, np.where(s < 2, 0.15 + 0.25 * (s - 1),
                                               np.where(s < 3, 0.4 + 0.45 * (s - 2), 1.0)))
+
+
+_QCACHE: dict = {}
+
+
+def quality(skill):
+    """How productive a species is in a people's hands: little while tended, full once domesticated. A band's row
+    of skills is looked up in a cache of results already worked out (the same numbers: speed, 28 November 2026;
+    the result is read-only)."""
+    s = np.asarray(skill, dtype=float)
+    if s.ndim != 1:
+        return _quality(s)
+    key = s.tobytes()
+    q = _QCACHE.get(key)
+    if q is None:
+        if len(_QCACHE) > 200_000:
+            _QCACHE.clear()
+        q = _quality(s)
+        q.setflags(write=False)
+        _QCACHE[key] = q
+    return q
 
 
 # ------------------------------------------------------------------ state

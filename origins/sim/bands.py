@@ -75,10 +75,8 @@ def fission_and_merge(w):
     group_at = {}
     from .farming import land_tables
     tables = land_tables(w)
-    for k, b in enumerate(live):
-        if b.mode != "group":
-            continue
-        key = group_key(w, b, tables=tables)
+    gb = [b for b in live if b.mode == "group"]
+    for b, key in zip(gb, group_keys(w, gb, tables)):
         if key not in group_at:
             group_at[key] = b
     for k, b in enumerate(live):
@@ -231,6 +229,20 @@ def group_key(w, b, cell=None, tables=None) -> tuple:
     herder = farming and pastoral.is_herder(w, b, *(tables or (None, None)), cell=cell)   # at the cell asked about
     pol = int(w.polity_of[b.id]) if hasattr(w, "polity_of") and b.id < len(w.polity_of) else -1
     return (b.cell if cell is None else cell, farming, herder, pol)
+
+
+def group_keys(w, bands, tables) -> list:
+    """group_key(w, b, tables=tables) for many bands at their own cells, at once (the same keys; speed, 28 November
+    2026)."""
+    from . import pastoral
+    if not bands:
+        return []
+    ids = np.fromiter((b.id for b in bands), dtype=np.int64, count=len(bands))
+    farming = (np.asarray(w.farm_share[ids], dtype=float) >= 0.5).tolist()
+    herd = pastoral.herders_now(w, bands, *tables)
+    po = getattr(w, "polity_of", None)
+    pol = [int(po[i]) if po is not None and i < len(po) else -1 for i in ids.tolist()]
+    return [(b.cell, f, f and h, p_) for b, f, h, p_ in zip(bands, farming, herd, pol)]
 
 
 def carry(w, src, dst, route, carriers):

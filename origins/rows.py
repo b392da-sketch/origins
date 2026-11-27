@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import numpy as np
 
+_I64 = np.int64
+
 
 class SlotMap:
     def __init__(self, cap_ids: int = 64):
@@ -159,9 +161,26 @@ class SparseRows:
         return (self.slots.slots_of(first),) + rest
 
     def __getitem__(self, key):
+        t = type(key)
+        if t is int or t is _I64:                     # one band's whole row: the commonest read (speed, 28 Nov 2026)
+            sl = self.slots.slot
+            if 0 <= key < len(sl):
+                s = sl[key]
+                if s >= 0:
+                    return self.data[s]
+            raise KeyError(f"band {int(key)} holds no row")
         return self.data[self._key(key)]
 
     def __setitem__(self, key, value):
+        t = type(key)
+        if t is int or t is _I64:
+            sl = self.slots.slot
+            if 0 <= key < len(sl):
+                s = sl[key]
+                if s >= 0:
+                    self.data[s] = value
+                    return
+            raise KeyError(f"band {int(key)} holds no row")
         self.data[self._key(key)] = value
 
     def rows(self):
