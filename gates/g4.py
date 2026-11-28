@@ -428,7 +428,9 @@ def worker(jobs, budget, ckpt: Path, arm: str):
             if w.year % 500 == 0:
                 print(f"w{ws} s{rs}{tag}: year {w.year}, {w.population():,} people, {len(w.events):,} events, "
                       f"{len(w.living_bands()):,} bands living, {w.band_rows.n:,} band rows, "
-                      f"{len(getattr(w, 'dz_log', [])):,} disease rows, {time.time() - start:.0f} s, "
+                      f"{len(getattr(w, 'dz_log', [])):,} disease rows, "
+                      f"{len(__import__('origins.sim.farming', fromlist=['x'])._QCACHE):,} cached skill rows, "
+                      f"{time.time() - start:.0f} s, "
                       f"peak memory {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.2f} GB", flush=True)
             if w.first_village is not None and "fv_deaths" not in pr:
                 pr["fv_deaths"] = {"by_cause": w.accum["deaths_by_cause"].tolist(), "by_age": w.accum["deaths"].tolist()}

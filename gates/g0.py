@@ -48,7 +48,17 @@ def _cpu() -> str:
 def _env():
     # the processor too: staged histories can cross machines (Codex review 040)
     return {"python": sys.version.split()[0], "numpy": np.__version__, "platform": platform.platform(),
-            "machine": platform.machine(), "cpu": _cpu()}
+            "machine": platform.machine(), "cpu": _cpu(), "numpy_simd": _simd(),
+            "openblas_coretype": __import__("os").environ.get("OPENBLAS_CORETYPE", "")}
+
+
+def _simd():
+    """The processor features NumPy is using (pinned for gates: .github/workflows/gate.yml, 28 November 2026)."""
+    try:
+        from numpy._core._multiarray_umath import __cpu_features__ as f
+        return sorted(k for k, v in f.items() if v)
+    except Exception:
+        return []
 
 
 def run_one(ws: int, rs: int, years: int) -> dict:

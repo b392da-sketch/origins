@@ -27,6 +27,12 @@ permissions:
 
 env:
   ORIGINS_MEM_TRACE: "1"        # memory at each part of loading and saving (G4a pilot 3, 26 November 2026)
+  # The same arithmetic on every runner processor (28 November 2026): NumPy picks different code for exp, log,
+  # arccos and powers on processors with AVX-512 than on those without, and the results differ in the last bits,
+  # so a history continued on another kind of machine diverged (G4a pilots 3-5 agreed to year 5,500 and not at
+  # 6,000). Every standard runner has AVX2 (x86-64-v3): NumPy uses only that, and OpenBLAS its Haswell kernels.
+  NPY_ENABLE_CPU_FEATURES: "X86_V3"
+  OPENBLAS_CORETYPE: "Haswell"
 jobs:
   plan:
     runs-on: ubuntu-latest

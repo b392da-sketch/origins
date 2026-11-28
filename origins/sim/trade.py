@@ -397,9 +397,8 @@ def partnerships_yearly(w, live):
     # gifts: lasting goods pass both ways each year, keeping the link alive and carrying goods along chains
     # (The rows are read and written in place, by slot: the same operations in the same order as move_good and the
     # per-band arrays, without the indexing on every one; speed before G4a, Ben 28 November 2026.)
-    _trade_in_size(w)
     gdata, gslot = w.goods.data, w.goods.slots.slot
-    tdata = w.trade_in.data
+    tdata = None                                 # the receipts table is made at the first gift, as before (review 044, 2)
     pof, pgave, pslot = w.partner_of, w.partner_gave.data, w.partner_slots.slot
     gift = [(j, g, GI[g], w.goods_ledger[g]) for j, g in enumerate(P.GIFT_GOODS)]
     share = P.GIFT_SHARE
@@ -412,6 +411,9 @@ def partnerships_yearly(w, live):
                 gb, go_ = pgave[pslot[b.id], kb], pgave[pslot[o], ko]
                 first = not (gb.any() or go_.any())
                 rb, ro = gdata[gslot[b.id]], gdata[gslot[o]]
+                if tdata is None:
+                    _trade_in_size(w)
+                    tdata = w.trade_in.data
                 sb, so = gslot[b.id], gslot[o]
                 for j, g, i, led in gift:
                     x, y = share * rb[i], share * ro[i]
@@ -836,13 +838,25 @@ def prestige_factor(w, polity_id: int) -> float:
         live = np.unique(np.concatenate([w.people.band[w.alive_idx()].astype(np.int64),
                                          G.band[G.rows()].astype(np.int64)]))   # every band holding anyone
         # c[1] is the length the full array had (next_band), compared with len(w.bands) as before
-        c = (w.t, w.next_band, live, w.sizes_of(live).astype(float))
+        sz = w.sizes_of(live).astype(float)
+        c = (w.t, w.next_band, live, sz, bool(np.all(sz == np.rint(sz))))
         w._sizes_tick = c
-    # Members are read from the bands holding anyone (polity_of fresh): a member holding nobody adds 0, and band
-    # sizes are whole numbers, so the sum is the same, in any order, as over every member id (speed before G4a,
-    # Ben 28 November 2026: this scanned all 2.4 million ids on every call).
+    # Members are read from the bands holding anyone (polity_of fresh): a member holding nobody adds 0, and when
+    # every size is a whole number the sum is the same, in any order, as over every member id (speed before G4a,
+    # Ben 28 November 2026: this scanned all 2.4 million ids on every call). A size that is not a whole number
+    # changes how the additions round, so then the sum is taken over every member id as before (review 044, 1).
     live, sz = c[2], c[3]
-    n = float(sz[w.polity_of[live] == polity_id].sum()) if len(live) else 0.0
+    if not len(live):
+        n = 0.0
+    elif c[4]:
+        n = float(sz[w.polity_of[live] == polity_id].sum())
+    else:
+        members = np.nonzero(w.polity_of[:c[1]] == polity_id)[0]
+        vals = np.zeros(len(members))
+        k = np.minimum(np.searchsorted(live, members), len(live) - 1)
+        ok = live[k] == members
+        vals[ok] = sz[k[ok]]
+        n = float(vals.sum())
     return float(np.clip(held / max(n, 1.0) / P.PRESTIGE_NEED, 0.0, 1.0))
 
 

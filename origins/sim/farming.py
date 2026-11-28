@@ -80,6 +80,7 @@ def _quality(s):
 
 
 _QCACHE: dict = {}
+QCACHE_MAX = 10_000
 
 
 def quality(skill):
@@ -92,7 +93,7 @@ def quality(skill):
     key = s.tobytes()
     q = _QCACHE.get(key)
     if q is None:
-        if len(_QCACHE) > 200_000:
+        if len(_QCACHE) >= QCACHE_MAX:           # (bounded: about 3.5 MB at this size; Codex review 044, 3)
             _QCACHE.clear()
         q = _quality(s)
         q.setflags(write=False)

@@ -145,3 +145,4 @@
 | 2026-11-27 | Claude | responses/043-...-claude.md (after the recheck) | Finding 6 in the page fixed: the band panel shows ended bands without customs; checked in Chromium with no page errors |
 | 2026-11-28 | Claude | requests/044-speed-before-the-gate.md | Exact speedups before G4a (Ben, 28 Nov): same event hashes on planets 3 and 4 (three saves); planet 4 at year 6,631 59.7 to 34.1 s a year |
 | 2026-11-28 | Codex | responses/044-speed-before-the-gate-codex.md | Verified gift and herding parity on paired fixtures, found bounded prestige and receipt-state differences, measured skill-cache memory, and ranked remaining exact speed work. |
+| 2026-11-28 | Claude | responses/044-speed-before-the-gate-claude.md | All three confirmed and fixed (prestige falls back to the full sum unless every size is whole; receipts table made at the first gift; skill cache capped at 10,000 and reported in gate lines); hashes unchanged |

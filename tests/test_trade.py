@@ -1367,3 +1367,60 @@ class Review038(unittest.TestCase):
         self.assertLess(trade._closeness(w, a, b), 1.0)                  # a new pass sees the change
         src = __import__("inspect").getsource(trade.partnerships_yearly)
         self.assertIn("close_cache: dict = {}", src)
+
+
+class Review044(unittest.TestCase):
+    """Codex review 044 (speed before the gate)."""
+
+    def test_finding1_prestige_with_a_size_not_a_whole_number_sums_over_every_member(self):
+        w = World.new(1, 1, generate(1))
+        a = w.living_bands()[0]
+        while w.next_band < 131:                            # Codex's fixture: 131 band ids, alternate ones holding
+            w.new_band(a.cell, parent=a.id)                 # people, all in one polity
+        pid = 0
+        if len(w.polity_of) < w.next_band:
+            w.polity_of = np.resize(w.polity_of, w.next_band)
+        w.polity_of[:] = pid
+        if w.treasury is None or len(w.treasury) <= pid:
+            w.treasury = np.zeros((1, trade.G))
+        w.treasury[pid, trade.GI[P.PRESTIGE_GOODS[0]]] = 0.37
+        w._sizes_tick = None
+        trade.prestige_factor(w, pid)                       # takes the snapshot (and its key)
+        t, nb = w._sizes_tick[0], w._sizes_tick[1]          # (main kept four entries, this code five)
+        live = np.arange(0, nb, 2, dtype=np.int64)
+        members = np.nonzero(w.polity_of[:nb] == pid)[0]    # main's sum: over every member id, empty ones at 0
+        k = np.minimum(np.searchsorted(live, members), len(live) - 1)
+        ok = live[k] == members
+        for seed in range(500):                             # sizes within the observer's tolerance of whole numbers,
+            rng = np.random.default_rng(seed)               # drawn until the two orders round differently
+            sz = rng.integers(1, 50, len(live)).astype(float) + rng.uniform(-5e-10, 5e-10, len(live))
+            vals = np.zeros(len(members))
+            vals[ok] = sz[k[ok]]
+            if float(vals.sum()) != float(sz.sum()):
+                break
+        self.assertNotEqual(float(vals.sum()), float(sz.sum()))
+        w._sizes_tick = (t, nb, live, sz, bool(np.all(sz == np.rint(sz))))
+        held = float(w.treasury[pid, [trade.GI[g] for g in P.PRESTIGE_GOODS]].sum())
+        want = float(np.clip(held / max(float(vals.sum()), 1.0) / P.PRESTIGE_NEED, 0.0, 1.0))
+        self.assertEqual(trade.prestige_factor(w, pid).hex(), want.hex())
+
+    def test_finding2_the_partnership_pass_makes_no_receipts_table_without_a_gift(self):
+        w = World.new(1, 1, generate(1))
+        w.trade_in = None
+        old = P.PARTNER_FORM
+        try:
+            P.PARTNER_FORM = 0.0
+            trade.partnerships_yearly(w, w.living_bands())
+        finally:
+            P.PARTNER_FORM = old
+        self.assertFalse(any(trade.partners(w, b.id) for b in w.living_bands()))
+        self.assertIsNone(w.trade_in)
+
+    def test_finding3_the_skill_cache_is_bounded(self):
+        from origins.sim import farming
+        farming._QCACHE.clear()
+        cap = getattr(farming, "QCACHE_MAX", 10_000)
+        for i in range(cap + 5):
+            farming.quality(np.full(9, i / 1e4, dtype=np.float32))
+        self.assertLessEqual(len(farming._QCACHE), 10_000)
+        farming._QCACHE.clear()
