@@ -61,7 +61,7 @@ def init(w):
     w.next_polity = 0
     w.polity_of = np.full(64, -1, dtype=np.int32)
     w.polity_via = np.full(64, -1, dtype=np.int32)
-    w.polity_log = []            # every 10 years: [year, polity, settlements, people, depth, load, capacity, institutions, tier, seat cell,
+    w.polity_log = PolityLog()   # every 10 years: [year, polity, settlements, people, depth, load, capacity, institutions, tier, seat cell,
                                  #  languages spoken, settlements once conquered]
     w.sec_stats = {}             # overload bin -> [member-years, secessions]
     w.polity_firsts = {}         # tier name -> event id of the first polity to reach it
@@ -735,20 +735,130 @@ def _under(w, x, top, seat) -> bool:
     return False
 
 
+# ------------------------------------------------------------------ the polity log
+class PolityLog:
+    """The polity log as a growing table (29 November 2026, after G4a pilot 5: 2.3 million rows held as Python
+    lists took about a gigabyte by year 9,315 on planet 4). It behaves as the list of rows it replaces: append,
+    len, iteration, indexing and `del log[:-k]` give and take lists, whole numbers as int and the load and capacity
+    (rounded to 2 places) as float, the same values a list held. Large tables live in a mapped file
+    (origins/spill.py)."""
+    WIDTH = 12
+    FLOATS = (5, 6)                               # load and capacity
+    INTS = (0, 1, 2, 3, 4, 7, 8, 9, 10, 11)        # the rest: whole numbers
+
+    def __init__(self, rows=()):
+        from .. import spill
+        self._i = spill.alloc((1024, len(self.INTS)), np.int64)
+        self._f = spill.alloc((1024, len(self.FLOATS)), np.float64)
+        self.n = 0
+        for r in rows:
+            self.append(r)
+
+    @classmethod
+    def from_arrays(cls, ints, floats):
+        from .. import spill
+        g = cls()
+        ints, floats = np.asarray(ints, dtype=np.int64), np.asarray(floats, dtype=np.float64)
+        cap = max(1024, len(ints) + len(ints) // 4)
+        g._i = spill.alloc((cap, len(cls.INTS)), np.int64)
+        g._f = spill.alloc((cap, len(cls.FLOATS)), np.float64)
+        g._i[:len(ints)], g._f[:len(floats)] = ints, floats
+        g.n = len(ints)
+        return g
+
+    def append(self, row):
+        if len(row) != self.WIDTH:
+            raise ValueError(f"polity log rows have {self.WIDTH} values, not {len(row)}")
+        if self.n == len(self._i):
+            from .. import spill
+            self._i, self._f = spill.regrow(self._i, 2 * self.n), spill.regrow(self._f, 2 * self.n)
+        vi = [row[k] for k in self.INTS]
+        if any(int(v) != v for v in vi):
+            raise ValueError(f"polity log: a value that is not a whole number in {row}")
+        self._i[self.n] = [int(v) for v in vi]
+        self._f[self.n] = [float(row[k]) for k in self.FLOATS]
+        self.n += 1
+
+    def _row(self, i):
+        out = [0] * self.WIDTH
+        for j, k in enumerate(self.INTS):
+            out[k] = int(self._i[i, j])
+        for j, k in enumerate(self.FLOATS):
+            out[k] = float(self._f[i, j])
+        return out
+
+    def __len__(self):
+        return self.n
+
+    def __iter__(self):
+        for a in range(0, self.n, 65_536):            # read in pieces, as lists
+            ii, ff = self._i[a:min(a + 65_536, self.n)].tolist(), self._f[a:min(a + 65_536, self.n)].tolist()
+            for ri, rf in zip(ii, ff):
+                out = [0] * self.WIDTH
+                for j, k in enumerate(self.INTS):
+                    out[k] = ri[j]
+                for j, k in enumerate(self.FLOATS):
+                    out[k] = rf[j]
+                yield out
+
+    def __getitem__(self, i):
+        if isinstance(i, slice):
+            return [self._row(j) for j in range(*i.indices(self.n))]
+        if i < 0:
+            i += self.n
+        if not 0 <= i < self.n:
+            raise IndexError("polity log index out of range")
+        return self._row(i)
+
+    def __delitem__(self, s):
+        keep = np.ones(self.n, dtype=bool)
+        keep[s] = False
+        k = int(keep.sum())
+        if k == self.n:
+            return
+        self._i[:k], self._f[:k] = self._i[:self.n][keep], self._f[:self.n][keep]
+        self.n = k
+
+    def __eq__(self, other):
+        return list(self) == list(other)
+
+    def arrays(self):
+        return self._i[:self.n], self._f[:self.n]
+
+
+def _log(w):
+    """w.polity_log as a PolityLog (older worlds and saves held a list)."""
+    g = getattr(w, "polity_log", None)
+    if not isinstance(g, PolityLog):
+        g = w.polity_log = PolityLog(g or [])
+    return g
+
+
 # ------------------------------------------------------------------ saving
-def to_json(w):
+def to_json(w, with_log=True):
+    """`with_log`: the log as rows (for a record or an older reader); saves keep it as arrays (log_arrays)."""
     from dataclasses import asdict
-    return {"next_polity": w.next_polity, "polities": [asdict(p) for p in w.polities.values()],
-            "polity_log": w.polity_log, "sec_stats": {str(k): v for k, v in w.sec_stats.items()},
-            "polity_firsts": w.polity_firsts}
+    d = {"next_polity": w.next_polity, "polities": [asdict(p) for p in w.polities.values()],
+         "sec_stats": {str(k): v for k, v in w.sec_stats.items()}, "polity_firsts": w.polity_firsts}
+    if with_log:
+        d["polity_log"] = list(_log(w))
+    return d
 
 
-def from_json(w, d):
+def log_arrays(w) -> dict:
+    i, f = _log(w).arrays()
+    return {"polity_log_i": i, "polity_log_f": f}
+
+
+def from_json(w, d, arrays=None):
     w.next_polity = d.get("next_polity", 0)
     w.polities = {}
     for x in d.get("polities", []):
         p = Polity(**x)
         w.polities[p.id] = p
-    w.polity_log = d.get("polity_log", [])
+    if arrays is not None and "polity_log_i" in arrays:
+        w.polity_log = PolityLog.from_arrays(arrays["polity_log_i"], arrays["polity_log_f"])
+    else:
+        w.polity_log = PolityLog(d.get("polity_log", []))
     w.sec_stats = {int(k): v for k, v in d.get("sec_stats", {}).items()}
     w.polity_firsts = d.get("polity_firsts", {})

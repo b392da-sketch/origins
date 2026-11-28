@@ -90,9 +90,10 @@ class Table:
         n = len(ints)
         if len(floats) != n:
             raise ValueError(f"compact log {kind}: {n} rows of whole numbers, {len(floats)} of amounts")
+        from .. import spill                       # large tables live in mapped files (origins/spill.py)
         cap = max(1024, n + n // 4)
-        self._i = np.zeros((cap, len(self.icol)), dtype=np.int32)
-        self._f = np.zeros((cap, len(self.fcol)))
+        self._i = spill.alloc((cap, len(self.icol)), np.int32)
+        self._f = spill.alloc((cap, len(self.fcol)), np.float64)
         self._i[:n] = _whole(ints, kind)
         self._f[:n] = floats
         self.n = n
@@ -109,10 +110,9 @@ class Table:
 
     def append(self, row) -> int:
         if self.n == len(self._i):
+            from .. import spill
             cap = 2 * len(self._i)
-            i, f = np.zeros((cap, self._i.shape[1]), dtype=np.int32), np.zeros((cap, self._f.shape[1]))
-            i[:self.n], f[:self.n] = self._i[:self.n], self._f[:self.n]
-            self._i, self._f = i, f
+            self._i, self._f = spill.regrow(self._i, cap), spill.regrow(self._f, cap)
         cols = COLUMNS[self.kind]
         vals = dict(zip(cols, row))
         self._i[self.n] = _whole(np.array([vals[c] for c in self.icol]), self.kind)
@@ -146,17 +146,17 @@ class Ints:
     """A growing int64 list (the givers of help)."""
 
     def __init__(self, a=None):
+        from .. import spill
         a = np.zeros(0, dtype=np.int64) if a is None else np.asarray(a, dtype=np.int64).ravel()
-        self._a = np.zeros(max(1024, len(a) + len(a) // 4), dtype=np.int64)
+        self._a = spill.alloc(max(1024, len(a) + len(a) // 4), np.int64)
         self._a[:len(a)] = a
         self.n = len(a)
 
     def extend(self, xs):
         xs = np.asarray(xs, dtype=np.int64)
         if self.n + len(xs) > len(self._a):
-            b = np.zeros(max(2 * len(self._a), self.n + len(xs)), dtype=np.int64)
-            b[:self.n] = self._a[:self.n]
-            self._a = b
+            from .. import spill
+            self._a = spill.regrow(self._a, max(2 * len(self._a), self.n + len(xs)))
         self._a[self.n:self.n + len(xs)] = xs
         self.n += len(xs)
 

@@ -333,7 +333,7 @@ class BandRows(unittest.TestCase):
 
     def test_a_schema_5_reader_refuses_these_saves(self):
         from origins import state
-        self.assertEqual(state.SCHEMA, 6)
+        self.assertGreaterEqual(state.SCHEMA, 6)          # (7 from 29 November 2026: the polity log as arrays)
         self.assertIn(5, state.READABLE_SCHEMAS)
 
 

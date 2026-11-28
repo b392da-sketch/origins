@@ -259,15 +259,18 @@ def _trace(label: str):
     if not os.environ.get("ORIGINS_MEM_TRACE"):
         return
     import resource
-    now = 0.0
+    now = anon = 0.0
     try:
         for line in open("/proc/self/status"):
             if line.startswith("VmRSS"):
                 now = int(line.split()[1]) / 1e6
+            if line.startswith("RssAnon"):
+                anon = int(line.split()[1]) / 1e6
     except OSError:
         pass
-    print(f"[mem] {label}: {now:.2f} GB in use, {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.2f} GB peak",
-          flush=True)
+    # (in use includes pages of mapped files, origins/spill.py, which the system can drop; anon cannot be)
+    print(f"[mem] {label}: {now:.2f} GB in use ({anon:.2f} GB anon), "
+          f"{resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.2f} GB peak", flush=True)
 
 
 def _trace_sizes(w, arrays: dict):
@@ -315,7 +318,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
         "reveal_pending": sorted(w.reveal_pending), "pending_restore": w.pending_restore,
         "env": environment(),
         "language": language.to_json(w), "hazards": w.hazards,
-        "farming": farming.to_json(w), "surplus": surplus.to_json(w), "polity": polity.to_json(w), "trade": __import__("origins.sim.trade", fromlist=["x"]).to_json(w),
+        "farming": farming.to_json(w), "surplus": surplus.to_json(w), "polity": polity.to_json(w, with_log=False), "trade": __import__("origins.sim.trade", fromlist=["x"]).to_json(w),
         "conflict": conflict.to_json(w), "timing": w.timing, "first_herders": getattr(w, "first_herders", None), "tech_firsts": getattr(w, "tech_firsts", {}), "tech_writing_log": getattr(w, "tech_writing_log", []), "goods_ledger": getattr(w, "goods_ledger", None), "log_strides": w.log_strides,
         "disease": __import__("origins.sim.disease", fromlist=["x"]).to_json(w),
         "places": __import__("origins.sim.places", fromlist=["x"]).to_json(w),
@@ -343,6 +346,7 @@ def to_file(w: World, f, fast: bool = False) -> None:
         arrays["dz_log"] = _disease.log_array(w)          # the per-cell disease record, as an array (review 037)
     from .sim import minorlog as _minor
     arrays.update(_minor.arrays(w))                       # the compact log (Ben, 22 November 2026)
+    arrays.update(polity.log_arrays(w))                   # the polity log, as a table (29 November 2026)
     arrays.update({"p_" + k: v for k, v in w.people.arrays().items()})
     arrays.update({"g_" + k: v for k, v in w.groups.arrays().items()})
     arrays.update({"b_" + k: v for k, v in w.bands.arrays().items()})
@@ -352,8 +356,8 @@ def to_file(w: World, f, fast: bool = False) -> None:
         parts = []
         with z.open("meta.json", "w", force_zip64=True) as out:
             out.write(b"{")
-            for j, (k, v) in enumerate(_jsonable(meta).items()):
-                b = (("," if j else "") + json.dumps(k) + ":" + json.dumps(v, separators=(",", ":"))).encode()
+            for j, (k, v) in enumerate(meta.items()):        # each part converted as it is written (29 Nov 2026)
+                b = (("," if j else "") + json.dumps(str(k)) + ":" + json.dumps(_jsonable(v), separators=(",", ":"))).encode()
                 out.write(b)
                 parts.append((len(b), k))
             out.write(b"}")
@@ -579,7 +583,8 @@ def from_file(src, planet=None) -> World:
         from .sim import trade as _tr
         _tr.from_json(w, meta.get("trade"))
         if "polity" in meta:
-            polity.from_json(w, meta["polity"])
+            polity.from_json(w, meta["polity"], arrays)      # the log from its arrays (schema 7) or the old rows
+            _drop(arrays, "polity_log_i", "polity_log_f")
         if "conflict" in meta:
             conflict.from_json(w, meta["conflict"])
         w.people.languages = w.languages
@@ -669,11 +674,13 @@ def digest(w: World) -> str:
              # the events of the last PLACE_CHECK_YEARS, which the places pass reads (conquests and whom they moved),
              # not only the count and the last event (Codex review 035, finding 2)
              "recent_events": _recent_events(w),
-             "polity": polity.to_json(w), "conflict": conflict.to_json(w),
+             "polity": polity.to_json(w, with_log=False), "conflict": conflict.to_json(w),
              "partner_dropped": getattr(w, "partner_dropped", {}),
              "routes_seen": sorted(getattr(w, "routes_seen", set())),
              "trade_links": getattr(w, "trade_links", []),
              "evaded_seen": sorted(getattr(w, "evaded_seen", set())),
              "rows_kept": sorted(getattr(w, "rows_kept", set()))}
     h.update(json.dumps(_jsonable(small), sort_keys=True).encode())
+    for a in polity.log_arrays(w).values():               # the polity log, by its table (29 November 2026)
+        h.update(np.ascontiguousarray(a).tobytes())
     return h.hexdigest()[:20]
