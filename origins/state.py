@@ -17,10 +17,11 @@ from . import names as N
 from . import params as P
 from .worldgen import Planet, generate
 
-SCHEMA = 6                       # 4: per-band rows only for bands holding one, and the compact log (22 Nov 2026);
+SCHEMA = 7                       # 4: per-band rows only for bands holding one, and the compact log (22 Nov 2026);
                                  # 5: the compact log in int32 and float64 columns (26 Nov 2026);
-                                 # 6: every per-band array as band rows, for living bands only (27 Nov 2026)
-READABLE_SCHEMAS = (1, 2, 3, 4, 5, 6)  # (reviews 040, 042: a reader of an older schema must refuse newer saves)
+                                 # 6: every per-band array as band rows, for living bands only (27 Nov 2026);
+                                 # 7: the polity log as arrays, not in meta.json (29 Nov 2026)
+READABLE_SCHEMAS = (1, 2, 3, 4, 5, 6, 7)  # (reviews 040, 042: a reader of an older schema must refuse newer saves)
 VERSION = "0.2.0-M1"
 
 CAUSES = ["", "infancy and early childhood", "hunger", "accident or illness",
@@ -54,17 +55,16 @@ class People:
 
     @staticmethod
     def _blank(f, dt, cap):
-        return np.zeros(cap, dtype=dt) if f in _ZERO_DEFAULT else np.full(cap, -1, dtype=dt)
+        from . import spill
+        return spill.alloc(cap, dt, 0 if f in _ZERO_DEFAULT else -1)
 
     def _grow(self, need: int):
+        from . import spill                       # large fields live in mapped files (origins/spill.py)
         cap = len(self.alive)
         while cap < need:
             cap *= 2
         for f, dt in FIELDS.items():
-            old = getattr(self, f)
-            new = self._blank(f, dt, cap)
-            new[:len(old)] = old
-            setattr(self, f, new)
+            setattr(self, f, spill.regrow(getattr(self, f), cap, 0 if f in _ZERO_DEFAULT else -1))
 
     def add_many(self, k: int) -> np.ndarray:
         if self.n + k > len(self.alive):
@@ -83,7 +83,7 @@ class People:
         return N.render(int(self.name_a[i]), int(self.name_b[i]), self.sex[i] == 0)
 
     def arrays(self) -> dict:
-        return {f: getattr(self, f)[:self.n].copy() for f in FIELDS}
+        return {f: getattr(self, f)[:self.n] for f in FIELDS}   # views: a save reads them, a copy would double them
 
     @classmethod
     def from_arrays(cls, d: dict) -> "People":

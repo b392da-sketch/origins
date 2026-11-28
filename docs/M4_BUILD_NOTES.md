@@ -1429,3 +1429,49 @@ No single part dominates any more. Further gains would need restructuring the pe
 - The runner was about 0.8 times this container's time on pilot 4, which suggests about 27 s a year on the runner at year 6,631.
 - The planet-4 histories grow until their end, and time per year grows with them.
 - Ten stages are still unlikely to be enough for planet 4. Pilot 5, on this code, will measure it.
+
+### Old records on disk (29 November 2026; Ben chose this over bigger runners or a shorter target)
+
+**Why.** Pilot 5's memory traces showed the world's own memory growing with history:
+
+| Restored at year | World in memory |
+|---|---|
+| 7,508 | 5.3 GB |
+| 8,773 | 8.0 GB |
+
+The save peak reached 11.9 GB. The growth was in:
+- the compact log, about 3.2 GB by year 9,315;
+- people, every person ever born, 1.7 GB;
+- the polity log, 2.3 million rows as Python lists, about 1 GB;
+- the disease log, 0.4 GB.
+
+On that trend a planet-4 history would have passed the runner's 16 GB before year 11,248.
+
+**What changed:**
+- **Mapped files (`origins/spill.py`):** an array of 32 MB or more is kept in a file mapped into memory. NumPy reads and writes it with the same bits; the system keeps only the pages in use and can drop the rest. A mapped array grows by growing its file, with nothing copied. This applies to:
+  - people's fields;
+  - the compact log's tables and givers;
+  - the disease log;
+  - the polity log.
+- **The polity log (`polity.PolityLog`)** is a table, not a list of lists. It behaves as the list it replaces: the same rows, values and types. Saves keep it as two arrays (schema 7), and older saves' rows load into it. Gate records still carry it as rows.
+- **Saving copies less:**
+  - people's fields are written from views, not copies;
+  - `meta.json` is converted part by part as it is written, not all at once first.
+- **On the runner:** temporary and mapped files go to its larger disk (`/mnt`) when it has one.
+- **Gate output:** gate lines report the memory the system cannot drop (anon) and the free disk.
+
+**Exactness:**
+- **Planet 3,** 20 years from year 9,910: `f9eb76a6d77265d1`, as before.
+- **Planet 4,** 5 years from year 6,631: `c3e0b565819d60f0`, with the same 5,227,815 events and 4,178,611 people.
+- **Mapped or not:** a world loaded with arrays mapped and one without digest alike and replay alike (`tests/test_spill.py`).
+- **The full suite** also passes with the threshold at 4 KB, so the mapped path runs nearly everywhere.
+
+**Measured on pilot 4's year-6,631 checkpoint** (this container):
+
+| | Main | Now |
+|---|---|---|
+| Memory after loading that the system cannot drop | 5.19 GB | 2.47 GB (plus 2.43 GB of mapped pages it can) |
+| Saving | did not finish in this container's 8 GB | anon peak 2.68 GB |
+| Speed, 5 years from year 6,631 | 44.1 s a year | about 40 s a year (40.9 with mapping turned off) |
+
+The mapped files do not slow the simulation; the small gain over main comes from saving and the polity log, not the mapping. The earlier 34 s a year in this container was noise from other work running at the same time.

@@ -87,9 +87,10 @@ class RowLog:
 
     @classmethod
     def from_array(cls, a):
+        from .. import spill                       # a large record lives in a mapped file (origins/spill.py)
         g = cls()
         a = np.asarray(a, dtype=np.float64).reshape(-1, len(LOG_FIELDS))
-        g._a = np.zeros((max(1024, 2 * len(a)), len(LOG_FIELDS)))
+        g._a = spill.alloc((max(1024, 2 * len(a)), len(LOG_FIELDS)), np.float64)
         g._a[:len(a)] = a
         g.n = len(a)
         return g
@@ -99,9 +100,8 @@ class RowLog:
 
     def append(self, row):
         if self.n == len(self._a):
-            b = np.zeros((2 * len(self._a), self._a.shape[1]))
-            b[:self.n] = self._a
-            self._a = b
+            from .. import spill
+            self._a = spill.regrow(self._a, 2 * len(self._a))
         self._a[self.n] = row
         self.n += 1
 

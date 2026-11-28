@@ -385,8 +385,30 @@ def finish(w, ws, rs, seconds, pr, tag):
 
 
 def _rss():
+    """Peak memory (GB), including pages of mapped files (origins/spill.py), which the system can drop."""
     import resource
     return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6
+
+
+def _anon():
+    """Memory in use now that the system cannot drop (GB): what decides whether a stage runs out."""
+    try:
+        for line in open("/proc/self/status"):
+            if line.startswith("RssAnon"):
+                return int(line.split()[1]) / 1e6
+    except OSError:
+        pass
+    return 0.0
+
+
+def _disk_free():
+    """Free disk where the mapped files and temporary files go (GB)."""
+    import shutil
+    import tempfile
+    try:
+        return shutil.disk_usage(tempfile.gettempdir()).free / 1e9
+    except OSError:
+        return 0.0
 
 
 def worker(jobs, budget, ckpt: Path, arm: str):
@@ -431,7 +453,8 @@ def worker(jobs, budget, ckpt: Path, arm: str):
                       f"{len(getattr(w, 'dz_log', [])):,} disease rows, "
                       f"{len(__import__('origins.sim.farming', fromlist=['x'])._QCACHE):,} cached skill rows, "
                       f"{time.time() - start:.0f} s, "
-                      f"peak memory {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.2f} GB", flush=True)
+                      f"peak memory {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.2f} GB, "
+                      f"{_anon():.2f} GB anon, {_disk_free():.0f} GB disk free", flush=True)
             if w.first_village is not None and "fv_deaths" not in pr:
                 pr["fv_deaths"] = {"by_cause": w.accum["deaths_by_cause"].tolist(), "by_age": w.accum["deaths"].tolist()}
             if time.time() > t_end:

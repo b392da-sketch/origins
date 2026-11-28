@@ -11,6 +11,11 @@ GATE=$(python3 -c "import json;print(json.load(open('$REQ'))['gate'])")
 YEARS=$(python3 -c "import json;print(json.load(open('$REQ')).get('years',5000))")
 export ORIGINS_AFTER_FIRST=$(python3 -c "import json;print(json.load(open('$REQ')).get('after_first',6000))")
 CKPT=${CKPT:-/tmp/ckpt}
+# Temporary files and mapped arrays (origins/spill.py) on the runner's larger disk when it has one (29 Nov 2026)
+if [ -d /mnt ] && sudo -n true 2>/dev/null; then
+  sudo mkdir -p /mnt/origins-tmp && sudo chown "$(id -u)" /mnt/origins-tmp && export TMPDIR=/mnt/origins-tmp
+fi
+df -h / "${TMPDIR:-/tmp}" | sed 's/^/disk: /' || true
 BUDGET=${BUDGET:-16200}          # 4.5 hours, leaving time to save a large world before the 5h50m limit
 rm -rf gates/results_$GATE          # keep only this job's own results (the repository holds earlier ones)
 mkdir -p "$CKPT"
